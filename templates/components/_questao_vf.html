@@ -1,0 +1,11 @@
+<form hx-post="/htmx/responder" hx-target="#questao-area">
+  <input type="hidden" name="tipo" value="vf">
+  <input type="hidden" name="questao_id" value="{{ questao.id }}">
+  <p>{{ questao.enunciado }}</p>
+  {% for item in questao.itens_vf %}
+    <p>{{ item.ordem }}. {{ item.afirmacao }}</p>
+    <label><input type="radio" name="vf_{{ item.ordem }}" value="true"> Verdadeiro</label>
+    <label><input type="radio" name="vf_{{ item.ordem }}" value="false"> Falso</label>
+  {% endfor %}
+  <button type="submit">Responder</button>
+</form>

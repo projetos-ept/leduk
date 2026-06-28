@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>LeDuk</title></head>
+<body>
+<h1>LeDuk — Atividades</h1>
+{% for turma in turmas %}
+  <a href="/atividade/{{ turma.id }}">{{ turma.nome }}</a>
+{% endfor %}
+</body>
+</html>

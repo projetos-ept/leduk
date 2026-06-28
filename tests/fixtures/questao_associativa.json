@@ -1,0 +1,13 @@
+{
+  "id": "q003assoc",
+  "tipo": "associativa",
+  "enunciado": "Associe cada exame ao seu principal analito:",
+  "dificuldade": "media",
+  "feedback_geral": "Cada exame laboratorial possui seu principal analito diagnóstico.",
+  "pares_associativos": [
+    {"ordem": 1, "coluna_a": "Glicemia em jejum",    "coluna_b": "Glicose"},
+    {"ordem": 2, "coluna_a": "Ureia sérica",          "coluna_b": "Ureia"},
+    {"ordem": 3, "coluna_a": "TGO / AST",             "coluna_b": "Aspartato aminotransferase"},
+    {"ordem": 4, "coluna_a": "Creatinina",            "coluna_b": "Creatinina"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "q002vf",
+  "tipo": "vf",
+  "enunciado": "Analise as afirmações sobre hemograma:",
+  "dificuldade": "facil",
+  "feedback_geral": "Revise os valores de referência do hemograma completo.",
+  "itens_vf": [
+    {"ordem": 1, "afirmacao": "O valor de referência para hemoglobina em homens adultos é 13–18 g/dL.", "gabarito": true,  "feedback": null},
+    {"ordem": 2, "afirmacao": "Leucócitos acima de 11.000/mm³ indicam leucopenia.",                     "gabarito": false, "feedback": "Leucócitos acima de 11.000/mm³ indicam leucocitose, não leucopenia."},
+    {"ordem": 3, "afirmacao": "Plaquetas normais variam entre 150.000 e 400.000/mm³.",                  "gabarito": true,  "feedback": null}
+  ]
+}

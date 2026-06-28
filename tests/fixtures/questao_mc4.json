@@ -1,0 +1,13 @@
+{
+  "id": "q001mc4",
+  "tipo": "mc4",
+  "enunciado": "Qual microrganismo é responsável pela malária?",
+  "dificuldade": "media",
+  "feedback_geral": "A malária é causada pelo protozoário Plasmodium, transmitido pelo mosquito Anopheles.",
+  "alternativas": [
+    {"letra": "A", "texto": "Plasmodium falciparum", "correta": true,  "feedback": null},
+    {"letra": "B", "texto": "Trypanosoma cruzi",    "correta": false, "feedback": "Trypanosoma cruzi causa a doença de Chagas, não malária."},
+    {"letra": "C", "texto": "Leishmania donovani",  "correta": false, "feedback": "Leishmania donovani causa leishmaniose visceral."},
+    {"letra": "D", "texto": "Toxoplasma gondii",    "correta": false, "feedback": "Toxoplasma gondii causa toxoplasmose."}
+  ]
+}
