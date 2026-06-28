@@ -66,6 +66,22 @@ class PocketBaseClient:
         )
         return result.get("items", [])
 
+    def login_aluno(self, email: str, senha: str) -> dict:
+        """POST /api/collections/users/auth-with-password → {token, record}."""
+        return self._post(
+            "/api/collections/users/auth-with-password",
+            {"identity": email, "password": senha},
+        )
+
+    def get_aluno(self, token: str) -> dict:
+        """GET /api/collections/users/records/me com token do aluno."""
+        resp = requests.get(
+            f"{self.base_url}/api/collections/users/records/me",
+            headers={"Authorization": token, "Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     def registrar_tentativa(self, dados: dict) -> dict:
         return self._post("/api/collections/tentativas/records", dados)
 

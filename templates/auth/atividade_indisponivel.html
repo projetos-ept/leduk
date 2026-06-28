@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LeDuk — Atividade indisponível</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<div class="shell">
+  <div class="indisponivel-card">
+    <div class="placar-icone">🔒</div>
+    <h2 class="placar-titulo">Atividade indisponível</h2>
+    <p class="placar-msg">
+      {% if motivo == "inativa" %}
+        Esta atividade não está ativa no momento.
+      {% elif motivo == "ainda_nao" %}
+        Esta atividade ainda não está disponível. Volte mais tarde.
+      {% elif motivo == "expirada" %}
+        O prazo desta atividade já encerrou.
+      {% else %}
+        Não foi possível acessar esta atividade agora.
+      {% endif %}
+    </p>
+    <a href="/" class="btn-home">Voltar ao início</a>
+  </div>
+</div>
+</body>
+</html>
