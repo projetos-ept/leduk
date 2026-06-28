@@ -1,10 +1,32 @@
-<form hx-post="/htmx/responder" hx-target="#questao-area">
-  <input type="hidden" name="tipo" value="associativa">
-  <input type="hidden" name="questao_id" value="{{ questao.id }}">
-  <p>{{ questao.enunciado }}</p>
-  {% for par in questao.pares_associativos %}
-    <p>{{ par.ordem }}. {{ par.coluna_a }}</p>
-    <input type="text" name="par_{{ par.ordem }}" placeholder="Coluna B">
-  {% endfor %}
-  <button type="submit">Responder</button>
-</form>
+<div class="card" data-num="{{ num }}" data-total="{{ total }}">
+  <p class="enunciado">{{ questao.enunciado }}</p>
+
+  <form hx-post="/htmx/responder"
+        hx-target="#questao-area"
+        hx-swap="innerHTML">
+    <input type="hidden" name="tipo"       value="associativa">
+    <input type="hidden" name="questao_id" value="{{ questao.id }}">
+    <input type="hidden" name="ativ_id"    value="{{ ativ_id }}">
+
+    <div class="pares">
+      {% for par in questao.pares_associativos %}
+        <div class="par-row">
+          <span class="col-a">
+            {{ par.coluna_a }}
+            {% if par.imagem_a %}
+              <img src="{{ par.imagem_a }}" alt="">
+            {% endif %}
+          </span>
+          <select name="par_{{ par.ordem }}" required>
+            <option value="">— selecione —</option>
+            {% for opcao in questao.pares_associativos %}
+              <option value="{{ opcao.coluna_b }}">{{ opcao.coluna_b }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+    </div>
+
+    <button class="btn-responder" type="submit">Responder</button>
+  </form>
+</div>

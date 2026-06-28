@@ -1,8 +1,33 @@
-<div class="feedback {% if resultado.correta %}correta{% else %}errada{% endif %}">
-  {% if resultado.correta %}
-    <p>Correto!</p>
-  {% else %}
-    <p>Incorreto. {{ resultado.feedback }}</p>
+{% set correta = resultado.correta %}
+<div class="feedback-card {{ 'correta' if correta else 'errada' }}">
+
+  <div class="feedback-icone">{{ '✓' if correta else '✗' }}</div>
+
+  <p class="feedback-titulo">
+    {% if correta %}Resposta correta!{% else %}Resposta incorreta{% endif %}
+  </p>
+
+  {% if resultado.feedback %}
+    <p class="feedback-texto">{{ resultado.feedback }}</p>
   {% endif %}
-  <p>Pontuação: {{ resultado.score_raw }} / {{ resultado.score_max }}</p>
+
+  {% if not correta and resultado.resposta_correta is defined %}
+    <p class="feedback-gabarito">
+      Resposta correta: <strong>{{ resultado.resposta_correta }}</strong>
+    </p>
+  {% endif %}
+
+  {% if resultado.score_max > 1 %}
+    <p class="feedback-score">
+      Acertos nesta questão: {{ resultado.score_raw }} / {{ resultado.score_max }}
+    </p>
+  {% endif %}
+
+  <button class="btn-proxima"
+          hx-get="/htmx/proxima/{{ ativ_id }}"
+          hx-target="#questao-area"
+          hx-swap="innerHTML">
+    Próxima →
+  </button>
+
 </div>

@@ -1,4 +1,33 @@
-<div class="placar">
-  <h2>Resultado Final</h2>
-  <p>{{ score_raw }} / {{ score_max }} pontos</p>
+{% set pct = ((score_raw / score_max * 100) | int) if score_max > 0 else 0 %}
+
+{% if pct >= 80 %}
+  {% set icone = "🎉" %}
+  {% set titulo = "Excelente!" %}
+  {% set msg = "Você domina o conteúdo. Continue assim!" %}
+  {% set cor = "var(--sucesso)" %}
+{% elif pct >= 50 %}
+  {% set icone = "👍" %}
+  {% set titulo = "Bom trabalho!" %}
+  {% set msg = "Você está no caminho certo. Revise os pontos errados." %}
+  {% set cor = "var(--aviso)" %}
+{% else %}
+  {% set icone = "📚" %}
+  {% set titulo = "Continue estudando!" %}
+  {% set msg = "Revise o conteúdo e tente novamente." %}
+  {% set cor = "var(--erro)" %}
+{% endif %}
+
+<div class="placar-card">
+  <div class="placar-icone">{{ icone }}</div>
+  <h2 class="placar-titulo">{{ titulo }}</h2>
+  <p class="placar-msg">{{ msg }}</p>
+
+  <div class="placar-numero">{{ score_raw }}</div>
+  <p class="placar-detalhe">de {{ score_max }} ponto{{ 's' if score_max != 1 }} — {{ pct }}% de aproveitamento</p>
+
+  <div class="placar-barra">
+    <div class="placar-fill" style="width: {{ pct }}%; background: {{ cor }};"></div>
+  </div>
+
+  <a class="btn-home" href="/">Voltar ao início</a>
 </div>
