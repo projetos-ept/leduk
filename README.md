@@ -11,8 +11,10 @@ leduk/
 ├── app.py                  ← aplicação Flask (factory create_app)
 ├── questao.py              ← lógica de validação e cálculo de score
 ├── pb.py                   ← cliente HTTP para o PocketBase
+├── gunicorn.conf.py        ← bind, workers, wsgi_app = "app:create_app()"
+├── deploy.sh               ← pull → pip install → restart → health check
 ├── requirements.txt        ← dependências de produção
-├── requirements-dev.txt    ← dependências de desenvolvimento (pytest etc.)
+├── requirements-dev.txt    ← pytest, pytest-flask, responses
 ├── pytest.ini
 │
 ├── templates/
@@ -29,15 +31,17 @@ leduk/
 │       ├── turma.html
 │       └── aluno.html
 │
+├── static/css/base.css     ← identidade visual + temas por disciplina
+│
 └── tests/
-    ├── conftest.py             ← fixtures compartilhadas (app, client, questões)
+    ├── conftest.py
     ├── fixtures/
     │   ├── questao_mc4.json
     │   ├── questao_vf.json
     │   └── questao_associativa.json
     ├── unit/
-    │   ├── test_questao.py     ← validação de respostas mc / vf / associativa
-    │   └── test_score.py       ← calcular_score para todos os tipos
+    │   ├── test_questao.py
+    │   └── test_score.py
     └── integration/
         ├── test_rotas_atividade.py
         ├── test_rotas_htmx.py
@@ -96,7 +100,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 31 testes, todos passando.
+**Resultado esperado:** 33 testes, todos passando.
 
 ---
 
@@ -105,7 +109,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/health` | Health check |
-| GET | `/` | Home com lista de turmas |
+| GET | `/` | Home com atividades agrupadas por turma |
 | GET | `/atividade/<id>` | Shell da atividade (inicia fila de questões) |
 | GET | `/htmx/questao/<id>` | Fragmento HTML da questão |
 | POST | `/htmx/responder` | Valida resposta e retorna feedback |
@@ -117,7 +121,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 ### Fluxo HTMX
 
 ```
-GET /atividade/<id>          ← carrega shell + primeira questão
+GET /atividade/<id>          ← carrega shell + primeira questão via hx-trigger
         ↓
 GET /htmx/questao/<id>       ← renderiza fragmento mc / vf / associativa
         ↓
@@ -127,7 +131,7 @@ _feedback.html               ← exibe correto/incorreto + feedback
         ↓
 GET /htmx/proxima/<ativ_id>  ← próxima questão (repete até o fim)
         ↓
-GET /htmx/resultado/<id>     ← placar final
+_placar.html                 ← placar final injetado em #questao-area
 ```
 
 ---
@@ -147,7 +151,9 @@ Funções puras, sem dependência de Flask ou rede — testáveis isoladamente.
 
 ## Collections PocketBase
 
-| Collection | ID fixo | Descrição |
+### IDs fixos
+
+| Collection | ID | Descrição |
 |---|---|---|
 | users | `_pb_users_auth_` | Alunos e professores |
 | turmas | `0xiasmpkvxqig9c` | Turmas (EMI / PROEJA / FIC / EJA) |
@@ -187,6 +193,69 @@ atividades  → agrupa questoes[] por turma + disciplina
 tentativas  → log de cada resposta (aluno, questão, correta, score)
 ```
 
+### Ordem de criação obrigatória
+
+O PocketBase rejeita campos `relation` que apontam para collections inexistentes. Criar sempre nessa ordem:
+
+```
+1. turmas
+2. disciplinas
+3. turma_disciplina   (depende de turmas + disciplinas)
+4. questoes           (depende de disciplinas)
+5. alternativas       (depende de questoes)
+6. itens_vf           (depende de questoes)
+7. pares_associativos (depende de questoes)
+8. tentativas         (depende de turmas + disciplinas + questoes)
+9. atividades         (depende de turmas + disciplinas + questoes)
+```
+
+Capturar IDs dinamicamente após cada criação:
+
+```bash
+ID_TURMAS=$(curl -s -X POST ".../api/collections" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"turmas",...}' | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+```
+
+### Campos `bool` nunca devem ser `required: true`
+
+O PocketBase trata `false` como valor vazio em campos bool obrigatórios e rejeita a inserção com `validation_required`. Sempre usar `"required": false` em campos bool:
+
+```json
+{"name": "correta",    "type": "bool", "required": false}
+{"name": "ativa",      "type": "bool", "required": false}
+{"name": "embaralhar", "type": "bool", "required": false}
+```
+
+### Regras de acesso (listRule / viewRule)
+
+Collections criadas via API ficam com acesso restrito a admins por padrão. O Flask recebe HTTP 403 ao tentar listas turmas, questões e alternativas sem liberar as regras.
+
+Liberar em lote logo após criar as collections:
+
+```bash
+for col in turmas disciplinas atividades questoes alternativas itens_vf pares_associativos; do
+  ID=$(curl -s ".../api/collections/${col}" -H "Authorization: Bearer $TOKEN" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  curl -s -X PATCH ".../api/collections/${ID}" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d '{"listRule":"","viewRule":""}' > /dev/null
+  echo "liberado: $col"
+done
+```
+
+Regras por collection:
+
+| Collection | listRule | viewRule | createRule | Observação |
+|---|---|---|---|---|
+| turmas | `""` | `""` | admin | leitura pública |
+| disciplinas | `""` | `""` | admin | leitura pública |
+| questoes | `""` | `""` | admin | leitura pública |
+| alternativas | `""` | `""` | `""` | leitura + escrita pública (seed) |
+| itens_vf | `""` | `""` | admin | leitura pública |
+| atividades | `""` | `""` | admin | leitura pública |
+| tentativas | restrito | restrito | `""` | apenas escrita pública |
+
 ---
 
 ## Infraestrutura de produção
@@ -213,6 +282,41 @@ journalctl -u pocketbase -f
 journalctl -u leduk -f
 ```
 
+### Gunicorn e factory `create_app()`
+
+O `app.py` usa o padrão factory. O Gunicorn **não** encontra um atributo `app` direto — a configuração correta fica em `gunicorn.conf.py`:
+
+```python
+bind    = "127.0.0.1:8091"
+workers = 2
+wsgi_app = "app:create_app()"
+```
+
+O `ExecStart` do service deve ser:
+```
+ExecStart=/opt/leduk/.venv/bin/gunicorn -c /opt/leduk/gunicorn.conf.py app:create_app()
+```
+
+O `deploy.sh` detecta e corrige o `ExecStart` automaticamente se ainda estiver com o padrão antigo `app:app`.
+
+### Deploy
+
+```bash
+bash /opt/leduk/deploy.sh
+```
+
+O script executa: `git pull` → `pip install` → corrige ExecStart → `systemctl restart leduk` → `curl /health`.
+
+**Atenção:** o setup cria arquivos localmente antes do primeiro `git pull`. Se o pull for bloqueado por arquivos não rastreados, usar:
+
+```bash
+git checkout -f HEAD -- . 2>/dev/null || true
+git clean -fd --exclude=.venv 2>/dev/null || true
+git pull origin main
+```
+
+Esse padrão já está embutido no `deploy.sh`.
+
 ### Setup do zero
 
 ```bash
@@ -228,7 +332,7 @@ O script executa em ordem:
 4. Estrutura Flask + venv + Gunicorn
 5. Nginx com proxy para ambos os subdomínios
 6. SSL via Certbot
-7. Criação das 9 collections com IDs fixos
+7. Criação das 9 collections com IDs capturados dinamicamente
 
 Para resetar antes de rodar novamente:
 
@@ -257,17 +361,45 @@ Objetivo: manter abaixo de 250 MB em produção.
 
 ### Autenticação
 
+O token JWT expira em ~30 minutos. **Sempre reautenticar no início de cada bloco de operações**, nunca reutilizar token de sessão anterior.
+
 ```bash
-curl -X POST https://pb.repoept.duckdns.org/api/admins/auth-with-password \
+TOKEN=$(curl -s -X POST https://pb.repoept.duckdns.org/api/admins/auth-with-password \
   -H "Content-Type: application/json" \
-  -d '{"identity":"email@exemplo.com","password":"senha"}'
+  -d "{\"identity\":\"$EMAIL\",\"password\":\"$PASS\"}" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+[ -z "$TOKEN" ] && echo "ERRO: autenticação falhou" && exit 1
+echo "Token obtido: ${TOKEN:0:20}..."
 ```
+
+### Inserções em lote — usar Python, não bash
+
+Caracteres Unicode como `→` dentro de strings bash com escape manual são interpretados pelo shell como redirecionamento de saída, corrompendo silenciosamente os dados. Para inserções em lote, **sempre usar Python**:
+
+```python
+import requests
+
+headers = {"Authorization": f"Bearer {TOKEN}"}
+
+requests.post(f"{PB}/api/collections/alternativas/records",
+    headers=headers,
+    json={
+        "questao":   questao_id,
+        "letra":     "A",
+        "texto":     "Texto sem risco de escape — acentos e símbolos funcionam normalmente",
+        "correta":   False,
+        "feedback":  "Feedback da alternativa"
+    })
+```
+
+Se precisar de setas em textos, usar `->` ou `para` no lugar de `→`.
 
 ### Criar questão mc5
 
 ```bash
 curl -X POST https://pb.repoept.duckdns.org/api/collections/questoes/records \
-  -H "Authorization: Bearer TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "enunciado": "Qual Ig atravessa a barreira placentária?",
@@ -283,7 +415,7 @@ curl -X POST https://pb.repoept.duckdns.org/api/collections/questoes/records \
 
 ```bash
 curl -X POST https://pb.repoept.duckdns.org/api/collections/alternativas/records \
-  -H "Authorization: Bearer TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "questao": "ID_QUESTAO",
@@ -298,7 +430,7 @@ curl -X POST https://pb.repoept.duckdns.org/api/collections/alternativas/records
 
 ```bash
 curl -X POST https://pb.repoept.duckdns.org/api/collections/questoes/records \
-  -H "Authorization: Bearer TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -F "enunciado=Identifique a morfologia:" \
   -F "tipo=mc4" \
   -F "disciplina=ID_DISCIPLINA" \
@@ -310,8 +442,41 @@ curl -X POST https://pb.repoept.duckdns.org/api/collections/questoes/records \
 ```bash
 curl "https://pb.repoept.duckdns.org/api/collections/questoes/records\
 ?filter=(disciplina='ID'%26%26tipo='mc5')&sort=-created&perPage=20" \
-  -H "Authorization: Bearer TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 ```
+
+---
+
+## Dados de teste ativos
+
+Registros seed presentes na instância de produção para validação do fluxo completo:
+
+| Entidade | Nome | ID |
+|---|---|---|
+| Turma | 5TACN1 PROEJA | `z4brq8v61otdx5u` |
+| Disciplina | IATS | `slip1kmh6zuxnxp` |
+| Atividade | LIS | `h4if2m9rcywllur` |
+| Questão mc5 | Fases do LIS | `zouibbp2kcmxkp7` |
+| Questão mc5 | Conformidade | `vtpl1lyp4x1rd27` |
+| Questão mc5 | Coleta e triagem | `vgx9b5jyxspov73` |
+| Questão vf | Conceitos gerais | `bnom03jg46ldggk` |
+
+URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllur`
+
+---
+
+## Checklist de deploy
+
+Verificar antes de qualquer deploy ou operação em produção:
+
+- [ ] PocketBase respondendo: `curl http://127.0.0.1:8090/api/health`
+- [ ] Flask respondendo: `curl http://127.0.0.1:8091/health`
+- [ ] Collections existem: resposta com 10 items em `/api/collections?perPage=50`
+- [ ] `listRule` e `viewRule` vazias nas collections públicas
+- [ ] Campo `correta` em `alternativas` com `required: false`
+- [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
+- [ ] Gunicorn usando `app:create_app()` e não `app:app`
+- [ ] Token PocketBase válido antes de cada bloco de operações
 
 ---
 
@@ -321,7 +486,7 @@ curl "https://pb.repoept.duckdns.org/api/collections/questoes/records\
 |---|---|---|
 | 1 — Infraestrutura | Concluída | PocketBase, Flask/Gunicorn, Nginx, SSL |
 | 2 — Schema | Concluída | 9 collections criadas com IDs fixos |
-| 3 — Motor de atividades | Em andamento | Rotas Flask + HTMX + validação de respostas |
+| 3 — Motor de atividades | Concluída | Rotas Flask + HTMX + validação de respostas |
 | 4 — Autenticação | Pendente | Login JWT, middleware, retomada de atividade |
 | 5 — Relatórios | Pendente | Dashboard professor, PDF/Excel, taxa de erro |
 
