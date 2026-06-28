@@ -8,6 +8,17 @@
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 </head>
 <body>
+
+<nav class="topbar">
+  <span class="topbar-logo">LeDuk</span>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+  {% endif %}
+  {% if tempo_restante_seg > 0 %}
+    <span class="timer" id="timer" data-seg="{{ tempo_restante_seg }}" data-ativ="{{ atividade.id }}"></span>
+  {% endif %}
+</nav>
+
 <div class="shell">
 
   <header class="ativ-header">
@@ -43,7 +54,6 @@
 </div>
 
 <script>
-  /* atualiza barra de progresso a partir de atributos injetados pelo servidor */
   document.body.addEventListener("htmx:afterSwap", function () {
     var el = document.querySelector("[data-num]");
     if (!el) return;
@@ -54,6 +64,33 @@
     document.getElementById("prog-fill").style.width  = pct + "%";
     document.getElementById("prog-label").textContent = (num - 1) + " / " + total;
   });
+
+  (function () {
+    var el = document.getElementById("timer");
+    if (!el) return;
+    var seg = parseInt(el.dataset.seg, 10);
+    var ativId = el.dataset.ativ;
+
+    function fmt(s) {
+      var m = Math.floor(s / 60);
+      var ss = s % 60;
+      return m + ":" + (ss < 10 ? "0" : "") + ss;
+    }
+
+    el.textContent = fmt(seg);
+
+    var iv = setInterval(function () {
+      seg--;
+      if (seg <= 0) {
+        clearInterval(iv);
+        el.textContent = "0:00";
+        htmx.ajax("GET", "/htmx/resultado/" + ativId, {target: "#questao-area", swap: "innerHTML"});
+        return;
+      }
+      el.textContent = fmt(seg);
+      if (seg <= 60) el.classList.add("urgente");
+    }, 1000);
+  })();
 </script>
 </body>
 </html>

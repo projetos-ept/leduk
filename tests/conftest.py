@@ -8,7 +8,12 @@ FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
 @pytest.fixture()
 def app():
-    return create_app({"TESTING": True, "PB_URL": "http://pb.test", "SECRET_KEY": "test-secret"})
+    return create_app({
+        "TESTING": True,
+        "PB_URL": "http://pb.test",
+        "SECRET_KEY": "test-secret",
+        "LOGIN_REQUIRED": False,
+    })
 
 
 @pytest.fixture()

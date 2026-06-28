@@ -11,6 +11,10 @@ ATIVIDADE = {
     "titulo": "Quiz Hematologia",
     "questoes": ["q001mc4"],
     "embaralhar": False,
+    "ativa": True,
+    "disponivel_de": None,
+    "disponivel_ate": None,
+    "tempo_limite": 0,
 }
 
 

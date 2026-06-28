@@ -7,6 +7,15 @@
   <link rel="stylesheet" href="/static/css/base.css">
 </head>
 <body>
+
+<nav class="topbar">
+  <span class="topbar-logo">LeDuk</span>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
 <div class="shell">
 
   <div class="home-header">

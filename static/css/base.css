@@ -501,6 +501,160 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Topbar                                                               */
+/* ------------------------------------------------------------------ */
+
+.topbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--borda);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar-logo {
+  font-weight: 800;
+  color: var(--primaria);
+  font-size: 1rem;
+  margin-right: auto;
+}
+
+.topbar-aluno {
+  font-size: .85rem;
+  color: var(--suave);
+}
+
+.topbar-sair {
+  font-size: .85rem;
+  color: var(--suave);
+  text-decoration: none;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 3px 10px;
+  transition: border-color .15s, color .15s;
+}
+
+.topbar-sair:hover {
+  border-color: var(--erro);
+  color: var(--erro);
+}
+
+/* ------------------------------------------------------------------ */
+/* Timer                                                                */
+/* ------------------------------------------------------------------ */
+
+.timer {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--suave);
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+  transition: color .3s, border-color .3s, background .3s;
+}
+
+.timer.urgente {
+  color: var(--erro);
+  border-color: var(--erro);
+  background: #fff0f0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth — página de login                                              */
+/* ------------------------------------------------------------------ */
+
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-page .shell {
+  width: 100%;
+  padding: 24px 16px;
+}
+
+.login-card {
+  background: var(--card);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  padding: 40px 36px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.login-card h1 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--primaria);
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.login-subtitulo {
+  text-align: center;
+  color: var(--suave);
+  margin-bottom: 28px;
+  font-size: .9rem;
+}
+
+.login-erro {
+  background: #fff0f0;
+  border: 1px solid var(--erro);
+  color: #c0392b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: .9rem;
+  margin-bottom: 20px;
+}
+
+.campo {
+  margin-bottom: 18px;
+}
+
+.campo label {
+  display: block;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--texto);
+  margin-bottom: 6px;
+}
+
+.campo input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--borda);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color .15s;
+}
+
+.campo input:focus {
+  outline: none;
+  border-color: var(--primaria);
+}
+
+/* ------------------------------------------------------------------ */
+/* Atividade indisponível                                               */
+/* ------------------------------------------------------------------ */
+
+.indisponivel-card {
+  text-align: center;
+  padding: 48px 28px;
+  background: var(--card);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  margin-top: 32px;
+}
+
+/* ------------------------------------------------------------------ */
 /* Loading indicator (HTMX)                                            */
 /* ------------------------------------------------------------------ */
 
