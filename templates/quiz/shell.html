@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>{{ atividade.titulo }}</title></head>
+<body>
+<h1>{{ atividade.titulo }}</h1>
+{% if primeira_questao %}
+  <div id="questao-area"
+       hx-get="/htmx/questao/{{ primeira_questao }}"
+       hx-trigger="load">
+  </div>
+{% else %}
+  <p>Nenhuma questão disponível nesta atividade.</p>
+{% endif %}
+</body>
+</html>

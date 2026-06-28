@@ -1,0 +1,10 @@
+<form hx-post="/htmx/responder" hx-target="#questao-area">
+  <input type="hidden" name="tipo" value="associativa">
+  <input type="hidden" name="questao_id" value="{{ questao.id }}">
+  <p>{{ questao.enunciado }}</p>
+  {% for par in questao.pares_associativos %}
+    <p>{{ par.ordem }}. {{ par.coluna_a }}</p>
+    <input type="text" name="par_{{ par.ordem }}" placeholder="Coluna B">
+  {% endfor %}
+  <button type="submit">Responder</button>
+</form>

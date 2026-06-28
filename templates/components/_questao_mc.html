@@ -1,0 +1,11 @@
+<form hx-post="/htmx/responder" hx-target="#questao-area">
+  <input type="hidden" name="tipo" value="{{ questao.tipo }}">
+  <input type="hidden" name="questao_id" value="{{ questao.id }}">
+  <p>{{ questao.enunciado }}</p>
+  {% for alt in questao.alternativas %}
+    <label>
+      <input type="radio" name="resposta" value="{{ alt.letra }}"> {{ alt.letra }}) {{ alt.texto }}
+    </label><br>
+  {% endfor %}
+  <button type="submit">Responder</button>
+</form>
