@@ -46,7 +46,10 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/")
     def index():
         turmas = pb.listar_turmas()
-        return render_template("index.html", turmas=turmas)
+        atividades_por_turma = {
+            t["id"]: pb.listar_atividades_por_turma(t["id"]) for t in turmas
+        }
+        return render_template("index.html", turmas=turmas, atividades_por_turma=atividades_por_turma)
 
     # ------------------------------------------------------------------
     # Etapa 3 — Motor de atividades
