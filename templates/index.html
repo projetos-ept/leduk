@@ -11,18 +11,33 @@
 
   <div class="home-header">
     <h1>LeDuk</h1>
-    <p>Selecione uma turma para iniciar as atividades</p>
+    <p>Selecione uma atividade para começar</p>
   </div>
 
   {% if turmas %}
-    <div class="turmas-grid">
-      {% for turma in turmas %}
-        <a class="turma-card" href="/atividade/{{ turma.id }}">
-          <h2>{{ turma.nome }}</h2>
-          <span>{{ turma.modalidade }}{% if turma.ano %} · {{ turma.ano }}{% endif %}</span>
-        </a>
-      {% endfor %}
-    </div>
+    {% for turma in turmas %}
+      {% set atividades = atividades_por_turma.get(turma.id, []) %}
+      {% if atividades %}
+        <section class="turma-section">
+          <h2 class="turma-nome">
+            {{ turma.nome }}
+            <span class="turma-badge">{{ turma.modalidade }}</span>
+          </h2>
+          <div class="turmas-grid">
+            {% for atividade in atividades %}
+              <a class="turma-card" href="/atividade/{{ atividade.id }}">
+                <h3>{{ atividade.titulo }}</h3>
+                {% if atividade.expand and atividade.expand.disciplina %}
+                  <span>{{ atividade.expand.disciplina.nome }}</span>
+                {% elif atividade.descricao %}
+                  <span>{{ atividade.descricao | truncate(60) }}</span>
+                {% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% endfor %}
   {% else %}
     <div class="card" style="text-align:center; color: var(--suave);">
       <p>Nenhuma turma cadastrada ainda.</p>

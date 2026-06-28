@@ -55,6 +55,17 @@ class PocketBaseClient:
         result = self._get("/api/collections/turmas/records", params={"sort": "nome"})
         return result.get("items", [])
 
+    def listar_atividades_por_turma(self, turma_id: str) -> list:
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={
+                "filter": f'turma="{turma_id}"&&ativa=true',
+                "expand": "disciplina",
+                "sort": "titulo",
+            },
+        )
+        return result.get("items", [])
+
     def registrar_tentativa(self, dados: dict) -> dict:
         return self._post("/api/collections/tentativas/records", dados)
 

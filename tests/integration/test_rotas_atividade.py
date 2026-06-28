@@ -1,10 +1,10 @@
 """Testes de integração para rotas de atividade (PocketBase mockado com responses)."""
-import json
 import responses as rsps_lib
-import pytest
 
 
 PB = "http://pb.test"
+
+TURMA = {"id": "turma01", "nome": "1º Ano EMI", "modalidade": "EMI", "ano": "2025"}
 
 ATIVIDADE = {
     "id": "ativ01",
@@ -12,6 +12,45 @@ ATIVIDADE = {
     "questoes": ["q001mc4"],
     "embaralhar": False,
 }
+
+
+@rsps_lib.activate
+def test_home_lista_atividades_por_turma(client):
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/turmas/records",
+        json={"items": [TURMA]},
+    )
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/atividades/records",
+        json={"items": [ATIVIDADE]},
+    )
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Quiz Hematologia" in html
+    assert '/atividade/ativ01' in html
+    assert '/atividade/turma01' not in html  # nunca linka por ID de turma
+
+
+@rsps_lib.activate
+def test_home_turma_sem_atividades_nao_exibe_secao(client):
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/turmas/records",
+        json={"items": [TURMA]},
+    )
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/atividades/records",
+        json={"items": []},
+    )
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "turma01" not in resp.data.decode()
 
 
 @rsps_lib.activate
