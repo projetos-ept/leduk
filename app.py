@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 from datetime import datetime, timezone
 from functools import wraps
@@ -61,6 +62,14 @@ def create_app(config: dict | None = None) -> Flask:
     pb = PocketBaseClient(pb_url)
     app.extensions["pb"] = pb
 
+    @app.template_filter("youtube_id")
+    def _youtube_id_filter(url: str) -> str:
+        m = re.search(
+            r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([^&\n?#]+)',
+            url or "",
+        )
+        return m.group(1) if m else ""
+
     def requer_login(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -108,14 +117,69 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_login
     def index():
         turmas = pb.listar_turmas()
-        atividades_por_turma = {
-            t["id"]: pb.listar_atividades_por_turma(t["id"]) for t in turmas
-        }
+        # Group disciplines from expanded activity data — avoids a separate disciplines query
+        estrutura: dict[str, list] = {}
+        for t in turmas:
+            atividades = pb.listar_atividades_por_turma(t["id"])
+            discs: dict[str, dict] = {}
+            for a in atividades:
+                disc = (a.get("expand") or {}).get("disciplina")
+                if not disc:
+                    continue
+                did = disc["id"]
+                if did not in discs:
+                    discs[did] = {"id": did, "nome": disc.get("nome", ""), "atividades_count": 0}
+                discs[did]["atividades_count"] += 1
+            estrutura[t["id"]] = list(discs.values())
+        aluno_nome = session.get("aluno_nome", "")
+        return render_template("index.html", turmas=turmas, estrutura=estrutura, aluno_nome=aluno_nome)
+
+    # ------------------------------------------------------------------
+    # Portal de turma/disciplina
+
+    @app.route("/turma/<turma_id>/<disciplina_id>")
+    def portal_turma(turma_id: str, disciplina_id: str):
+        turma = pb.buscar_turma(turma_id)
+        disciplina = pb.buscar_disciplina(disciplina_id)
+        materiais = pb.listar_materiais(turma_id, disciplina_id)
+
+        # Pre-compute PocketBase file URL for uploaded files
+        for m in materiais:
+            if m.get("tipo") == "arquivo" and m.get("arquivo"):
+                m["_arquivo_url"] = f"{pb.base_url}/api/files/materiais/{m['id']}/{m['arquivo']}"
+
+        logado = bool(session.get("token"))
+        if logado:
+            atividades = pb.listar_atividades_por_disciplina(turma_id, disciplina_id)
+            for ativ in atividades:
+                disponivel, motivo = _atividade_disponivel(ativ)
+                ativ["_status"] = "disponivel" if disponivel else motivo
+                if motivo == "ainda_nao" and ativ.get("disponivel_de"):
+                    try:
+                        dt = datetime.fromisoformat(ativ["disponivel_de"].replace("Z", "+00:00"))
+                        ativ["_abre_em"] = dt.strftime("%d/%m")
+                    except Exception:
+                        ativ["_abre_em"] = ""
+                ate = ativ.get("disponivel_ate")
+                if ate:
+                    try:
+                        dt = datetime.fromisoformat(ate.replace("Z", "+00:00"))
+                        ativ["_prazo"] = dt.strftime("%d/%m/%Y")
+                    except Exception:
+                        ativ["_prazo"] = ""
+                else:
+                    ativ["_prazo"] = ""
+        else:
+            atividades = []
+
         aluno_nome = session.get("aluno_nome", "")
         return render_template(
-            "index.html",
-            turmas=turmas,
-            atividades_por_turma=atividades_por_turma,
+            "turma/portal.html",
+            turma=turma,
+            disciplina=disciplina,
+            atividades=atividades,
+            materiais=materiais,
+            logado=logado,
             aluno_nome=aluno_nome,
         )
 

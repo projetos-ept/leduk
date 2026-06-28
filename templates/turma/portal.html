@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ disciplina.nome }} — {{ turma.nome }}</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% else %}
+    <a href="/login" class="topbar-sair">Entrar</a>
+  {% endif %}
+</nav>
+
+<div class="shell">
+
+  <div class="portal-header">
+    <p class="portal-turma">{{ turma.nome }} · {{ turma.modalidade }}</p>
+    <h1 class="portal-titulo">{{ disciplina.nome }}</h1>
+  </div>
+
+  <div class="portal-tabs">
+    <input type="radio" name="tab" id="tab-r-ativ" class="tab-radio" checked>
+    <input type="radio" name="tab" id="tab-r-mat" class="tab-radio">
+
+    <nav class="tab-bar">
+      <label for="tab-r-ativ" class="tab-label">Atividades</label>
+      <label for="tab-r-mat" class="tab-label">Materiais</label>
+    </nav>
+
+    <!-- ── Aba Atividades ── -->
+    <div class="tab-panel" id="tab-p-ativ">
+      {% if not logado %}
+        <div class="ativ-card ativ-bloqueada">
+          <span class="ativ-lock">🔒</span>
+          <div>
+            <p class="ativ-nome">Atividades</p>
+            <p class="ativ-meta"><a href="/login">Faça login para acessar</a></p>
+          </div>
+        </div>
+      {% elif atividades %}
+        {% for ativ in atividades %}
+          {% if ativ._status == "disponivel" %}
+            <a class="ativ-card ativ-disponivel" href="/atividade/{{ ativ.id }}">
+              <span class="ativ-icon">▶</span>
+              <div>
+                <p class="ativ-nome">{{ ativ.titulo }}</p>
+                <p class="ativ-meta">
+                  {{ ativ.questoes | length }} questão{{ 'ões' if ativ.questoes | length != 1 }}
+                  {% if ativ._prazo %} · Prazo: {{ ativ._prazo }}{% endif %}
+                </p>
+              </div>
+            </a>
+          {% elif ativ._status == "ainda_nao" %}
+            <div class="ativ-card ativ-bloqueada">
+              <span class="ativ-icon">🕐</span>
+              <div>
+                <p class="ativ-nome">{{ ativ.titulo }}</p>
+                <p class="ativ-meta">
+                  <span class="ativ-badge badge-breve">Em breve{% if ativ._abre_em %} · abre {{ ativ._abre_em }}{% endif %}</span>
+                </p>
+              </div>
+            </div>
+          {% else %}
+            <div class="ativ-card ativ-bloqueada">
+              <span class="ativ-icon">✓</span>
+              <div>
+                <p class="ativ-nome">{{ ativ.titulo }}</p>
+                <p class="ativ-meta"><span class="ativ-badge badge-encerrada">Encerrada</span></p>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <div class="card" style="text-align:center;color:var(--suave);margin-top:16px;">
+          <p>Nenhuma atividade disponível para esta disciplina.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Aba Materiais ── -->
+    <div class="tab-panel" id="tab-p-mat">
+      {% if materiais %}
+        {% for m in materiais %}
+          <div class="material-card">
+            {% if m.tipo == "video" %}
+              {% set vid = m.url | youtube_id %}
+              <div class="material-header">
+                <span class="material-icone">🎬</span>
+                <div>
+                  <p class="material-titulo">{{ m.titulo }}</p>
+                  {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+                </div>
+              </div>
+              {% if vid %}
+                <div class="video-wrapper">
+                  <iframe src="https://www.youtube.com/embed/{{ vid }}"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowfullscreen loading="lazy"></iframe>
+                </div>
+              {% endif %}
+
+            {% elif m.tipo == "pdf" %}
+              <div class="material-header">
+                <span class="material-icone">📄</span>
+                <div>
+                  <p class="material-titulo">{{ m.titulo }}</p>
+                  {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+                </div>
+                {% if m.url %}
+                  <a href="{{ m.url }}" target="_blank" rel="noopener" class="material-btn">Abrir PDF</a>
+                {% endif %}
+              </div>
+
+            {% elif m.tipo == "link" %}
+              <a class="material-header material-link" href="{{ m.url }}" target="_blank" rel="noopener">
+                <span class="material-icone">🔗</span>
+                <div>
+                  <p class="material-titulo">{{ m.titulo }}</p>
+                  {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+                </div>
+                <span class="material-ext">↗</span>
+              </a>
+
+            {% elif m.tipo == "arquivo" %}
+              <div class="material-header">
+                <span class="material-icone">📎</span>
+                <div>
+                  <p class="material-titulo">{{ m.titulo }}</p>
+                  {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+                </div>
+                {% if m._arquivo_url %}
+                  <a href="{{ m._arquivo_url }}" target="_blank" rel="noopener" class="material-btn">Download</a>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="card" style="text-align:center;color:var(--suave);margin-top:16px;">
+          <p>Nenhum material disponível para esta disciplina.</p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /portal-tabs -->
+</div>
+</body>
+</html>

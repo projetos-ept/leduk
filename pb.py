@@ -51,8 +51,34 @@ class PocketBaseClient:
     def buscar_atividade(self, ativ_id: str) -> dict:
         return self._get(f"/api/collections/atividades/records/{ativ_id}")
 
+    def buscar_turma(self, turma_id: str) -> dict:
+        return self._get(f"/api/collections/turmas/records/{turma_id}")
+
+    def buscar_disciplina(self, disciplina_id: str) -> dict:
+        return self._get(f"/api/collections/disciplinas/records/{disciplina_id}")
+
     def listar_turmas(self) -> list:
         result = self._get("/api/collections/turmas/records", params={"sort": "nome"})
+        return result.get("items", [])
+
+    def listar_atividades_por_disciplina(self, turma_id: str, disciplina_id: str) -> list:
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={
+                "filter": f'turma="{turma_id}"&&disciplina="{disciplina_id}"&&ativa=true',
+                "sort": "titulo",
+            },
+        )
+        return result.get("items", [])
+
+    def listar_materiais(self, turma_id: str, disciplina_id: str) -> list:
+        result = self._get(
+            "/api/collections/materiais/records",
+            params={
+                "filter": f'turma="{turma_id}"&&disciplina="{disciplina_id}"&&ativo=true',
+                "sort": "ordem",
+            },
+        )
         return result.get("items", [])
 
     def listar_atividades_por_turma(self, turma_id: str) -> list:

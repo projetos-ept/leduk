@@ -20,36 +20,34 @@
 
   <div class="home-header">
     <h1>LeDuk</h1>
-    <p>Selecione uma atividade para começar</p>
+    <p>Selecione uma disciplina para começar</p>
   </div>
 
-  {% if turmas %}
-    {% for turma in turmas %}
-      {% set atividades = atividades_por_turma.get(turma.id, []) %}
-      {% if atividades %}
-        <section class="turma-section">
-          <h2 class="turma-nome">
-            {{ turma.nome }}
-            <span class="turma-badge">{{ turma.modalidade }}</span>
-          </h2>
-          <div class="turmas-grid">
-            {% for atividade in atividades %}
-              <a class="turma-card" href="/atividade/{{ atividade.id }}">
-                <h3>{{ atividade.titulo }}</h3>
-                {% if atividade.expand and atividade.expand.disciplina %}
-                  <span>{{ atividade.expand.disciplina.nome }}</span>
-                {% elif atividade.descricao %}
-                  <span>{{ atividade.descricao | truncate(60) }}</span>
-                {% endif %}
-              </a>
-            {% endfor %}
-          </div>
-        </section>
-      {% endif %}
-    {% endfor %}
-  {% else %}
+  {% set tem_conteudo = namespace(valor=false) %}
+  {% for turma in turmas %}
+    {% set discs = estrutura.get(turma.id, []) %}
+    {% if discs %}
+      {% set tem_conteudo.valor = true %}
+      <section class="turma-section">
+        <h2 class="turma-nome">
+          {{ turma.nome }}
+          <span class="turma-badge">{{ turma.modalidade }}</span>
+        </h2>
+        <div class="turmas-grid">
+          {% for disc in discs %}
+            <a class="turma-card" href="/turma/{{ turma.id }}/{{ disc.id }}">
+              <h3>{{ disc.nome }}</h3>
+              <span>{{ disc.atividades_count }} atividade{{ 's' if disc.atividades_count != 1 }}</span>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  {% endfor %}
+
+  {% if not tem_conteudo.valor %}
     <div class="card" style="text-align:center; color: var(--suave);">
-      <p>Nenhuma turma cadastrada ainda.</p>
+      <p>Nenhuma atividade disponível no momento.</p>
     </div>
   {% endif %}
 

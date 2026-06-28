@@ -642,6 +642,225 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Portal de turma/disciplina                                           */
+/* ------------------------------------------------------------------ */
+
+.portal-header {
+  padding: 24px 0 16px;
+}
+
+.portal-turma {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--suave);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 4px;
+}
+
+.portal-titulo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--texto);
+}
+
+/* ── Tabs ── */
+
+.tab-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--borda);
+  margin-bottom: 20px;
+  position: sticky;
+  top: 48px;
+  background: var(--fundo);
+  z-index: 5;
+  padding-top: 4px;
+}
+
+.tab-label {
+  padding: 10px 20px;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--suave);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+
+.tab-label:hover { color: var(--primaria); }
+
+.portal-tabs:has(#tab-r-ativ:checked) label[for="tab-r-ativ"],
+.portal-tabs:has(#tab-r-mat:checked)  label[for="tab-r-mat"] {
+  color: var(--primaria);
+  border-bottom-color: var(--primaria);
+}
+
+.tab-panel { display: none; }
+
+.portal-tabs:has(#tab-r-ativ:checked) #tab-p-ativ,
+.portal-tabs:has(#tab-r-mat:checked)  #tab-p-mat { display: block; }
+
+/* ── Activity cards ── */
+
+.ativ-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--card);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  margin-bottom: 10px;
+  text-decoration: none;
+  color: var(--texto);
+  border: 2px solid transparent;
+  min-height: 64px;
+}
+
+.ativ-disponivel {
+  transition: border-color .15s, transform .1s;
+}
+
+.ativ-disponivel:hover {
+  border-color: var(--primaria);
+  transform: translateY(-1px);
+}
+
+.ativ-bloqueada {
+  opacity: .6;
+  cursor: default;
+}
+
+.ativ-icon, .ativ-lock {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.ativ-nome {
+  font-weight: 600;
+  font-size: .95rem;
+  margin-bottom: 2px;
+}
+
+.ativ-meta {
+  font-size: .8rem;
+  color: var(--suave);
+}
+
+.ativ-meta a {
+  color: var(--primaria);
+  text-decoration: none;
+}
+
+.ativ-badge {
+  display: inline-block;
+  font-size: .75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.badge-breve    { background: #fff8e6; color: #b7860b; border: 1px solid #f7b731; }
+.badge-encerrada { background: #f5f5f5; color: #718096; border: 1px solid var(--borda); }
+
+/* ── Material cards ── */
+
+.material-card {
+  background: var(--card);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.material-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  text-decoration: none;
+  color: var(--texto);
+}
+
+.material-link {
+  transition: background .15s;
+  cursor: pointer;
+}
+
+.material-link:hover { background: #f8faff; }
+
+.material-icone {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+}
+
+.material-titulo {
+  font-weight: 600;
+  font-size: .95rem;
+  margin-bottom: 2px;
+  flex: 1;
+}
+
+.material-desc {
+  font-size: .82rem;
+  color: var(--suave);
+  flex: 1;
+}
+
+.material-ext {
+  font-size: 1rem;
+  color: var(--suave);
+  margin-left: auto;
+}
+
+.material-btn {
+  display: inline-block;
+  margin-left: auto;
+  padding: 7px 16px;
+  background: var(--primaria);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: .85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity .15s;
+}
+
+.material-btn:hover { opacity: .88; }
+
+/* ── Embedded video ── */
+
+.video-wrapper {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 */
+  height: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.video-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Atividade indisponível                                               */
 /* ------------------------------------------------------------------ */
 
