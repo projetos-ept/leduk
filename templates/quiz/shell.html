@@ -1,15 +1,59 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><title>{{ atividade.titulo }}</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ atividade.titulo }}</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
 <body>
-<h1>{{ atividade.titulo }}</h1>
-{% if primeira_questao %}
+<div class="shell">
+
+  <header class="ativ-header">
+    <h1>{{ atividade.titulo }}</h1>
+    {% if total > 0 %}
+    <div class="progresso">
+      <div class="progresso-barra">
+        <div class="progresso-fill" id="prog-fill" style="width: 0%"></div>
+      </div>
+      <span class="progresso-label" id="prog-label">0 / {{ total }}</span>
+    </div>
+    {% endif %}
+  </header>
+
   <div id="questao-area"
+       hx-indicator="#loading"
+       {% if primeira_questao %}
        hx-get="/htmx/questao/{{ primeira_questao }}"
-       hx-trigger="load">
+       hx-trigger="load"
+       hx-target="#questao-area"
+       hx-swap="innerHTML"
+       {% endif %}>
+
+    {% if not primeira_questao %}
+      <div class="card">
+        <p>Nenhuma questão disponível nesta atividade.</p>
+      </div>
+    {% else %}
+      <div id="loading">Carregando questão…</div>
+    {% endif %}
   </div>
-{% else %}
-  <p>Nenhuma questão disponível nesta atividade.</p>
-{% endif %}
+
+</div>
+
+<script>
+  /* atualiza barra de progresso a partir de atributos injetados pelo servidor */
+  document.body.addEventListener("htmx:afterSwap", function () {
+    var el = document.querySelector("[data-num]");
+    if (!el) return;
+    var num   = parseInt(el.dataset.num,   10);
+    var total = parseInt(el.dataset.total, 10);
+    if (!total) return;
+    var pct = Math.round((num - 1) / total * 100);
+    document.getElementById("prog-fill").style.width  = pct + "%";
+    document.getElementById("prog-label").textContent = (num - 1) + " / " + total;
+  });
+</script>
 </body>
 </html>
