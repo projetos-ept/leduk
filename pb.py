@@ -23,6 +23,11 @@ class PocketBaseClient:
         resp.raise_for_status()
         return resp.json()
 
+    def _patch(self, path: str, data: dict) -> dict:
+        resp = requests.patch(f"{self.base_url}{path}", headers=self._headers(), json=data)
+        resp.raise_for_status()
+        return resp.json()
+
     # --- Collections ---
 
     def buscar_questao(self, questao_id: str) -> dict:
@@ -120,6 +125,134 @@ class PocketBaseClient:
 
     def registrar_tentativa(self, dados: dict) -> dict:
         return self._post("/api/collections/tentativas/records", dados)
+
+    def criar_tentativa(self, ativ_id: str, aluno_id: str, aluno_nome: str, numero: int) -> dict:
+        return self._post("/api/collections/tentativas/records", {
+            "disciplina": ativ_id,
+            "aluno_id": aluno_id,
+            "aluno_nome": aluno_nome,
+            "numero_tentativa": numero,
+            "concluida": False,
+            "nota_liberada": False,
+            "questoes_respondidas": 0,
+        })
+
+    def atualizar_progresso(self, tentativa_id: str, respondidas: int) -> dict:
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "questoes_respondidas": respondidas,
+        })
+
+    def progresso_tentativa_atual(self, ativ_id: str, aluno_id: str) -> dict | None:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'disciplina="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=false',
+                "sort": "-created",
+            },
+        )
+        items = result.get("items", [])
+        return items[0] if items else None
+
+    def listar_tentativas_aluno(self, ativ_id: str, aluno_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'disciplina="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=true',
+                "sort": "-created",
+            },
+        )
+        return result.get("items", [])
+
+    def status_atividade_aluno(self, ativ_id: str, aluno_id: str, max_tentativas: int = 0) -> dict:
+        tentativas = self.listar_tentativas_aluno(ativ_id, aluno_id)
+        usadas = len(tentativas)
+        melhor = max((t.get("score_percentual", 0) for t in tentativas), default=0)
+        liberada = any(t.get("nota_liberada", False) for t in tentativas)
+        melhor_tent = max(tentativas, key=lambda t: t.get("score_percentual", 0), default=None)
+        return {
+            "tentativas_usadas": usadas,
+            "max_tentativas": max_tentativas,
+            "pode_tentar": max_tentativas == 0 or usadas < max_tentativas,
+            "melhor_nota": melhor,
+            "nota_liberada": liberada,
+            "ultima_tentativa": tentativas[0] if tentativas else None,
+            "melhor_tentativa_id": melhor_tent["id"] if melhor_tent else None,
+            "melhor_nota_final": melhor_tent.get("nota_final") if melhor_tent else None,
+        }
+
+    def buscar_tentativa(self, tentativa_id: str) -> dict:
+        return self._get(f"/api/collections/tentativas/records/{tentativa_id}")
+
+    def listar_historico_aluno(self, aluno_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'aluno_id="{aluno_id}"&&concluida=true',
+                "sort": "-created",
+            },
+        )
+        return result.get("items", [])
+
+    def listar_respostas_tentativa(self, tentativa_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'tentativa_id="{tentativa_id}"',
+                "sort": "created",
+            },
+        )
+        return result.get("items", [])
+
+    def buscar_atividade_expandido(self, ativ_id: str) -> dict:
+        return self._get(
+            f"/api/collections/atividades/records/{ativ_id}",
+            params={"expand": "disciplina"},
+        )
+
+    def contar_novas_atividades(self, turma_id: str, disciplina_id: str, desde: str) -> int:
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={
+                "filter": f'turma="{turma_id}"&&disciplina="{disciplina_id}"&&ativa=true&&created>"{desde}"',
+            },
+        )
+        return len(result.get("items", []))
+
+    def concluir_tentativa(self, tentativa_id: str, score_raw: int, score_max: int, nota_automatica: bool) -> dict:
+        pct = round(score_raw / score_max * 100) if score_max > 0 else 0
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "concluida": True,
+            "score_raw": score_raw,
+            "score_max": score_max,
+            "score_percentual": pct,
+            "nota_liberada": nota_automatica,
+        })
+
+    def liberar_nota(self, tentativa_id: str) -> dict:
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "nota_liberada": True,
+        })
+
+    def patch_tentativa_nota_final(self, tentativa_id: str, nota_final: float) -> dict:
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "nota_final": nota_final,
+        })
+
+    def listar_tentativas_para_avaliar(self, ativ_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'disciplina="{ativ_id}"&&concluida=true&&nota_liberada=false',
+                "sort": "-created",
+            },
+        )
+        return result.get("items", [])
+
+    def avaliar_questao_aberta(self, record_id: str, score_raw: float, score_max: float, comentario: str = "") -> dict:
+        data: dict = {"score_raw": score_raw, "score_max": score_max}
+        if comentario:
+            data["comentario_professor"] = comentario
+        return self._patch(f"/api/collections/tentativas/records/{record_id}", data)
 
     def tentativas_por_atividade(self, ativ_id: str, aluno_id: str) -> list:
         result = self._get(

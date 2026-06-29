@@ -36,7 +36,12 @@
         <div class="turmas-grid">
           {% for disc in discs %}
             <a class="turma-card" href="/turma/{{ turma.id }}/{{ disc.id }}">
-              <h3>{{ disc.nome }}</h3>
+              <div class="turma-card-top">
+                <h3>{{ disc.nome }}</h3>
+                {% if disc.novas_count > 0 %}
+                  <span class="badge-novo">{{ disc.novas_count }}</span>
+                {% endif %}
+              </div>
               <span>{{ disc.atividades_count }} atividade{{ 's' if disc.atividades_count != 1 }}</span>
             </a>
           {% endfor %}

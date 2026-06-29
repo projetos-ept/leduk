@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meu Histórico — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell">
+  <div class="portal-header">
+    <h1 class="portal-titulo">Meu Histórico</h1>
+  </div>
+
+  {% if historico %}
+    {% for grupo in historico %}
+      <section class="historico-section">
+        <h2 class="historico-disc">{{ grupo.disc.nome }}</h2>
+        {% for item in grupo.atividades %}
+          <div class="historico-ativ-bloco">
+            <p class="historico-ativ-nome">{{ item.ativ.titulo or 'Atividade' }}</p>
+            {% for t in item.tentativas %}
+              <div class="historico-tentativa">
+                <span class="historico-num">Tentativa {{ t.numero_tentativa or '—' }}</span>
+                <span class="historico-data">
+                  {{ t.created[:10] if t.created else '—' }}
+                </span>
+                {% if t.nota_liberada %}
+                  <span class="badge-nota">Nota: {{ t.score_percentual | int }}%</span>
+                {% else %}
+                  <span class="badge-correcao">Em correção</span>
+                {% endif %}
+                {% if item.ativ.exibir_feedback_pos != false %}
+                  <a class="historico-btn" href="/aluno/atividade/{{ item.ativ.id }}/revisao/{{ t.id }}">
+                    Ver gabarito
+                  </a>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </section>
+    {% endfor %}
+  {% else %}
+    <div class="card" style="text-align:center;color:var(--muted);margin-top:24px;">
+      <p>Nenhuma atividade concluída ainda.</p>
+    </div>
+  {% endif %}
+
+  <div style="margin-top:32px;text-align:center;">
+    <a class="btn-home" href="/">Voltar ao início</a>
+  </div>
+</div>
+</body>
+</html>

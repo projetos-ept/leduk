@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Correção — {{ atividade.titulo }}</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell">
+  <div class="portal-header">
+    <h1 class="portal-titulo">Correção: {{ atividade.titulo }}</h1>
+    <p class="portal-turma">Questões abertas aguardando avaliação</p>
+  </div>
+
+  {% if not tentativas %}
+    <div class="card" style="text-align:center;color:var(--muted);margin-top:24px;">
+      <p>Nenhuma tentativa aguardando correção.</p>
+      <a class="btn-home" href="/" style="margin-top:16px;display:inline-block;">Voltar ao início</a>
+    </div>
+  {% else %}
+    {% for t in tentativas %}
+      {% set tent = t.tentativa %}
+      {% if t.abertas %}
+        <div class="prof-tentativa-bloco">
+          <div class="prof-tentativa-header">
+            <span class="prof-aluno-nome">{{ tent.aluno_nome or tent.aluno_id }}</span>
+            <span class="prof-tentativa-num">Tentativa {{ tent.numero_tentativa }}</span>
+            <span class="prof-tentativa-data">{{ tent.created[:10] if tent.created else "" }}</span>
+          </div>
+
+          <form class="prof-form" method="post"
+                action="/professor/questao-aberta/{{ tent.id }}/avaliar">
+            <input type="hidden" name="ativ_id" value="{{ atividade.id }}">
+
+            {% for r in t.abertas %}
+              {% set q = r._questao %}
+              {% set peso = r._peso %}
+              <div class="prof-questao-bloco">
+                <p class="prof-questao-enunciado">{{ q.enunciado if q.enunciado else "Questão aberta" }}</p>
+
+                <div class="prof-resposta-aluno">
+                  <p class="prof-label">Resposta do aluno:</p>
+                  <p class="prof-resposta-texto">{{ r.texto_resposta or "(sem resposta)" }}</p>
+                </div>
+
+                <div class="prof-avaliacao">
+                  <label class="prof-label" for="nota_{{ r.id }}">
+                    Nota (0 – {{ peso | int if peso == peso | int else peso }}):
+                  </label>
+                  <input
+                    class="prof-nota-input"
+                    type="number"
+                    id="nota_{{ r.id }}"
+                    name="nota_{{ r.id }}"
+                    min="0"
+                    max="{{ peso }}"
+                    step="0.1"
+                    value="{{ r.score_raw if r.score_raw is not none else '' }}"
+                    required
+                  >
+
+                  <label class="prof-label" for="comentario_{{ r.id }}" style="margin-top:8px;">
+                    Comentário (opcional):
+                  </label>
+                  <textarea
+                    class="prof-comentario"
+                    id="comentario_{{ r.id }}"
+                    name="comentario_{{ r.id }}"
+                    rows="2"
+                    placeholder="Feedback para o aluno..."
+                  >{{ r.comentario_professor or "" }}</textarea>
+                </div>
+              </div>
+            {% endfor %}
+
+            <div class="prof-form-actions">
+              <button type="submit" class="btn-prof-salvar">Salvar e liberar nota</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+</body>
+</html>

@@ -18,6 +18,8 @@
         Esta atividade ainda não está disponível. Volte mais tarde.
       {% elif motivo == "expirada" %}
         O prazo desta atividade já encerrou.
+      {% elif motivo == "esgotada" %}
+        Você já utilizou todas as tentativas disponíveis para esta atividade.
       {% else %}
         Não foi possível acessar esta atividade agora.
       {% endif %}
