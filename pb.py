@@ -81,6 +81,16 @@ class PocketBaseClient:
         )
         return result.get("items", [])
 
+    def listar_disciplinas_da_turma(self, turma_id: str) -> list:
+        """Derives unique disciplines for a turma from expanded active activities."""
+        atividades = self.listar_atividades_por_turma(turma_id)
+        seen: dict[str, dict] = {}
+        for a in atividades:
+            disc = (a.get("expand") or {}).get("disciplina")
+            if disc and disc["id"] not in seen:
+                seen[disc["id"]] = disc
+        return list(seen.values())
+
     def listar_atividades_por_turma(self, turma_id: str) -> list:
         result = self._get(
             "/api/collections/atividades/records",

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR"{% if disciplina.cor_tema %} style="--local-accent: {{ disciplina.cor_tema }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +8,69 @@
 </head>
 <body>
 
+{# ── Checkbox que controla drawer (deve ser irmão de overlay e drawer) ── #}
+<input type="checkbox" id="nav-toggle" class="nav-toggle-input">
+
+{# ── Overlay escuro — clicar fecha o drawer ── #}
+<label for="nav-toggle" class="nav-overlay" aria-hidden="true"></label>
+
+{# ── Drawer lateral ── #}
+<aside class="nav-drawer" aria-label="Menu de navegação">
+  <div class="nav-drawer-header">
+    <label for="nav-toggle" class="nav-close" aria-label="Fechar menu">✕</label>
+    <div>
+      <p class="nav-drawer-turma">{{ turma.nome }} · {{ turma.modalidade }}</p>
+      <p class="nav-drawer-aluno">{{ aluno_nome if aluno_nome else 'Visitante' }}</p>
+    </div>
+  </div>
+
+  <div class="nav-drawer-body">
+    {% if todas_disciplinas %}
+      <p class="nav-section-label">📚 Disciplinas</p>
+      <ul class="nav-list">
+        {% for disc in todas_disciplinas %}
+          <li>
+            <a class="nav-link{% if disc.id == disciplina.id %} active{% endif %}"
+               href="/turma/{{ turma.id }}/{{ disc.id }}">
+              <span class="nav-link-icon">·</span>
+              {{ disc.nome }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <hr class="nav-divider">
+
+    <ul class="nav-list">
+      <li>
+        <a class="nav-link" href="/">
+          <span class="nav-link-icon">🏠</span>
+          Início
+        </a>
+      </li>
+      {% if aluno_nome %}
+        <li>
+          <a class="nav-link" href="/logout">
+            <span class="nav-link-icon">🚪</span>
+            Sair
+          </a>
+        </li>
+      {% else %}
+        <li>
+          <a class="nav-link" href="/login">
+            <span class="nav-link-icon">🔑</span>
+            Entrar
+          </a>
+        </li>
+      {% endif %}
+    </ul>
+  </div>
+</aside>
+
+{# ── Topbar ── #}
 <nav class="topbar">
+  <label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>
   <a href="/" class="topbar-logo">LeDuk</a>
   {% if aluno_nome %}
     <span class="topbar-aluno">{{ aluno_nome }}</span>
@@ -19,8 +81,7 @@
 </nav>
 
 <div class="shell">
-  {# .portal sets --local-accent for discipline-specific theming #}
-  <div class="portal"{% if disciplina.cor_tema %} style="--local-accent: {{ disciplina.cor_tema }}"{% endif %}>
+  <div class="portal">
 
     <div class="portal-header">
       <p class="portal-turma">{{ turma.nome }} · {{ turma.modalidade }}</p>
