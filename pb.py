@@ -260,3 +260,27 @@ class PocketBaseClient:
             params={"filter": f'aluno_id="{aluno_id}"&&atividade="{ativ_id}"'},
         )
         return result.get("items", [])
+
+    def listar_todas_atividades_turma(self, turma_id: str) -> list:
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={"filter": f'turma="{turma_id}"', "expand": "disciplina", "sort": "titulo"},
+        )
+        return result.get("items", [])
+
+    def listar_tentativas_atividade(self, ativ_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={"filter": f'atividade="{ativ_id}"&&concluida=true', "sort": "-score_percentual"},
+        )
+        return result.get("items", [])
+
+    def criar_atividade(self, data: dict) -> dict:
+        return self._post("/api/collections/atividades/records", data)
+
+    def atualizar_atividade(self, ativ_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/atividades/records/{ativ_id}", data)
+
+    def listar_disciplinas(self) -> list:
+        result = self._get("/api/collections/disciplinas/records", params={"sort": "nome"})
+        return result.get("items", [])

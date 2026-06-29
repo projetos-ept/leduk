@@ -1,0 +1,6 @@
+<button class="toggle-ativa {% if ativa %}toggle-on{% else %}toggle-off{% endif %}"
+        hx-post="/professor/atividade/{{ ativ_id }}/toggle-ativa"
+        hx-swap="outerHTML"
+        title="{% if ativa %}Clique para desativar{% else %}Clique para ativar{% endif %}">
+  {% if ativa %}✓ Ativa{% else %}✗ Inativa{% endif %}
+</button>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel do Professor — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:960px;">
+  <h1 style="font-size:1.5rem;font-weight:800;color:var(--texto);margin-bottom:20px;">Painel do Professor</h1>
+
+  {% if not turmas_data %}
+    <div class="card" style="text-align:center;color:var(--muted);padding:32px;">
+      <p>Nenhuma turma encontrada.</p>
+    </div>
+  {% else %}
+    <div class="prof-cards">
+      {% for td in turmas_data %}
+        {% set turma = td.turma %}
+        <div class="prof-card">
+          <p class="prof-card-titulo">{{ turma.nome }}</p>
+          <div class="prof-card-stats">
+            <div class="prof-stat">
+              <div class="prof-stat-num">{{ td.ativas_count }}</div>
+              <div class="prof-stat-label">atividades ativas</div>
+            </div>
+            <div class="prof-stat">
+              <div class="prof-stat-num" style="color:{% if td.pendentes_count > 0 %}var(--aviso){% else %}var(--sucesso){% endif %}">{{ td.pendentes_count }}</div>
+              <div class="prof-stat-label">notas pendentes</div>
+            </div>
+            <div class="prof-stat">
+              <div class="prof-stat-num">{{ td.alunos|length }}</div>
+              <div class="prof-stat-label">alunos</div>
+            </div>
+          </div>
+          <a class="prof-card-link" href="/professor/turma/{{ turma.id }}">Ver turma →</a>
+
+          {% if td.alunos %}
+            <div style="overflow-x:auto;margin-top:16px;">
+              <table class="mapa-calor">
+                <thead>
+                  <tr>
+                    <th class="mapa-nome">Aluno</th>
+                    {% for ativ in td.atividades %}
+                      <th title="{{ ativ.titulo }}">{{ ativ.titulo[:20] }}{% if ativ.titulo|length > 20 %}…{% endif %}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for aluno in td.alunos %}
+                    <tr>
+                      <td class="mapa-nome">{{ aluno.nome }}</td>
+                      {% for ativ in td.atividades %}
+                        {% set nota = aluno.notas.get(ativ.id) %}
+                        {% if nota is none %}
+                          <td class="mapa-vazio">—</td>
+                        {% elif nota >= 70 %}
+                          <td class="mapa-verde">{{ nota }}%</td>
+                        {% elif nota >= 40 %}
+                          <td class="mapa-amarelo">{{ nota }}%</td>
+                        {% else %}
+                          <td class="mapa-vermelho">{{ nota }}%</td>
+                        {% endif %}
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1593,3 +1593,50 @@ a.material-header:hover {
   .ativ-titulo, .material-titulo { font-size: .88rem; }
   .material-btn { padding: 6px 11px; font-size: .76rem; }
 }
+
+/* ── Mapa de calor ── */
+.mapa-calor { width: 100%; border-collapse: collapse; font-size: .8rem; margin-top: 12px; }
+.mapa-calor th { background: var(--fundo); padding: 6px 8px; text-align: center; border: 1px solid var(--borda); font-weight: 600; font-size: .75rem; max-width: 80px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mapa-calor th.mapa-nome { text-align: left; min-width: 120px; }
+.mapa-calor td { padding: 5px 8px; border: 1px solid var(--borda); text-align: center; font-size: .78rem; font-weight: 600; }
+.mapa-calor td.mapa-nome { text-align: left; color: var(--texto); font-weight: 400; }
+.mapa-verde   { background: #00b894; color: #fff; }
+.mapa-amarelo { background: #fdcb6e; color: #5d4000; }
+.mapa-vermelho { background: #e17055; color: #fff; }
+.mapa-vazio   { background: #f0f0f0; color: var(--muted); }
+
+/* ── Prof card (dashboard) ── */
+.prof-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 20px 0; }
+.prof-card { background: var(--card); border-radius: var(--raio); box-shadow: var(--sombra); padding: 20px; border: 1px solid var(--borda); }
+.prof-card-titulo { font-weight: 700; font-size: 1.05rem; color: var(--texto); margin: 0 0 14px; }
+.prof-card-stats { display: flex; gap: 20px; margin-bottom: 14px; }
+.prof-stat { text-align: center; }
+.prof-stat-num { font-size: 1.6rem; font-weight: 800; color: var(--primaria); line-height: 1; }
+.prof-stat-label { font-size: .73rem; color: var(--muted); }
+.prof-card-link { display: inline-block; font-size: .85rem; font-weight: 600; color: var(--pa); text-decoration: none; }
+.prof-card-link:hover { text-decoration: underline; }
+
+/* ── Toggle ativa ── */
+.toggle-ativa { padding: 5px 14px; border: none; border-radius: 20px; font-size: .8rem; font-weight: 700; cursor: pointer; transition: background .15s, color .15s; }
+.toggle-on  { background: #e6faf5; color: #007a5a; }
+.toggle-on:hover  { background: #007a5a; color: #fff; }
+.toggle-off { background: #fff0f0; color: #c0392b; }
+.toggle-off:hover { background: #e17055; color: #fff; }
+
+/* ── Nota badge (notas.html) ── */
+.nota-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: .78rem; font-weight: 700; }
+.nota-verde   { background: #00b894; color: #fff; }
+.nota-amarelo { background: #fdcb6e; color: #5d4000; }
+.nota-vermelho { background: #e17055; color: #fff; }
+.nota-pendente { background: #f0f0f0; color: var(--muted); }
+.nota-liberada { background: #e6faf5; color: #007a5a; }
+
+/* ── Prof table ── */
+.prof-tabela { width: 100%; border-collapse: collapse; font-size: .88rem; margin-top: 12px; }
+.prof-tabela th { text-align: left; padding: 10px 12px; background: var(--fundo); border-bottom: 2px solid var(--borda); font-weight: 700; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+.prof-tabela td { padding: 10px 12px; border-bottom: 1px solid var(--borda); vertical-align: middle; }
+.prof-tabela tr:last-child td { border-bottom: none; }
+.prof-tabela tr:hover td { background: var(--fundo); }
+.prof-acoes { display: flex; gap: 8px; align-items: center; }
+.prof-link { font-size: .8rem; font-weight: 600; color: var(--pa); text-decoration: none; white-space: nowrap; }
+.prof-link:hover { text-decoration: underline; }
