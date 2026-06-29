@@ -128,7 +128,7 @@ class PocketBaseClient:
 
     def criar_tentativa(self, ativ_id: str, aluno_id: str, aluno_nome: str, numero: int) -> dict:
         return self._post("/api/collections/tentativas/records", {
-            "disciplina": ativ_id,
+            "atividade": ativ_id,
             "aluno_id": aluno_id,
             "aluno_nome": aluno_nome,
             "numero_tentativa": numero,
@@ -146,7 +146,7 @@ class PocketBaseClient:
         result = self._get(
             "/api/collections/tentativas/records",
             params={
-                "filter": f'disciplina="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=false',
+                "filter": f'atividade="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=false',
                 "sort": "-created",
             },
         )
@@ -157,7 +157,7 @@ class PocketBaseClient:
         result = self._get(
             "/api/collections/tentativas/records",
             params={
-                "filter": f'disciplina="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=true',
+                "filter": f'atividade="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=true',
                 "sort": "-created",
             },
         )
@@ -242,7 +242,7 @@ class PocketBaseClient:
         result = self._get(
             "/api/collections/tentativas/records",
             params={
-                "filter": f'disciplina="{ativ_id}"&&concluida=true&&nota_liberada=false',
+                "filter": f'atividade="{ativ_id}"&&concluida=true&&nota_liberada=false',
                 "sort": "-created",
             },
         )
@@ -257,6 +257,6 @@ class PocketBaseClient:
     def tentativas_por_atividade(self, ativ_id: str, aluno_id: str) -> list:
         result = self._get(
             "/api/collections/tentativas/records",
-            params={"filter": f'aluno_id="{aluno_id}"&&disciplina="{ativ_id}"'},
+            params={"filter": f'aluno_id="{aluno_id}"&&atividade="{ativ_id}"'},
         )
         return result.get("items", [])
