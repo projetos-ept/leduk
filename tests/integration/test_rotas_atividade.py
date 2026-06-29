@@ -6,6 +6,8 @@ PB = "http://pb.test"
 
 TURMA = {"id": "turma01", "nome": "1º Ano EMI", "modalidade": "EMI", "ano": "2025"}
 
+DISCIPLINA = {"id": "disc01", "nome": "Hematologia"}
+
 ATIVIDADE = {
     "id": "ativ01",
     "titulo": "Quiz Hematologia",
@@ -15,6 +17,8 @@ ATIVIDADE = {
     "disponivel_de": None,
     "disponivel_ate": None,
     "tempo_limite": 0,
+    "disciplina": "disc01",
+    "expand": {"disciplina": DISCIPLINA},
 }
 
 
@@ -34,9 +38,10 @@ def test_home_lista_atividades_por_turma(client):
     resp = client.get("/")
     assert resp.status_code == 200
     html = resp.data.decode()
-    assert "Quiz Hematologia" in html
-    assert '/atividade/ativ01' in html
-    assert '/atividade/turma01' not in html  # nunca linka por ID de turma
+    assert "Hematologia" in html              # nome da disciplina aparece
+    assert '/turma/turma01/disc01' in html    # link para portal da disciplina
+    assert '/atividade/ativ01' not in html    # home não linka direto para atividade
+    assert '/atividade/turma01' not in html   # nunca linka por ID de turma
 
 
 @rsps_lib.activate
