@@ -151,6 +151,7 @@ def create_app(config: dict | None = None) -> Flask:
         todas_disciplinas = pb.listar_disciplinas_da_turma(turma_id)
 
         logado = bool(session.get("token"))
+        aluno_id = session.get("aluno_id", "")
         if logado:
             atividades = pb.listar_atividades_por_disciplina(turma_id, disciplina_id)
             for ativ in atividades:
@@ -171,6 +172,28 @@ def create_app(config: dict | None = None) -> Flask:
                         ativ["_prazo"] = ""
                 else:
                     ativ["_prazo"] = ""
+
+                max_tent = int(ativ.get("max_tentativas", 0) or 0)
+                ativ["_max_tentativas"] = max_tent
+                if aluno_id and ativ["_status"] == "disponivel":
+                    try:
+                        st = pb.status_atividade_aluno(ativ["id"], aluno_id, max_tent)
+                        ativ["_tentativas_usadas"] = st["tentativas_usadas"]
+                        ativ["_melhor_nota"] = st["melhor_nota"]
+                        ativ["_nota_liberada"] = st["nota_liberada"]
+                        if not st["pode_tentar"]:
+                            ativ["_status"] = "realizada"
+                        elif st["tentativas_usadas"] > 0:
+                            ativ["_status"] = "tentar_novamente"
+                    except Exception as exc:
+                        log.warning("status_atividade_aluno falhou: %s", exc)
+                        ativ["_tentativas_usadas"] = 0
+                        ativ["_melhor_nota"] = 0
+                        ativ["_nota_liberada"] = False
+                else:
+                    ativ["_tentativas_usadas"] = 0
+                    ativ["_melhor_nota"] = 0
+                    ativ["_nota_liberada"] = False
         else:
             atividades = []
 
@@ -198,6 +221,30 @@ def create_app(config: dict | None = None) -> Flask:
         if not disponivel:
             return render_template("auth/atividade_indisponivel.html", atividade=ativ, motivo=motivo)
 
+        aluno_id = session.get("aluno_id", "")
+        aluno_nome = session.get("aluno_nome", "")
+        max_tentativas = int(ativ.get("max_tentativas", 0) or 0)
+
+        if max_tentativas > 0 and aluno_id:
+            status = pb.status_atividade_aluno(ativ_id, aluno_id, max_tentativas)
+            if not status["pode_tentar"]:
+                return render_template("auth/atividade_indisponivel.html", atividade=ativ, motivo="esgotada")
+
+        tentativas_usadas = 0
+        if aluno_id:
+            tentativas_usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
+
+        try:
+            tent = pb.criar_tentativa(ativ_id, aluno_id, aluno_nome, tentativas_usadas + 1)
+            session["tentativa_id"] = tent["id"]
+        except Exception as exc:
+            log.warning("criar_tentativa falhou: %s", exc)
+            session["tentativa_id"] = ""
+
+        session["nota_automatica"] = bool(ativ.get("nota_automatica", False))
+        session["max_tentativas"] = max_tentativas
+        session["tentativa_concluida"] = False
+
         questoes = ativ.get("questoes", [])
         session["fila"] = questoes[1:]
         session["ativ_id"] = ativ_id
@@ -214,7 +261,6 @@ def create_app(config: dict | None = None) -> Flask:
         session.modified = True
 
         primeira = questoes[0] if questoes else None
-        aluno_nome = session.get("aluno_nome", "")
         return render_template(
             "quiz/shell.html",
             atividade=ativ,
@@ -298,11 +344,28 @@ def create_app(config: dict | None = None) -> Flask:
             respostas = session.get("respostas", [])
             score_raw = sum(r.get("score_raw", 0) for r in respostas)
             score_max = sum(r.get("score_max", 0) for r in respostas)
+            nota_automatica = session.get("nota_automatica", False)
+            tentativa_id = session.get("tentativa_id", "")
+            if tentativa_id and not session.get("tentativa_concluida", False):
+                try:
+                    pb.concluir_tentativa(tentativa_id, score_raw, score_max, nota_automatica)
+                    session["tentativa_concluida"] = True
+                    session.modified = True
+                except Exception as exc:
+                    log.warning("concluir_tentativa falhou: %s", exc)
+            max_tent = session.get("max_tentativas", 0)
+            aluno_id = session.get("aluno_id", "")
+            tentativas_restantes = 0
+            if max_tent > 0 and aluno_id:
+                usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
+                tentativas_restantes = max(0, max_tent - usadas)
             return render_template(
                 "components/_placar.html",
                 score_raw=score_raw,
                 score_max=score_max,
                 ativ_id=ativ_id,
+                nota_automatica=nota_automatica,
+                tentativas_restantes=tentativas_restantes,
             )
 
         proxima_id = fila.pop(0)
@@ -319,12 +382,46 @@ def create_app(config: dict | None = None) -> Flask:
         respostas = session.get("respostas", [])
         score_raw = sum(r.get("score_raw", 0) for r in respostas)
         score_max = sum(r.get("score_max", 0) for r in respostas)
+        nota_automatica = session.get("nota_automatica", False)
+        tentativa_id = session.get("tentativa_id", "")
+        if tentativa_id and not session.get("tentativa_concluida", False):
+            try:
+                pb.concluir_tentativa(tentativa_id, score_raw, score_max, nota_automatica)
+                session["tentativa_concluida"] = True
+                session.modified = True
+            except Exception as exc:
+                log.warning("concluir_tentativa falhou: %s", exc)
+        max_tent = session.get("max_tentativas", 0)
+        aluno_id = session.get("aluno_id", "")
+        tentativas_restantes = 0
+        if max_tent > 0 and aluno_id:
+            usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
+            tentativas_restantes = max(0, max_tent - usadas)
         return render_template(
             "components/_placar.html",
             score_raw=score_raw,
             score_max=score_max,
             ativ_id=ativ_id,
+            nota_automatica=nota_automatica,
+            tentativas_restantes=tentativas_restantes,
         )
+
+    # ------------------------------------------------------------------
+    # Status de tentativas (aluno)
+
+    @app.route("/aluno/atividade/<ativ_id>/status")
+    @requer_login
+    def status_atividade(ativ_id: str):
+        aluno_id = session.get("aluno_id", "")
+        ativ = pb.buscar_atividade(ativ_id)
+        max_tent = int(ativ.get("max_tentativas", 0) or 0)
+        return pb.status_atividade_aluno(ativ_id, aluno_id, max_tent)
+
+    @app.route("/professor/atividade/<ativ_id>/liberar-nota/<tentativa_id>", methods=["POST"])
+    @requer_login
+    def liberar_nota_rota(ativ_id: str, tentativa_id: str):
+        pb.liberar_nota(tentativa_id)
+        return {"ok": True}
 
     # ------------------------------------------------------------------
     # Relatórios

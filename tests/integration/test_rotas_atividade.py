@@ -72,6 +72,8 @@ def test_health(client):
 @rsps_lib.activate
 def test_atividade_inicia_sessao(client, questao_mc4):
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ATIVIDADE)
+    # listar_tentativas_aluno (aluno_id empty → skipped)
+    # criar_tentativa: wrapped in try/except so no mock needed (fails silently)
     rsps_lib.add(
         rsps_lib.GET,
         f"{PB}/api/collections/questoes/records/q001mc4",
@@ -123,8 +125,9 @@ def test_htmx_questao_vf(client, questao_vf):
 
 @rsps_lib.activate
 def test_atividade_sem_questoes(client):
-    ativ_vazia = {**ATIVIDADE, "questoes": []}
+    ativ_vazia = {**ATIVIDADE, "questoes": [], "id": "ativ99"}
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ99", json=ativ_vazia)
+    # criar_tentativa fails silently via try/except
 
     resp = client.get("/atividade/ativ99")
     assert resp.status_code == 200

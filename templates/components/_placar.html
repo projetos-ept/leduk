@@ -29,5 +29,21 @@
     <div class="placar-fill" style="width: {{ pct }}%; background: {{ cor }};"></div>
   </div>
 
+  {% if nota_automatica is defined and nota_automatica %}
+    <div class="placar-nota">
+      <span class="badge-nota">Nota: {{ pct }}%</span>
+    </div>
+  {% elif nota_automatica is defined %}
+    <div class="placar-nota">
+      <span class="badge-correcao">📋 Aguardando correção do professor</span>
+    </div>
+  {% endif %}
+
+  {% if tentativas_restantes is defined and tentativas_restantes > 0 %}
+    <p class="placar-tentativas">
+      <span class="badge-tentativas">🔄 {{ tentativas_restantes }} tentativa{{ 's' if tentativas_restantes != 1 }} restante{{ 's' if tentativas_restantes != 1 }}</span>
+    </p>
+  {% endif %}
+
   <a class="btn-home" href="/">Voltar ao início</a>
 </div>

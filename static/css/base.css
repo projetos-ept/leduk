@@ -417,6 +417,12 @@ body {
   transition: width .6s ease;
 }
 
+.placar-nota,
+.placar-tentativas {
+  margin: 12px 0;
+  text-align: center;
+}
+
 .btn-home {
   display: inline-block;
   padding: 13px 36px;
@@ -977,10 +983,13 @@ a.ativ-card .ativ-icon {
   letter-spacing: .02em;
 }
 
-.badge-disponivel { background: #e6faf5; color: #007a5a; }
-.badge-breve      { background: #fff8e1; color: #9a6000; }
-.badge-encerrada  { background: #f0f0f0; color: #888; }
-.badge-bloqueada  { background: #f5f5f5; color: #aaa; }
+.badge-disponivel  { background: #e6faf5; color: #007a5a; }
+.badge-breve       { background: #fff8e1; color: #9a6000; }
+.badge-encerrada   { background: #f0f0f0; color: #888; }
+.badge-bloqueada   { background: #f5f5f5; color: #aaa; }
+.badge-tentativas  { background: #e8f0fe; color: #1a56db; }
+.badge-nota        { background: #e6faf5; color: #007a5a; font-weight: 700; }
+.badge-correcao    { background: #fff8e1; color: #9a6000; }
 
 /* ── Material cards ── */
 

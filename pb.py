@@ -23,6 +23,11 @@ class PocketBaseClient:
         resp.raise_for_status()
         return resp.json()
 
+    def _patch(self, path: str, data: dict) -> dict:
+        resp = requests.patch(f"{self.base_url}{path}", headers=self._headers(), json=data)
+        resp.raise_for_status()
+        return resp.json()
+
     # --- Collections ---
 
     def buscar_questao(self, questao_id: str) -> dict:
@@ -120,6 +125,55 @@ class PocketBaseClient:
 
     def registrar_tentativa(self, dados: dict) -> dict:
         return self._post("/api/collections/tentativas/records", dados)
+
+    def criar_tentativa(self, ativ_id: str, aluno_id: str, aluno_nome: str, numero: int) -> dict:
+        return self._post("/api/collections/tentativas/records", {
+            "disciplina": ativ_id,
+            "aluno_id": aluno_id,
+            "aluno_nome": aluno_nome,
+            "numero_tentativa": numero,
+            "concluida": False,
+            "nota_liberada": False,
+        })
+
+    def listar_tentativas_aluno(self, ativ_id: str, aluno_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'disciplina="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=true',
+                "sort": "-created",
+            },
+        )
+        return result.get("items", [])
+
+    def status_atividade_aluno(self, ativ_id: str, aluno_id: str, max_tentativas: int = 0) -> dict:
+        tentativas = self.listar_tentativas_aluno(ativ_id, aluno_id)
+        usadas = len(tentativas)
+        melhor = max((t.get("score_percentual", 0) for t in tentativas), default=0)
+        liberada = any(t.get("nota_liberada", False) for t in tentativas)
+        return {
+            "tentativas_usadas": usadas,
+            "max_tentativas": max_tentativas,
+            "pode_tentar": max_tentativas == 0 or usadas < max_tentativas,
+            "melhor_nota": melhor,
+            "nota_liberada": liberada,
+            "ultima_tentativa": tentativas[0] if tentativas else None,
+        }
+
+    def concluir_tentativa(self, tentativa_id: str, score_raw: int, score_max: int, nota_automatica: bool) -> dict:
+        pct = round(score_raw / score_max * 100) if score_max > 0 else 0
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "concluida": True,
+            "score_raw": score_raw,
+            "score_max": score_max,
+            "score_percentual": pct,
+            "nota_liberada": nota_automatica,
+        })
+
+    def liberar_nota(self, tentativa_id: str) -> dict:
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "nota_liberada": True,
+        })
 
     def tentativas_por_atividade(self, ativ_id: str, aluno_id: str) -> list:
         result = self._get(
