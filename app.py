@@ -148,6 +148,8 @@ def create_app(config: dict | None = None) -> Flask:
             if m.get("tipo") == "arquivo" and m.get("arquivo"):
                 m["_arquivo_url"] = f"{pb.base_url}/api/files/materiais/{m['id']}/{m['arquivo']}"
 
+        todas_disciplinas = pb.listar_disciplinas_da_turma(turma_id)
+
         logado = bool(session.get("token"))
         if logado:
             atividades = pb.listar_atividades_por_disciplina(turma_id, disciplina_id)
@@ -181,6 +183,7 @@ def create_app(config: dict | None = None) -> Flask:
             materiais=materiais,
             logado=logado,
             aluno_nome=aluno_nome,
+            todas_disciplinas=todas_disciplinas,
         )
 
     # ------------------------------------------------------------------

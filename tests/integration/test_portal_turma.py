@@ -15,6 +15,7 @@ ATIVIDADE = {
     "disponivel_ate": None,
     "tempo_limite": 0,
     "disciplina": "disc01",
+    "expand": {"disciplina": DISCIPLINA},
 }
 
 MATERIAL_VIDEO = {
@@ -56,12 +57,14 @@ def _mock_portal(turma=TURMA, disciplina=DISCIPLINA, atividades=None, materiais=
         f"{PB}/api/collections/materiais/records",
         json={"items": materiais or []},
     )
-    if atividades is not None:
-        rsps_lib.add(
-            rsps_lib.GET,
-            f"{PB}/api/collections/atividades/records",
-            json={"items": atividades},
-        )
+    # Always mock atividades: serves listar_disciplinas_da_turma (drawer) for every request,
+    # and listar_atividades_por_disciplina (tab) when logged in. responses lib reuses the
+    # same mock for all matching GET requests to this URL.
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/atividades/records",
+        json={"items": atividades if atividades is not None else [ATIVIDADE]},
+    )
 
 
 @rsps_lib.activate
@@ -139,3 +142,27 @@ def test_portal_atividade_encerrada_mostra_badge(client):
     resp = client.get("/turma/turma01/disc01")
     html = resp.data.decode()
     assert "Encerrada" in html
+
+
+@rsps_lib.activate
+def test_portal_drawer_contem_disciplinas_e_navegacao(client):
+    _mock_portal(materiais=[])
+    resp = client.get("/turma/turma01/disc01")
+    html = resp.data.decode()
+    # Drawer exists and has the discipline link
+    assert "nav-drawer" in html
+    assert "Hematologia" in html
+    assert 'href="/turma/turma01/disc01"' in html
+    # Link home presente no drawer
+    assert 'href="/"' in html
+    # Hamburger button presente
+    assert "nav-toggle-btn" in html
+
+
+@rsps_lib.activate
+def test_portal_drawer_marca_disciplina_ativa(client):
+    _mock_portal(materiais=[])
+    resp = client.get("/turma/turma01/disc01")
+    html = resp.data.decode()
+    # Current discipline link should have the active class
+    assert 'nav-link active' in html or 'class="nav-link active"' in html

@@ -19,6 +19,9 @@
   --text:     var(--texto);
   --muted:    var(--suave);
   --sans:     'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* --pa: portal accent color — overridden per-disciplina via --local-accent on <html> */
+  --pa: var(--local-accent, var(--primaria));
 }
 
 /* tema por disciplina (sobrescrito via atributo data-tema) */
@@ -510,6 +513,166 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Nav drawer (hambúrguer) — CSS checkbox hack, sem JS externo         */
+/* ------------------------------------------------------------------ */
+
+.nav-toggle-input { display: none; }
+
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 19;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#nav-toggle:checked ~ .nav-overlay { display: block; }
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 280px;
+  max-width: 85vw;
+  background: var(--surface);
+  box-shadow: 4px 0 32px rgba(0, 0, 0, .18);
+  z-index: 20;
+  transform: translateX(-100%);
+  transition: transform .26s cubic-bezier(.4, 0, .2, 1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+#nav-toggle:checked ~ .nav-drawer { transform: translateX(0); }
+
+.nav-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--pa) 8%, white);
+  flex-shrink: 0;
+}
+
+.nav-close {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .95rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .13s, color .13s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.nav-close:hover { background: var(--bg); color: var(--text); }
+
+.nav-drawer-turma {
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.nav-drawer-aluno {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.nav-drawer-body {
+  padding: 8px 0 20px;
+  flex: 1;
+}
+
+.nav-section-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--muted);
+  padding: 10px 16px 4px;
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: .88rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: background .13s, color .13s, border-color .13s;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+}
+
+.nav-link:hover {
+  background: var(--bg);
+  color: var(--pa);
+}
+
+.nav-link.active {
+  color: var(--pa);
+  border-left-color: var(--pa);
+  background: color-mix(in srgb, var(--pa) 9%, white);
+  font-weight: 700;
+}
+
+.nav-link-icon {
+  width: 20px;
+  text-align: center;
+  font-size: .95rem;
+  flex-shrink: 0;
+}
+
+.nav-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 16px;
+}
+
+.nav-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--text);
+  flex-shrink: 0;
+  transition: background .13s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.nav-toggle-btn:hover { background: var(--bg); }
+
+/* ------------------------------------------------------------------ */
 /* Topbar                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -655,7 +818,7 @@ body {
 /* ------------------------------------------------------------------ */
 
 /* .portal wraps header + tabs; set --local-accent inline for theming  */
-.portal { --pa: var(--local-accent, var(--primaria)); }
+/* --pa flows from :root; set --local-accent on <html> to theme per-disciplina */
 
 .portal-header {
   padding: 20px 0 18px;
