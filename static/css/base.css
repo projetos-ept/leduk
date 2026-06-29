@@ -990,6 +990,231 @@ a.ativ-card .ativ-icon {
 .badge-tentativas  { background: #e8f0fe; color: #1a56db; }
 .badge-nota        { background: #e6faf5; color: #007a5a; font-weight: 700; }
 .badge-correcao    { background: #fff8e1; color: #9a6000; }
+.badge-novo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--erro);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Progress mini (in-progress activity card) ── */
+
+.progresso-mini {
+  height: 4px;
+  background: var(--borda);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progresso-mini-fill {
+  height: 100%;
+  background: var(--pa);
+  border-radius: 2px;
+  transition: width .4s ease;
+}
+
+/* ── Link gabarito inline no card ── */
+
+.ativ-link-gabarito {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--pa);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ativ-link-gabarito:hover { text-decoration: underline; }
+
+/* ── Turma card top row ── */
+
+.turma-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.turma-card-top h3 { margin: 0; }
+
+/* ── Botão gabarito no placar ── */
+
+.btn-gabarito {
+  display: inline-block;
+  margin: 12px 0 0;
+  padding: 10px 24px;
+  border-radius: var(--raio);
+  background: var(--fundo);
+  border: 2px solid var(--primaria);
+  color: var(--primaria);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: .9rem;
+  transition: background .15s;
+}
+.btn-gabarito:hover { background: var(--primaria); color: #fff; }
+
+/* ── Revisão de atividade ── */
+
+.revisao-card {
+  background: var(--surface);
+  border-radius: var(--raio);
+  border: 2px solid var(--borda);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.revisao-card.revisao-correta { border-color: #00c9a7; }
+.revisao-card.revisao-errada  { border-color: #ff6b6b; }
+
+.revisao-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.revisao-num {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.revisao-badge {
+  font-size: .78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.revisao-badge-ok  { background: #e6faf5; color: #007a5a; }
+.revisao-badge-err { background: #fff0f0; color: #c0392b; }
+
+.revisao-enunciado {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 14px;
+  color: var(--texto);
+}
+
+.revisao-alternativas {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.revisao-alt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borda);
+  background: var(--fundo);
+  font-size: .9rem;
+}
+.revisao-alt.revisao-alt-correta {
+  border-color: #00c9a7;
+  background: #e6faf5;
+}
+.revisao-alt.revisao-alt-errada {
+  border-color: #ff6b6b;
+  background: #fff0f0;
+}
+
+.revisao-letra {
+  font-weight: 700;
+  min-width: 18px;
+  color: var(--muted);
+}
+.revisao-alt.revisao-alt-correta .revisao-letra { color: #007a5a; }
+.revisao-alt.revisao-alt-errada  .revisao-letra { color: #c0392b; }
+
+.revisao-texto { flex: 1; }
+
+.revisao-tag {
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.revisao-alt-correta .revisao-tag { color: #007a5a; }
+.revisao-alt-errada  .revisao-tag { color: #c0392b; }
+
+.revisao-explicacao {
+  display: flex;
+  gap: 8px;
+  background: #fffbea;
+  border-left: 3px solid #f7b731;
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+  font-size: .88rem;
+  line-height: 1.5;
+  color: #7a5800;
+  margin-top: 8px;
+}
+.revisao-lamp { flex-shrink: 0; }
+
+/* ── Histórico do aluno ── */
+
+.historico-section {
+  margin-bottom: 28px;
+}
+
+.historico-disc {
+  font-size: .85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--borda);
+  margin-bottom: 12px;
+}
+
+.historico-ativ-bloco {
+  margin-bottom: 16px;
+}
+
+.historico-ativ-nome {
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--texto);
+  margin: 0 0 6px;
+}
+
+.historico-tentativa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--fundo);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  font-size: .85rem;
+}
+
+.historico-num  { font-weight: 600; color: var(--texto); }
+.historico-data { color: var(--muted); }
+
+.historico-btn {
+  margin-left: auto;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--pa);
+  text-decoration: none;
+}
+.historico-btn:hover { text-decoration: underline; }
 
 /* ── Material cards ── */
 

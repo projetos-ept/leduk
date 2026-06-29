@@ -94,6 +94,7 @@ def create_app(config: dict | None = None) -> Flask:
             session["token"] = dados["token"]
             session["aluno_id"] = dados["record"]["id"]
             session["aluno_nome"] = dados["record"].get("name", email)
+            session["ultimo_acesso"] = datetime.now(timezone.utc).isoformat()
             return redirect(url_for("index"))
         except Exception:
             return render_template("auth/login.html", erro="Email ou senha incorretos."), 401
@@ -117,7 +118,7 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_login
     def index():
         turmas = pb.listar_turmas()
-        # Group disciplines from expanded activity data — avoids a separate disciplines query
+        ultimo_acesso = session.get("ultimo_acesso", "")
         estrutura: dict[str, list] = {}
         for t in turmas:
             atividades = pb.listar_atividades_por_turma(t["id"])
@@ -128,8 +129,14 @@ def create_app(config: dict | None = None) -> Flask:
                     continue
                 did = disc["id"]
                 if did not in discs:
-                    discs[did] = {"id": did, "nome": disc.get("nome", ""), "atividades_count": 0}
+                    discs[did] = {"id": did, "nome": disc.get("nome", ""), "atividades_count": 0, "novas_count": 0}
                 discs[did]["atividades_count"] += 1
+            if ultimo_acesso:
+                for disc in discs.values():
+                    try:
+                        disc["novas_count"] = pb.contar_novas_atividades(t["id"], disc["id"], ultimo_acesso)
+                    except Exception:
+                        disc["novas_count"] = 0
             estrutura[t["id"]] = list(discs.values())
         aluno_nome = session.get("aluno_nome", "")
         return render_template("index.html", turmas=turmas, estrutura=estrutura, aluno_nome=aluno_nome)
@@ -175,25 +182,33 @@ def create_app(config: dict | None = None) -> Flask:
 
                 max_tent = int(ativ.get("max_tentativas", 0) or 0)
                 ativ["_max_tentativas"] = max_tent
+                ativ["_exibir_feedback"] = bool(ativ.get("exibir_feedback_pos", True))
+                ativ["_tentativas_usadas"] = 0
+                ativ["_melhor_nota"] = 0
+                ativ["_nota_liberada"] = False
+                ativ["_melhor_tentativa_id"] = None
+                ativ["_questoes_respondidas"] = 0
                 if aluno_id and ativ["_status"] == "disponivel":
                     try:
                         st = pb.status_atividade_aluno(ativ["id"], aluno_id, max_tent)
                         ativ["_tentativas_usadas"] = st["tentativas_usadas"]
                         ativ["_melhor_nota"] = st["melhor_nota"]
                         ativ["_nota_liberada"] = st["nota_liberada"]
+                        ativ["_melhor_tentativa_id"] = st["melhor_tentativa_id"]
                         if not st["pode_tentar"]:
                             ativ["_status"] = "realizada"
                         elif st["tentativas_usadas"] > 0:
                             ativ["_status"] = "tentar_novamente"
                     except Exception as exc:
                         log.warning("status_atividade_aluno falhou: %s", exc)
-                        ativ["_tentativas_usadas"] = 0
-                        ativ["_melhor_nota"] = 0
-                        ativ["_nota_liberada"] = False
-                else:
-                    ativ["_tentativas_usadas"] = 0
-                    ativ["_melhor_nota"] = 0
-                    ativ["_nota_liberada"] = False
+                    if ativ["_status"] in ("disponivel", "tentar_novamente"):
+                        try:
+                            prog = pb.progresso_tentativa_atual(ativ["id"], aluno_id)
+                            if prog:
+                                ativ["_status"] = "em_andamento"
+                                ativ["_questoes_respondidas"] = prog.get("questoes_respondidas", 0)
+                        except Exception as exc:
+                            log.warning("progresso_tentativa_atual falhou: %s", exc)
         else:
             atividades = []
 
@@ -315,6 +330,7 @@ def create_app(config: dict | None = None) -> Flask:
         session["respostas"] = respostas_sessao
         session.modified = True
 
+        tentativa_id = session.get("tentativa_id", "")
         try:
             pb.registrar_tentativa({
                 "questao": questao_id,
@@ -326,9 +342,16 @@ def create_app(config: dict | None = None) -> Flask:
                 "duracao_seg": 0,
                 "aluno_id": session.get("aluno_id", ""),
                 "aluno_nome": session.get("aluno_nome", ""),
+                "tentativa_id": tentativa_id,
             })
         except Exception as exc:
             log.warning("registrar_tentativa falhou: %s", exc)
+
+        if tentativa_id:
+            try:
+                pb.atualizar_progresso(tentativa_id, len(respostas_sessao))
+            except Exception as exc:
+                log.warning("atualizar_progresso falhou: %s", exc)
 
         return render_template(
             "components/_feedback.html", resultado=resultado, questao=questao, ativ_id=ativ_id
@@ -359,6 +382,12 @@ def create_app(config: dict | None = None) -> Flask:
             if max_tent > 0 and aluno_id:
                 usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
                 tentativas_restantes = max(0, max_tent - usadas)
+            exibir_feedback = False
+            try:
+                ativ_data = pb.buscar_atividade(ativ_id)
+                exibir_feedback = bool(ativ_data.get("exibir_feedback_pos", True))
+            except Exception:
+                pass
             return render_template(
                 "components/_placar.html",
                 score_raw=score_raw,
@@ -366,6 +395,8 @@ def create_app(config: dict | None = None) -> Flask:
                 ativ_id=ativ_id,
                 nota_automatica=nota_automatica,
                 tentativas_restantes=tentativas_restantes,
+                exibir_feedback=exibir_feedback,
+                tentativa_id=tentativa_id,
             )
 
         proxima_id = fila.pop(0)
@@ -397,6 +428,12 @@ def create_app(config: dict | None = None) -> Flask:
         if max_tent > 0 and aluno_id:
             usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
             tentativas_restantes = max(0, max_tent - usadas)
+        exibir_feedback = False
+        try:
+            ativ_data = pb.buscar_atividade(ativ_id)
+            exibir_feedback = bool(ativ_data.get("exibir_feedback_pos", True))
+        except Exception:
+            pass
         return render_template(
             "components/_placar.html",
             score_raw=score_raw,
@@ -404,6 +441,8 @@ def create_app(config: dict | None = None) -> Flask:
             ativ_id=ativ_id,
             nota_automatica=nota_automatica,
             tentativas_restantes=tentativas_restantes,
+            exibir_feedback=exibir_feedback,
+            tentativa_id=tentativa_id,
         )
 
     # ------------------------------------------------------------------
@@ -422,6 +461,94 @@ def create_app(config: dict | None = None) -> Flask:
     def liberar_nota_rota(ativ_id: str, tentativa_id: str):
         pb.liberar_nota(tentativa_id)
         return {"ok": True}
+
+    # ------------------------------------------------------------------
+    # Histórico e revisão do aluno
+
+    @app.route("/aluno/historico")
+    @requer_login
+    def historico_aluno():
+        aluno_id = session.get("aluno_id", "")
+        tentativas = pb.listar_historico_aluno(aluno_id)
+
+        ativ_cache: dict[str, dict] = {}
+        for t in tentativas:
+            ativ_id = t.get("disciplina", "")
+            if ativ_id and ativ_id not in ativ_cache:
+                try:
+                    ativ_cache[ativ_id] = pb.buscar_atividade_expandido(ativ_id)
+                except Exception:
+                    ativ_cache[ativ_id] = {"id": ativ_id, "titulo": "Atividade", "expand": {}}
+
+        grupos: dict[str, dict] = {}
+        for t in tentativas:
+            ativ_id = t.get("disciplina", "")
+            ativ = ativ_cache.get(ativ_id, {})
+            disc = (ativ.get("expand") or {}).get("disciplina") or {"id": "_", "nome": "Outras"}
+            disc_id = disc.get("id", "_")
+            if disc_id not in grupos:
+                grupos[disc_id] = {"disc": disc, "atividades": {}}
+            if ativ_id not in grupos[disc_id]["atividades"]:
+                grupos[disc_id]["atividades"][ativ_id] = {"ativ": ativ, "tentativas": []}
+            grupos[disc_id]["atividades"][ativ_id]["tentativas"].append(t)
+
+        historico = [
+            {
+                "disc": g["disc"],
+                "atividades": list(g["atividades"].values()),
+            }
+            for g in grupos.values()
+        ]
+        return render_template(
+            "aluno/historico.html",
+            historico=historico,
+            aluno_nome=session.get("aluno_nome", ""),
+        )
+
+    @app.route("/aluno/atividade/<ativ_id>/revisao/<tentativa_id>")
+    @requer_login
+    def revisao_atividade(ativ_id: str, tentativa_id: str):
+        aluno_id = session.get("aluno_id", "")
+        ativ = pb.buscar_atividade(ativ_id)
+
+        if not ativ.get("exibir_feedback_pos", True):
+            return render_template(
+                "aluno/revisao.html",
+                bloqueado=True,
+                atividade=ativ,
+                aluno_nome=session.get("aluno_nome", ""),
+            ), 403
+
+        try:
+            tentativa = pb.buscar_tentativa(tentativa_id)
+        except Exception:
+            return redirect(url_for("index"))
+
+        if tentativa.get("aluno_id") and tentativa.get("aluno_id") != aluno_id:
+            return redirect(url_for("index"))
+
+        respostas_list = pb.listar_respostas_tentativa(tentativa_id)
+        respostas_por_questao = {r["questao"]: r for r in respostas_list if r.get("questao")}
+
+        questoes_revisao = []
+        for qid in ativ.get("questoes", []):
+            try:
+                q = pb.buscar_questao(qid)
+            except Exception:
+                continue
+            questoes_revisao.append({
+                "questao": q,
+                "resposta": respostas_por_questao.get(qid, {}),
+            })
+
+        return render_template(
+            "aluno/revisao.html",
+            bloqueado=False,
+            atividade=ativ,
+            tentativa=tentativa,
+            questoes_revisao=questoes_revisao,
+            aluno_nome=session.get("aluno_nome", ""),
+        )
 
     # ------------------------------------------------------------------
     # Relatórios

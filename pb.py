@@ -134,7 +134,24 @@ class PocketBaseClient:
             "numero_tentativa": numero,
             "concluida": False,
             "nota_liberada": False,
+            "questoes_respondidas": 0,
         })
+
+    def atualizar_progresso(self, tentativa_id: str, respondidas: int) -> dict:
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "questoes_respondidas": respondidas,
+        })
+
+    def progresso_tentativa_atual(self, ativ_id: str, aluno_id: str) -> dict | None:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'disciplina="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=false',
+                "sort": "-created",
+            },
+        )
+        items = result.get("items", [])
+        return items[0] if items else None
 
     def listar_tentativas_aluno(self, ativ_id: str, aluno_id: str) -> list:
         result = self._get(
@@ -151,6 +168,7 @@ class PocketBaseClient:
         usadas = len(tentativas)
         melhor = max((t.get("score_percentual", 0) for t in tentativas), default=0)
         liberada = any(t.get("nota_liberada", False) for t in tentativas)
+        melhor_tent = max(tentativas, key=lambda t: t.get("score_percentual", 0), default=None)
         return {
             "tentativas_usadas": usadas,
             "max_tentativas": max_tentativas,
@@ -158,7 +176,46 @@ class PocketBaseClient:
             "melhor_nota": melhor,
             "nota_liberada": liberada,
             "ultima_tentativa": tentativas[0] if tentativas else None,
+            "melhor_tentativa_id": melhor_tent["id"] if melhor_tent else None,
         }
+
+    def buscar_tentativa(self, tentativa_id: str) -> dict:
+        return self._get(f"/api/collections/tentativas/records/{tentativa_id}")
+
+    def listar_historico_aluno(self, aluno_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'aluno_id="{aluno_id}"&&concluida=true',
+                "sort": "-created",
+            },
+        )
+        return result.get("items", [])
+
+    def listar_respostas_tentativa(self, tentativa_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'tentativa_id="{tentativa_id}"',
+                "sort": "created",
+            },
+        )
+        return result.get("items", [])
+
+    def buscar_atividade_expandido(self, ativ_id: str) -> dict:
+        return self._get(
+            f"/api/collections/atividades/records/{ativ_id}",
+            params={"expand": "disciplina"},
+        )
+
+    def contar_novas_atividades(self, turma_id: str, disciplina_id: str, desde: str) -> int:
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={
+                "filter": f'turma="{turma_id}"&&disciplina="{disciplina_id}"&&ativa=true&&created>"{desde}"',
+            },
+        )
+        return len(result.get("items", []))
 
     def concluir_tentativa(self, tentativa_id: str, score_raw: int, score_max: int, nota_automatica: bool) -> dict:
         pct = round(score_raw / score_max * 100) if score_max > 0 else 0

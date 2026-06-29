@@ -51,6 +51,12 @@
       </li>
       {% if aluno_nome %}
         <li>
+          <a class="nav-link" href="/aluno/historico">
+            <span class="nav-link-icon">📋</span>
+            Histórico
+          </a>
+        </li>
+        <li>
           <a class="nav-link" href="/logout">
             <span class="nav-link-icon">🚪</span>
             Sair
@@ -114,7 +120,24 @@
             </div>
           {% elif atividades %}
             {% for ativ in atividades %}
-              {% if ativ._status == "disponivel" %}
+              {% if ativ._status == "em_andamento" %}
+                <a class="ativ-card" href="/atividade/{{ ativ.id }}">
+                  <div class="ativ-icon">▶</div>
+                  <div class="ativ-body">
+                    <p class="ativ-titulo">{{ ativ.titulo }}</p>
+                    <div class="ativ-sub">
+                      {% set total = ativ.questoes | length %}
+                      <span>{{ ativ._questoes_respondidas }} de {{ total }} respondidas</span>
+                      <span class="ativ-badge badge-tentativas">Continuar →</span>
+                    </div>
+                    {% if total > 0 %}
+                      <div class="progresso-mini">
+                        <div class="progresso-mini-fill" style="width: {{ (ativ._questoes_respondidas / total * 100) | int }}%"></div>
+                      </div>
+                    {% endif %}
+                  </div>
+                </a>
+              {% elif ativ._status == "disponivel" %}
                 <a class="ativ-card" href="/atividade/{{ ativ.id }}">
                   <div class="ativ-icon">▶</div>
                   <div class="ativ-body">
@@ -153,6 +176,11 @@
                         <span class="ativ-badge badge-nota">Nota: {{ ativ._melhor_nota | int }}%</span>
                       {% else %}
                         <span class="ativ-badge badge-correcao">Em correção</span>
+                      {% endif %}
+                      {% if ativ._exibir_feedback and ativ._melhor_tentativa_id %}
+                        <a class="ativ-link-gabarito" href="/aluno/atividade/{{ ativ.id }}/revisao/{{ ativ._melhor_tentativa_id }}">
+                          Ver gabarito →
+                        </a>
                       {% endif %}
                     </div>
                   </div>
