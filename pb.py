@@ -154,14 +154,19 @@ class PocketBaseClient:
         return items[0] if items else None
 
     def listar_tentativas_aluno(self, ativ_id: str, aluno_id: str) -> list:
-        result = self._get(
-            "/api/collections/tentativas/records",
-            params={
-                "filter": f'atividade="{ativ_id}"&&aluno_id="{aluno_id}"&&concluida=true',
-                "sort": "-created",
-            },
-        )
-        return result.get("items", [])
+        try:
+            result = self._get(
+                "/api/collections/tentativas/records",
+                params={
+                    "filter": f'aluno_id="{aluno_id}"',
+                    "sort": "-created",
+                    "perPage": "500",
+                },
+            )
+            return [i for i in result.get("items", [])
+                    if i.get("aluno_id") == aluno_id]
+        except Exception:
+            return []
 
     def status_atividade_aluno(self, ativ_id: str, aluno_id: str, max_tentativas: int = 0) -> dict:
         tentativas = self.listar_tentativas_aluno(ativ_id, aluno_id)
