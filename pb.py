@@ -177,6 +177,7 @@ class PocketBaseClient:
             "nota_liberada": liberada,
             "ultima_tentativa": tentativas[0] if tentativas else None,
             "melhor_tentativa_id": melhor_tent["id"] if melhor_tent else None,
+            "melhor_nota_final": melhor_tent.get("nota_final") if melhor_tent else None,
         }
 
     def buscar_tentativa(self, tentativa_id: str) -> dict:
@@ -231,6 +232,27 @@ class PocketBaseClient:
         return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
             "nota_liberada": True,
         })
+
+    def patch_tentativa_nota_final(self, tentativa_id: str, nota_final: float) -> dict:
+        return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
+            "nota_final": nota_final,
+        })
+
+    def listar_tentativas_para_avaliar(self, ativ_id: str) -> list:
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'disciplina="{ativ_id}"&&concluida=true&&nota_liberada=false',
+                "sort": "-created",
+            },
+        )
+        return result.get("items", [])
+
+    def avaliar_questao_aberta(self, record_id: str, score_raw: float, score_max: float, comentario: str = "") -> dict:
+        data: dict = {"score_raw": score_raw, "score_max": score_max}
+        if comentario:
+            data["comentario_professor"] = comentario
+        return self._patch(f"/api/collections/tentativas/records/{record_id}", data)
 
     def tentativas_por_atividade(self, ativ_id: str, aluno_id: str) -> list:
         result = self._get(

@@ -423,6 +423,57 @@ body {
   text-align: center;
 }
 
+.placar-corretas {
+  font-size: .9rem;
+  color: var(--muted);
+  margin: 8px 0 0;
+  text-align: center;
+}
+
+/* ── Detalhamento por questão ── */
+
+.detalhamento {
+  margin: 20px 0 16px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  overflow: hidden;
+}
+
+.detalhamento-titulo {
+  font-size: .82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  background: var(--fundo);
+  padding: 8px 14px;
+  margin: 0;
+  border-bottom: 1px solid var(--borda);
+}
+
+.detalhamento-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+}
+
+.det-row td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.det-row:last-child td { border-bottom: none; }
+
+.det-correta { background: #f0fdf9; }
+.det-errada  { background: #fff8f8; }
+
+.det-num   { font-weight: 700; color: var(--texto); width: 42px; }
+.det-peso  { color: var(--muted); width: 72px; }
+.det-status { flex: 1; }
+.det-correta .det-status { color: #007a5a; }
+.det-errada  .det-status { color: #c0392b; }
+.det-pts   { text-align: right; font-weight: 700; color: var(--texto); }
+
 .btn-home {
   display: inline-block;
   padding: 13px 36px;
@@ -990,6 +1041,7 @@ a.ativ-card .ativ-icon {
 .badge-tentativas  { background: #e8f0fe; color: #1a56db; }
 .badge-nota        { background: #e6faf5; color: #007a5a; font-weight: 700; }
 .badge-correcao    { background: #fff8e1; color: #9a6000; }
+.badge-valor       { background: #f0f4ff; color: #3b5bdb; }
 .badge-novo {
   display: inline-flex;
   align-items: center;
@@ -1215,6 +1267,179 @@ a.ativ-card .ativ-icon {
   text-decoration: none;
 }
 .historico-btn:hover { text-decoration: underline; }
+
+/* ── Revisão — peso e pontos por questão ── */
+
+.revisao-peso {
+  margin-left: auto;
+  font-size: .78rem;
+  color: var(--muted);
+  background: #f0f4ff;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.revisao-pts {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #007a5a;
+  background: #e6faf5;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.revisao-resposta-aberta {
+  background: var(--fundo);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  font-size: .9rem;
+}
+
+.revisao-resposta-label {
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.revisao-resposta-texto {
+  margin: 0;
+  color: var(--texto);
+  line-height: 1.5;
+}
+
+/* ── Interface de correção do professor ── */
+
+.prof-tentativa-bloco {
+  background: var(--card);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.prof-tentativa-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--fundo);
+  border-bottom: 1px solid var(--borda);
+  flex-wrap: wrap;
+}
+
+.prof-aluno-nome {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--texto);
+}
+
+.prof-tentativa-num {
+  font-size: .82rem;
+  color: var(--muted);
+  background: #e8f0fe;
+  color: #1a56db;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.prof-tentativa-data {
+  font-size: .82rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.prof-form { padding: 18px; }
+
+.prof-questao-bloco {
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.prof-questao-enunciado {
+  font-weight: 600;
+  color: var(--texto);
+  margin: 0 0 10px;
+  font-size: .95rem;
+}
+
+.prof-resposta-aluno {
+  background: var(--fundo);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: .88rem;
+}
+
+.prof-label {
+  display: block;
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.prof-resposta-texto { margin: 0; color: var(--texto); line-height: 1.5; }
+
+.prof-avaliacao { display: flex; flex-direction: column; }
+
+.prof-nota-input {
+  width: 90px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--borda);
+  border-radius: 8px;
+  font-size: .95rem;
+  font-family: inherit;
+  color: var(--texto);
+  margin-bottom: 10px;
+}
+
+.prof-nota-input:focus {
+  outline: none;
+  border-color: var(--primaria);
+  box-shadow: 0 0 0 3px rgba(99,91,255,.12);
+}
+
+.prof-comentario {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--borda);
+  border-radius: 8px;
+  font-size: .88rem;
+  font-family: inherit;
+  color: var(--texto);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.prof-comentario:focus {
+  outline: none;
+  border-color: var(--primaria);
+  box-shadow: 0 0 0 3px rgba(99,91,255,.12);
+}
+
+.prof-form-actions { text-align: right; margin-top: 6px; }
+
+.btn-prof-salvar {
+  padding: 11px 28px;
+  background: var(--primaria);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: .95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+
+.btn-prof-salvar:hover { opacity: .87; }
 
 /* ── Material cards ── */
 

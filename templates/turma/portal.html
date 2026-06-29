@@ -145,6 +145,7 @@
                     <div class="ativ-sub">
                       {% set nq = ativ.questoes | length %}
                       <span>{{ nq }} questão{{ 'ões' if nq != 1 }}</span>
+                      {% if ativ.valor_total %}<span>·</span><span class="ativ-badge badge-valor">vale {{ ativ.valor_total | string | replace(".0", "") }} pts</span>{% endif %}
                       {% if ativ._prazo %}<span>·</span><span>Prazo: {{ ativ._prazo }}</span>{% endif %}
                       <span class="ativ-badge badge-disponivel">Disponível</span>
                     </div>
@@ -173,7 +174,11 @@
                     <p class="ativ-titulo">{{ ativ.titulo }}</p>
                     <div class="ativ-sub">
                       {% if ativ._nota_liberada %}
-                        <span class="ativ-badge badge-nota">Nota: {{ ativ._melhor_nota | int }}%</span>
+                        {% if ativ._nota_final is defined and ativ._nota_final is not none and ativ.valor_total %}
+                          <span class="ativ-badge badge-nota">Nota: {{ (ativ._nota_final | round(1)) | string | replace(".", ",") }} / {{ ativ.valor_total | string | replace(".0", "") }}</span>
+                        {% else %}
+                          <span class="ativ-badge badge-nota">Nota: {{ ativ._melhor_nota | int }}%</span>
+                        {% endif %}
                       {% else %}
                         <span class="ativ-badge badge-correcao">Em correção</span>
                       {% endif %}

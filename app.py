@@ -8,7 +8,13 @@ from functools import wraps
 from flask import Flask, redirect, render_template, request, session, url_for
 
 from pb import PocketBaseClient
-from questao import validar_associativa, validar_mc, validar_vf
+from questao import (
+    calcular_nota_final,
+    calcular_valor_ponto,
+    validar_associativa,
+    validar_mc,
+    validar_vf,
+)
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +24,28 @@ _TEMPLATE_MAP = {
     "vf": "components/_questao_vf.html",
     "associativa": "components/_questao_assoc.html",
 }
+
+
+def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
+    """Returns (nota_final, detalhamento) from session respostas and atividade record."""
+    nota_final = calcular_nota_final(respostas, atividade)
+    valor_total = atividade.get("valor_total") or None
+    detalhamento = []
+    if valor_total and respostas:
+        pesos = [float(r.get("_peso", 1)) for r in respostas]
+        vp = calcular_valor_ponto(atividade, pesos)
+        for r in respostas:
+            peso = float(r.get("_peso", 1))
+            raw = r.get("score_raw", 0) or 0
+            mx = r.get("score_max", 0) or 0
+            pts = round((raw / mx) * peso * vp, 2) if mx > 0 else 0.0
+            detalhamento.append({
+                "num": r.get("_num", len(detalhamento) + 1),
+                "peso": peso,
+                "correta": r.get("correta", False),
+                "pontos": pts,
+            })
+    return nota_final, detalhamento
 
 
 def _render_questao(questao: dict, num: int, total: int, ativ_id: str):
@@ -195,6 +223,7 @@ def create_app(config: dict | None = None) -> Flask:
                         ativ["_melhor_nota"] = st["melhor_nota"]
                         ativ["_nota_liberada"] = st["nota_liberada"]
                         ativ["_melhor_tentativa_id"] = st["melhor_tentativa_id"]
+                        ativ["_nota_final"] = st.get("melhor_nota_final")
                         if not st["pode_tentar"]:
                             ativ["_status"] = "realizada"
                         elif st["tentativas_usadas"] > 0:
@@ -300,7 +329,7 @@ def create_app(config: dict | None = None) -> Flask:
         questao_id = request.form.get("questao_id", "")
         ativ_id = session.get("ativ_id", "")
 
-        if tipo not in ("mc4", "mc5", "vf", "associativa"):
+        if tipo not in ("mc4", "mc5", "vf", "associativa", "aberta"):
             return "", 400
 
         questao = pb.buscar_questao(questao_id)
@@ -316,6 +345,14 @@ def create_app(config: dict | None = None) -> Flask:
             }
             resultado = validar_vf(questao, respostas)
             resposta_raw = str(respostas)
+        elif tipo == "aberta":
+            resposta_raw = request.form.get("resposta_aberta", "")
+            resultado = {
+                "correta": False,
+                "score_raw": 0,
+                "score_max": 0,
+                "feedback": questao.get("feedback_geral"),
+            }
         else:
             respostas = {
                 k.removeprefix("par_"): v
@@ -325,7 +362,9 @@ def create_app(config: dict | None = None) -> Flask:
             resultado = validar_associativa(questao, respostas)
             resposta_raw = str(respostas)
 
+        resultado["_peso"] = float(questao.get("peso") or 1)
         respostas_sessao = session.get("respostas", [])
+        resultado["_num"] = len(respostas_sessao) + 1
         respostas_sessao.append(resultado)
         session["respostas"] = respostas_sessao
         session.modified = True
@@ -383,11 +422,21 @@ def create_app(config: dict | None = None) -> Flask:
                 usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
                 tentativas_restantes = max(0, max_tent - usadas)
             exibir_feedback = False
+            nota_final = None
+            valor_total = None
+            detalhamento: list = []
             try:
                 ativ_data = pb.buscar_atividade(ativ_id)
                 exibir_feedback = bool(ativ_data.get("exibir_feedback_pos", True))
-            except Exception:
-                pass
+                valor_total = ativ_data.get("valor_total") or None
+                nota_final, detalhamento = _build_detalhamento(respostas, ativ_data)
+                if nota_final is not None and tentativa_id:
+                    try:
+                        pb.patch_tentativa_nota_final(tentativa_id, nota_final)
+                    except Exception as exc:
+                        log.warning("patch_tentativa_nota_final falhou: %s", exc)
+            except Exception as exc:
+                log.warning("buscar_atividade no placar falhou: %s", exc)
             return render_template(
                 "components/_placar.html",
                 score_raw=score_raw,
@@ -397,6 +446,9 @@ def create_app(config: dict | None = None) -> Flask:
                 tentativas_restantes=tentativas_restantes,
                 exibir_feedback=exibir_feedback,
                 tentativa_id=tentativa_id,
+                nota_final=nota_final,
+                valor_total=valor_total,
+                detalhamento=detalhamento,
             )
 
         proxima_id = fila.pop(0)
@@ -429,11 +481,21 @@ def create_app(config: dict | None = None) -> Flask:
             usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
             tentativas_restantes = max(0, max_tent - usadas)
         exibir_feedback = False
+        nota_final = None
+        valor_total = None
+        detalhamento: list = []
         try:
             ativ_data = pb.buscar_atividade(ativ_id)
             exibir_feedback = bool(ativ_data.get("exibir_feedback_pos", True))
-        except Exception:
-            pass
+            valor_total = ativ_data.get("valor_total") or None
+            nota_final, detalhamento = _build_detalhamento(respostas, ativ_data)
+            if nota_final is not None and tentativa_id:
+                try:
+                    pb.patch_tentativa_nota_final(tentativa_id, nota_final)
+                except Exception as exc:
+                    log.warning("patch_tentativa_nota_final falhou: %s", exc)
+        except Exception as exc:
+            log.warning("buscar_atividade no resultado falhou: %s", exc)
         return render_template(
             "components/_placar.html",
             score_raw=score_raw,
@@ -443,6 +505,9 @@ def create_app(config: dict | None = None) -> Flask:
             tentativas_restantes=tentativas_restantes,
             exibir_feedback=exibir_feedback,
             tentativa_id=tentativa_id,
+            nota_final=nota_final,
+            valor_total=valor_total,
+            detalhamento=detalhamento,
         )
 
     # ------------------------------------------------------------------
@@ -461,6 +526,73 @@ def create_app(config: dict | None = None) -> Flask:
     def liberar_nota_rota(ativ_id: str, tentativa_id: str):
         pb.liberar_nota(tentativa_id)
         return {"ok": True}
+
+    @app.route("/professor/atividade/<ativ_id>/notas-abertas")
+    @requer_login
+    def professor_notas_abertas(ativ_id: str):
+        ativ = pb.buscar_atividade(ativ_id)
+        tentativas_raw = pb.listar_tentativas_para_avaliar(ativ_id)
+        tentativas_detalhes = []
+        for tent in tentativas_raw:
+            respostas = pb.listar_respostas_tentativa(tent["id"])
+            abertas = [r for r in respostas if r.get("tipo_questao") == "aberta"]
+            for r in abertas:
+                try:
+                    q = pb.buscar_questao(r.get("questao", ""))
+                    r["_questao"] = q
+                    r["_peso"] = float(q.get("peso") or 1)
+                except Exception:
+                    r["_questao"] = {}
+                    r["_peso"] = 1.0
+            tentativas_detalhes.append({"tentativa": tent, "abertas": abertas})
+        return render_template(
+            "professor/notas_abertas.html",
+            atividade=ativ,
+            tentativas=tentativas_detalhes,
+            aluno_nome=session.get("aluno_nome", ""),
+        )
+
+    @app.route("/professor/questao-aberta/<tentativa_id>/avaliar", methods=["POST"])
+    @requer_login
+    def professor_avaliar_aberta(tentativa_id: str):
+        ativ_id = request.form.get("ativ_id", "")
+        respostas = pb.listar_respostas_tentativa(tentativa_id)
+        for r in respostas:
+            if r.get("tipo_questao") != "aberta":
+                continue
+            record_id = r["id"]
+            nota_key = f"nota_{record_id}"
+            coment_key = f"comentario_{record_id}"
+            if nota_key not in request.form:
+                continue
+            try:
+                questao = pb.buscar_questao(r.get("questao", ""))
+                peso = float(questao.get("peso") or 1)
+                nota_val = min(max(float(request.form[nota_key] or 0), 0.0), peso)
+                comentario = request.form.get(coment_key, "")
+                pb.avaliar_questao_aberta(record_id, nota_val, peso, comentario)
+            except Exception as exc:
+                log.warning("avaliar_questao_aberta falhou: %s", exc)
+
+        try:
+            ativ = pb.buscar_atividade(ativ_id)
+            respostas_atualizadas = pb.listar_respostas_tentativa(tentativa_id)
+            respostas_com_peso = []
+            for r in respostas_atualizadas:
+                try:
+                    q = pb.buscar_questao(r.get("questao", ""))
+                    peso = float(q.get("peso") or 1)
+                except Exception:
+                    peso = 1.0
+                respostas_com_peso.append({**r, "_peso": peso})
+            nota_final = calcular_nota_final(respostas_com_peso, ativ)
+            if nota_final is not None:
+                pb.patch_tentativa_nota_final(tentativa_id, nota_final)
+        except Exception as exc:
+            log.warning("recalcular nota_final falhou: %s", exc)
+
+        pb.liberar_nota(tentativa_id)
+        return redirect(url_for("professor_notas_abertas", ativ_id=ativ_id))
 
     # ------------------------------------------------------------------
     # Histórico e revisão do aluno
@@ -541,6 +673,19 @@ def create_app(config: dict | None = None) -> Flask:
                 "resposta": respostas_por_questao.get(qid, {}),
             })
 
+        valor_total = ativ.get("valor_total") or None
+        if valor_total and questoes_revisao:
+            soma_pesos = sum(float(item["questao"].get("peso") or 1) for item in questoes_revisao)
+            valor_ponto = float(valor_total) / soma_pesos if soma_pesos > 0 else None
+            if valor_ponto:
+                for item in questoes_revisao:
+                    peso = float(item["questao"].get("peso") or 1)
+                    r = item["resposta"]
+                    raw = r.get("score_raw", 0) or 0
+                    mx = r.get("score_max", 0) or 0
+                    item["_peso"] = peso
+                    item["_pts"] = round((raw / mx) * peso * valor_ponto, 2) if mx > 0 else 0.0
+
         return render_template(
             "aluno/revisao.html",
             bloqueado=False,
@@ -548,6 +693,7 @@ def create_app(config: dict | None = None) -> Flask:
             tentativa=tentativa,
             questoes_revisao=questoes_revisao,
             aluno_nome=session.get("aluno_nome", ""),
+            valor_total=valor_total,
         )
 
     # ------------------------------------------------------------------

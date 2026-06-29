@@ -42,6 +42,12 @@
             {% else %}
               <span class="revisao-badge" style="background:#f0f0f0;color:#888;">Sem resposta</span>
             {% endif %}
+            {% if item._peso is defined %}
+              <span class="revisao-peso">peso {{ item._peso | int if item._peso == item._peso | int else item._peso }}</span>
+            {% endif %}
+            {% if item._pts is defined %}
+              <span class="revisao-pts">{{ (item._pts | round(2)) | string | replace(".", ",") }} pts</span>
+            {% endif %}
           </div>
 
           <p class="revisao-enunciado">{{ q.enunciado }}</p>
@@ -64,6 +70,17 @@
                 </li>
               {% endfor %}
             </ul>
+          {% endif %}
+
+          {% if q.tipo == "aberta" and r.texto_resposta %}
+            <div class="revisao-resposta-aberta">
+              <p class="revisao-resposta-label">Sua resposta:</p>
+              <p class="revisao-resposta-texto">{{ r.texto_resposta }}</p>
+              {% if r.comentario_professor %}
+                <p class="revisao-resposta-label" style="margin-top:8px;">Comentário do professor:</p>
+                <p class="revisao-resposta-texto">{{ r.comentario_professor }}</p>
+              {% endif %}
+            </div>
           {% endif %}
 
           {% if q.explicacao %}
