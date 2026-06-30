@@ -173,3 +173,67 @@ def test_avaliar_redireciona_para_notas_abertas(client):
         data={"ativ_id": "ativ01", "nota_resp01": "1.5"},
     )
     assert resp.status_code in (200, 302)
+
+
+# ── Bloco 2 tests ────────────────────────────────────────────────────────────
+
+TURMA = {"id": "turma01", "nome": "1º Ano EMI", "modalidade": "EMI", "ano": "2025"}
+
+def test_aluno_nao_acessa_dashboard(client):
+    """Aluno com role='aluno' é redirecionado para home."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["role"] = "aluno"
+    resp = client.get("/professor/dashboard")
+    assert resp.status_code == 302
+    assert resp.location.endswith("/") or "/" in resp.location
+
+@rsps_lib.activate
+def test_professor_acessa_dashboard(client):
+    """Professor vê turmas no dashboard."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["role"] = "professor"
+        sess["aluno_nome"] = "Prof. Ana"
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
+                 json={"items": [TURMA]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [ATIVIDADE]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": []})
+    resp = client.get("/professor/dashboard")
+    assert resp.status_code == 200
+    assert "1º Ano EMI" in resp.data.decode()
+
+@rsps_lib.activate
+def test_toggle_desativa_atividade(client):
+    """Toggle muda ativa=True para False e retorna fragmento HTML."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["role"] = "professor"
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={**ATIVIDADE, "ativa": True})
+    rsps_lib.add(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={**ATIVIDADE, "ativa": False})
+    resp = client.post("/professor/atividade/ativ01/toggle-ativa")
+    assert resp.status_code == 200
+    assert "toggle-off" in resp.data.decode() or "Inativa" in resp.data.decode()
+
+@rsps_lib.activate
+def test_liberar_notas_em_lote(client):
+    """Liberar em lote chama liberar_nota para cada tentativa selecionada."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["role"] = "professor"
+    rsps_lib.add(rsps_lib.PATCH, f"{PB}/api/collections/tentativas/records/tent01",
+                 json={"id": "tent01", "nota_liberada": True})
+    rsps_lib.add(rsps_lib.PATCH, f"{PB}/api/collections/tentativas/records/tent02",
+                 json={"id": "tent02", "nota_liberada": True})
+    # redirect target: professor_notas
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json=ATIVIDADE)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": []})
+    resp = client.post("/professor/atividade/ativ01/liberar-notas",
+                       data={"tentativa_ids": ["tent01", "tent02"]})
+    assert resp.status_code in (200, 302)

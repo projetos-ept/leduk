@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, make_response, redirect, render_template, request, session, url_for
 
 from pb import PocketBaseClient
 from questao import (
@@ -76,6 +76,26 @@ def _atividade_disponivel(ativ: dict) -> tuple[bool, str]:
     return True, ""
 
 
+
+def _form_to_atividade(form) -> dict:
+    vt = (form.get("valor_total") or "").strip()
+    return {
+        "titulo": form.get("titulo", ""),
+        "descricao": form.get("descricao", ""),
+        "turma": form.get("turma", ""),
+        "disciplina": form.get("disciplina", ""),
+        "valor_total": float(vt) if vt else None,
+        "max_tentativas": int(form.get("max_tentativas") or 0),
+        "tempo_limite": int(form.get("tempo_limite") or 0),
+        "disponivel_de": form.get("disponivel_de") or None,
+        "disponivel_ate": form.get("disponivel_ate") or None,
+        "nota_automatica": "nota_automatica" in form,
+        "exibir_feedback_pos": "exibir_feedback_pos" in form,
+        "embaralhar": "embaralhar" in form,
+        "ativa": "ativa" in form,
+    }
+
+
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
@@ -108,6 +128,22 @@ def create_app(config: dict | None = None) -> Flask:
             return f(*args, **kwargs)
         return decorated
 
+
+    def requer_professor(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not app.config.get("LOGIN_REQUIRED", True):
+                role = session.get("role")
+                if role is not None and role not in ("professor", "admin"):
+                    return redirect(url_for("index"))
+                return f(*args, **kwargs)
+            if not session.get("token"):
+                return redirect(url_for("login"))
+            if session.get("role") not in ("professor", "admin"):
+                return redirect(url_for("index"))
+            return f(*args, **kwargs)
+        return decorated
+
     # ------------------------------------------------------------------
     # Auth
 
@@ -122,6 +158,7 @@ def create_app(config: dict | None = None) -> Flask:
             session["token"] = dados["token"]
             session["aluno_id"] = dados["record"]["id"]
             session["aluno_nome"] = dados["record"].get("name", email)
+            session["role"] = dados["record"].get("role", "aluno")
             session["ultimo_acesso"] = datetime.now(timezone.utc).isoformat()
             return redirect(url_for("index"))
         except Exception:
@@ -509,6 +546,142 @@ def create_app(config: dict | None = None) -> Flask:
             valor_total=valor_total,
             detalhamento=detalhamento,
         )
+
+    # ── Professor portal ──
+
+    @app.route("/professor/dashboard")
+    @requer_professor
+    def professor_dashboard():
+        turmas = pb.listar_turmas()
+        turmas_data = []
+        for turma in turmas:
+            atividades = pb.listar_todas_atividades_turma(turma["id"])
+            ativas_count = sum(1 for a in atividades if a.get("ativa"))
+            pendentes = 0
+            mapa: dict[str, dict] = {}
+            for ativ in atividades:
+                tentativas = pb.listar_tentativas_atividade(ativ["id"])
+                pendentes += sum(1 for t in tentativas if not t.get("nota_liberada"))
+                best: dict[str, dict] = {}
+                for t in tentativas:
+                    aid = t.get("aluno_id", "")
+                    if not aid:
+                        continue
+                    if aid not in best or t.get("score_percentual", 0) > best[aid].get("score_percentual", 0):
+                        best[aid] = t
+                for aid, t in best.items():
+                    if aid not in mapa:
+                        mapa[aid] = {"nome": t.get("aluno_nome", aid), "notas": {}}
+                    mapa[aid]["notas"][ativ["id"]] = t.get("score_percentual")
+            alunos = sorted(mapa.values(), key=lambda a: a["nome"])
+            turmas_data.append({
+                "turma": turma,
+                "atividades": atividades,
+                "ativas_count": ativas_count,
+                "pendentes_count": pendentes,
+                "alunos": alunos,
+            })
+        return render_template("professor/dashboard.html", turmas_data=turmas_data,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>")
+    @requer_professor
+    def professor_turma(turma_id: str):
+        turma = pb.buscar_turma(turma_id)
+        atividades = pb.listar_todas_atividades_turma(turma_id)
+        disciplinas = pb.listar_disciplinas()
+        for ativ in atividades:
+            disc = (ativ.get("expand") or {}).get("disciplina") or {}
+            ativ["_disc_nome"] = disc.get("nome", "")
+        return render_template("professor/turma.html", turma=turma, atividades=atividades,
+                               disciplinas=disciplinas, aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/nova", methods=["GET", "POST"])
+    @requer_professor
+    def professor_atividade_nova():
+        turmas = pb.listar_turmas()
+        disciplinas = pb.listar_disciplinas()
+        if request.method == "GET":
+            return render_template("professor/atividade_form.html", atividade=None,
+                                   turmas=turmas, disciplinas=disciplinas,
+                                   turma_id=request.args.get("turma", ""),
+                                   aluno_nome=session.get("aluno_nome", ""))
+        data = _form_to_atividade(request.form)
+        try:
+            pb.criar_atividade(data)
+        except Exception as exc:
+            log.warning("criar_atividade falhou: %s", exc)
+            return render_template("professor/atividade_form.html", atividade=None,
+                                   turmas=turmas, disciplinas=disciplinas,
+                                   turma_id=data.get("turma", ""),
+                                   erro="Erro ao criar atividade.",
+                                   aluno_nome=session.get("aluno_nome", "")), 422
+        turma_id = data.get("turma", "")
+        if request.headers.get("HX-Request"):
+            r = make_response("", 204)
+            r.headers["HX-Redirect"] = url_for("professor_turma", turma_id=turma_id)
+            return r
+        return redirect(url_for("professor_turma", turma_id=turma_id))
+
+    @app.route("/professor/atividade/<ativ_id>/editar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_atividade_editar(ativ_id: str):
+        turmas = pb.listar_turmas()
+        disciplinas = pb.listar_disciplinas()
+        ativ = pb.buscar_atividade(ativ_id)
+        if request.method == "GET":
+            return render_template("professor/atividade_form.html", atividade=ativ,
+                                   turmas=turmas, disciplinas=disciplinas,
+                                   turma_id=ativ.get("turma", ""),
+                                   aluno_nome=session.get("aluno_nome", ""))
+        data = _form_to_atividade(request.form)
+        try:
+            pb.atualizar_atividade(ativ_id, data)
+        except Exception as exc:
+            log.warning("atualizar_atividade falhou: %s", exc)
+            return render_template("professor/atividade_form.html", atividade=ativ,
+                                   turmas=turmas, disciplinas=disciplinas,
+                                   turma_id=data.get("turma", ativ.get("turma", "")),
+                                   erro="Erro ao salvar atividade.",
+                                   aluno_nome=session.get("aluno_nome", "")), 422
+        turma_id = data.get("turma", ativ.get("turma", ""))
+        if request.headers.get("HX-Request"):
+            r = make_response("", 204)
+            r.headers["HX-Redirect"] = url_for("professor_turma", turma_id=turma_id)
+            return r
+        return redirect(url_for("professor_turma", turma_id=turma_id))
+
+    @app.route("/professor/atividade/<ativ_id>/toggle-ativa", methods=["POST"])
+    @requer_professor
+    def professor_toggle_ativa(ativ_id: str):
+        ativ = pb.buscar_atividade(ativ_id)
+        nova = not ativ.get("ativa", False)
+        pb.atualizar_atividade(ativ_id, {"ativa": nova})
+        return render_template("components/_toggle_ativa.html", ativ_id=ativ_id, ativa=nova)
+
+    @app.route("/professor/atividade/<ativ_id>/notas")
+    @requer_professor
+    def professor_notas(ativ_id: str):
+        ativ = pb.buscar_atividade(ativ_id)
+        tentativas = pb.listar_tentativas_atividade(ativ_id)
+        return render_template("professor/notas.html", atividade=ativ, tentativas=tentativas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/<ativ_id>/liberar-notas", methods=["POST"])
+    @requer_professor
+    def professor_liberar_notas(ativ_id: str):
+        ids = request.form.getlist("tentativa_ids")
+        for tid in ids:
+            try:
+                pb.liberar_nota(tid)
+            except Exception as exc:
+                log.warning("liberar_nota falhou para %s: %s", tid, exc)
+        return redirect(url_for("professor_notas", ativ_id=ativ_id))
+
+    @app.route("/professor/notas-abertas/<ativ_id>")
+    @requer_professor
+    def professor_notas_abertas_alt(ativ_id: str):
+        return redirect(url_for("professor_notas_abertas", ativ_id=ativ_id))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)

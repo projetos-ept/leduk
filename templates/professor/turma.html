@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ turma.nome }} — Professor LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+<nav class="topbar">
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:960px;">
+  <div class="portal-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 class="portal-titulo">{{ turma.nome }}</h1>
+      <p class="portal-turma">Gerenciamento de atividades</p>
+    </div>
+    <a href="/professor/atividade/nova?turma={{ turma.id }}"
+       class="btn-home" style="padding:10px 20px;font-size:.9rem;">+ Nova atividade</a>
+  </div>
+
+  {% if not atividades %}
+    <div class="card" style="text-align:center;color:var(--muted);padding:32px;margin-top:20px;">
+      <p>Nenhuma atividade cadastrada nesta turma.</p>
+      <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-home" style="margin-top:16px;display:inline-block;">Criar primeira atividade</a>
+    </div>
+  {% else %}
+    <div class="card" style="margin-top:20px;overflow-x:auto;">
+      <table class="prof-tabela">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Disciplina</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ativ in atividades %}
+            <tr>
+              <td style="font-weight:600;color:var(--texto);">{{ ativ.titulo }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ ativ._disc_nome or "—" }}</td>
+              <td>
+                {% include "components/_toggle_ativa.html" with context %}
+              </td>
+              <td>
+                <div class="prof-acoes">
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/editar">Editar</a>
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas">Notas</a>
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas-abertas">Abertas</a>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

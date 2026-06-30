@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notas — {{ atividade.titulo }}</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:960px;">
+  <div class="portal-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 class="portal-titulo">{{ atividade.titulo }}</h1>
+      <p class="portal-turma">Gerenciamento de notas</p>
+    </div>
+    <a class="prof-link" href="/professor/atividade/{{ atividade.id }}/notas-abertas">
+      Questões abertas →
+    </a>
+  </div>
+
+  {% if not tentativas %}
+    <div class="card" style="text-align:center;color:var(--muted);padding:32px;margin-top:20px;">
+      <p>Nenhuma tentativa concluída ainda.</p>
+    </div>
+  {% else %}
+    <div class="card" style="margin-top:20px;">
+      <form method="post" action="/professor/atividade/{{ atividade.id }}/liberar-notas">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;font-weight:600;">
+            <input type="checkbox" id="sel-todas" onchange="document.querySelectorAll('.sel-tent').forEach(cb => cb.checked = this.checked)">
+            Selecionar todas
+          </label>
+          <button type="submit" class="btn-home" style="padding:8px 18px;font-size:.85rem;">
+            Liberar selecionadas
+          </button>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="prof-tabela">
+            <thead>
+              <tr>
+                <th style="width:32px;"></th>
+                <th>Aluno</th>
+                <th>Tentativa</th>
+                <th>Nota</th>
+                <th>Data</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in tentativas %}
+                <tr>
+                  <td>
+                    {% if not t.nota_liberada %}
+                      <input type="checkbox" class="sel-tent" name="tentativa_ids" value="{{ t.id }}">
+                    {% else %}
+                      <span style="color:var(--sucesso);font-size:1rem;">✓</span>
+                    {% endif %}
+                  </td>
+                  <td style="font-weight:600;">{{ t.aluno_nome or t.aluno_id }}</td>
+                  <td style="color:var(--muted);">#{{ t.numero_tentativa }}</td>
+                  <td>
+                    {% set pct = t.score_percentual %}
+                    {% if pct is not none %}
+                      {% if pct >= 70 %}
+                        <span class="nota-badge nota-verde">{{ pct }}%</span>
+                      {% elif pct >= 40 %}
+                        <span class="nota-badge nota-amarelo">{{ pct }}%</span>
+                      {% else %}
+                        <span class="nota-badge nota-vermelho">{{ pct }}%</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="nota-badge nota-pendente">—</span>
+                    {% endif %}
+                  </td>
+                  <td style="color:var(--muted);font-size:.82rem;">{{ t.created[:10] if t.created else "—" }}</td>
+                  <td>
+                    {% if t.nota_liberada %}
+                      <span class="nota-badge nota-liberada">Liberada</span>
+                    {% else %}
+                      <span class="nota-badge nota-pendente">Pendente</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

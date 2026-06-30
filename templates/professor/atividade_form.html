@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if atividade %}Editar{% else %}Nova{% endif %} Atividade — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+<nav class="topbar">
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:640px;">
+  <div class="portal-header">
+    <h1 class="portal-titulo">{% if atividade %}Editar Atividade{% else %}Nova Atividade{% endif %}</h1>
+  </div>
+
+  {% if erro %}
+    <div class="card" style="border-left:4px solid var(--erro);color:var(--erro);padding:12px 16px;margin-bottom:16px;">
+      {{ erro }}
+    </div>
+  {% endif %}
+
+  <div class="card" style="margin-top:16px;">
+    <form method="post"
+          action="{% if atividade %}/professor/atividade/{{ atividade.id }}/editar{% else %}/professor/atividade/nova{% endif %}"
+          hx-post="{% if atividade %}/professor/atividade/{{ atividade.id }}/editar{% else %}/professor/atividade/nova{% endif %}"
+          hx-target="body"
+          style="display:flex;flex-direction:column;gap:14px;">
+
+      <div>
+        <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Título *</label>
+        <input type="text" name="titulo" required
+               value="{{ atividade.titulo if atividade else '' }}"
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+
+      <div>
+        <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Descrição</label>
+        <textarea name="descricao" rows="3"
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;resize:vertical;">{{ atividade.descricao if atividade else '' }}</textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Turma</label>
+          <select name="turma" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            <option value="">— selecione —</option>
+            {% for t in turmas %}
+              <option value="{{ t.id }}" {% if (atividade and atividade.turma == t.id) or (not atividade and turma_id == t.id) %}selected{% endif %}>{{ t.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Disciplina</label>
+          <select name="disciplina" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            <option value="">— selecione —</option>
+            {% for d in disciplinas %}
+              <option value="{{ d.id }}" {% if atividade and atividade.disciplina == d.id %}selected{% endif %}>{{ d.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Valor total</label>
+          <input type="number" name="valor_total" min="0" step="0.1"
+                 value="{{ atividade.valor_total if atividade and atividade.valor_total is not none else '' }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Máx. tentativas</label>
+          <input type="number" name="max_tentativas" min="0"
+                 value="{{ atividade.max_tentativas if atividade else 0 }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Tempo limite (min)</label>
+          <input type="number" name="tempo_limite" min="0"
+                 value="{{ atividade.tempo_limite if atividade else 0 }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Disponível de</label>
+          <input type="datetime-local" name="disponivel_de"
+                 value="{{ atividade.disponivel_de[:16] if atividade and atividade.disponivel_de else '' }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Disponível até</label>
+          <input type="datetime-local" name="disponivel_ate"
+                 value="{{ atividade.disponivel_ate[:16] if atividade and atividade.disponivel_ate else '' }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:16px;padding:12px;background:var(--fundo);border-radius:8px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;">
+          <input type="checkbox" name="nota_automatica" {% if atividade and atividade.nota_automatica %}checked{% endif %}>
+          Nota automática
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;">
+          <input type="checkbox" name="exibir_feedback_pos" {% if atividade and atividade.exibir_feedback_pos %}checked{% endif %}>
+          Exibir feedback pós
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;">
+          <input type="checkbox" name="embaralhar" {% if atividade and atividade.embaralhar %}checked{% endif %}>
+          Embaralhar questões
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;">
+          <input type="checkbox" name="ativa" {% if atividade and atividade.ativa %}checked{% endif %}>
+          Ativa
+        </label>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:8px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">
+          {% if atividade %}Salvar alterações{% else %}Criar atividade{% endif %}
+        </button>
+        <a href="{% if atividade %}/professor/turma/{{ atividade.turma }}{% elif turma_id %}/professor/turma/{{ turma_id }}{% else %}/professor/dashboard{% endif %}"
+           style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>
