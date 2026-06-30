@@ -1,0 +1,66 @@
+{# Drawer de navegação do professor — incluir logo após <body>.
+   Requer no contexto: professor_nav (context processor) e aluno_nome.
+   O checkbox #nav-toggle é alternado pelo <label class="nav-toggle-btn"> da topbar. #}
+<input type="checkbox" id="nav-toggle" class="nav-toggle-input">
+<label for="nav-toggle" class="nav-overlay" aria-hidden="true"></label>
+
+<aside class="nav-drawer" aria-label="Menu do professor">
+  <div class="nav-drawer-header">
+    <label for="nav-toggle" class="nav-close" aria-label="Fechar menu">✕</label>
+    <div>
+      <p class="nav-drawer-turma">Menu — Professor</p>
+      <p class="nav-drawer-aluno">{{ aluno_nome if aluno_nome else 'Professor' }}</p>
+    </div>
+  </div>
+
+  <div class="nav-drawer-body">
+    <ul class="nav-list">
+      <li>
+        <a class="nav-link" href="/professor/dashboard">
+          <span class="nav-link-icon">📊</span> Dashboard
+        </a>
+      </li>
+    </ul>
+
+    {% if professor_nav %}
+      <p class="nav-section-label">📚 Minhas turmas</p>
+      <ul class="nav-list">
+        {% for item in professor_nav %}
+          <li>
+            <a class="nav-link" href="/professor/turma/{{ item.turma.id }}">
+              <span class="nav-link-icon">·</span>
+              {{ item.turma.nome }}{% if item.turma.modalidade %} · {{ item.turma.modalidade }}{% endif %}
+            </a>
+            {% if item.disciplinas %}
+              <ul class="nav-sublist">
+                {% for disc in item.disciplinas %}
+                  <li class="nav-subitem">
+                    <span class="nav-subitem-nome">{{ disc.nome }}</span>
+                    <a class="nav-bank-link"
+                       href="/professor/disciplina/{{ disc.id }}/banco-questoes"
+                       title="Banco de questões de {{ disc.nome }}">📋</a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <hr class="nav-divider">
+
+    <ul class="nav-list">
+      <li>
+        <a class="nav-link" href="/">
+          <span class="nav-link-icon">🔍</span> Portal do Aluno
+        </a>
+      </li>
+      <li>
+        <a class="nav-link" href="/logout">
+          <span class="nav-link-icon">🚪</span> Sair
+        </a>
+      </li>
+    </ul>
+  </div>
+</aside>

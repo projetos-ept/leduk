@@ -185,9 +185,44 @@ def create_app(config: dict | None = None) -> Flask:
         """Retorna um PocketBaseClient com o token JWT da sessão atual."""
         return PocketBaseClient(pb_url, token=session.get("token"))
 
+    def _professor_nav() -> list:
+        """Estrutura de navegação do professor (turmas + disciplinas) para o drawer.
+
+        Só é construída para professor/admin em páginas completas (não fragmentos
+        HTMX). Resiliente: qualquer falha de rede resulta em nav vazio — o drawer
+        simplesmente não lista turmas, sem quebrar a renderização da página.
+        """
+        if session.get("role") not in ("professor", "admin"):
+            return []
+        if request.headers.get("HX-Request"):
+            return []
+        try:
+            turmas = get_pb().listar_turmas()
+        except Exception:
+            return []
+        nav = []
+        for t in turmas:
+            disciplinas = []
+            try:
+                ativs = get_pb().listar_todas_atividades_turma(t["id"])
+                seen: dict[str, dict] = {}
+                for a in ativs:
+                    d = (a.get("expand") or {}).get("disciplina")
+                    if d and d.get("id") and d["id"] not in seen:
+                        seen[d["id"]] = d
+                disciplinas = list(seen.values())
+            except Exception:
+                disciplinas = []
+            nav.append({"turma": t, "disciplinas": disciplinas})
+        return nav
+
     @app.context_processor
     def _inject_globals():
-        return {"pb_url": pb_url, "session_role": session.get("role", "")}
+        return {
+            "pb_url": pb_url,
+            "session_role": session.get("role", ""),
+            "professor_nav": _professor_nav(),
+        }
 
     @app.template_filter("youtube_id")
     def _youtube_id_filter(url: str) -> str:
@@ -656,12 +691,18 @@ def create_app(config: dict | None = None) -> Flask:
                         mapa[aid] = {"nome": t.get("aluno_nome", aid), "notas": {}}
                     mapa[aid]["notas"][ativ["id"]] = t.get("score_percentual")
             alunos = sorted(mapa.values(), key=lambda a: a["nome"])
+            disc_seen: dict[str, dict] = {}
+            for a in atividades:
+                d = (a.get("expand") or {}).get("disciplina")
+                if d and d.get("id") and d["id"] not in disc_seen:
+                    disc_seen[d["id"]] = d
             turmas_data.append({
                 "turma": turma,
                 "atividades": atividades,
                 "ativas_count": ativas_count,
                 "pendentes_count": pendentes,
                 "alunos": alunos,
+                "disciplinas": list(disc_seen.values()),
             })
         return render_template("professor/dashboard.html", turmas_data=turmas_data,
                                aluno_nome=session.get("aluno_nome", ""))
@@ -672,11 +713,15 @@ def create_app(config: dict | None = None) -> Flask:
         turma = get_pb().buscar_turma(turma_id)
         atividades = get_pb().listar_todas_atividades_turma(turma_id)
         disciplinas = get_pb().listar_disciplinas()
+        disc_seen: dict[str, dict] = {}
         for ativ in atividades:
             disc = (ativ.get("expand") or {}).get("disciplina") or {}
             ativ["_disc_nome"] = disc.get("nome", "")
+            if disc.get("id") and disc["id"] not in disc_seen:
+                disc_seen[disc["id"]] = disc
         return render_template("professor/turma.html", turma=turma, atividades=atividades,
-                               disciplinas=disciplinas, aluno_nome=session.get("aluno_nome", ""))
+                               disciplinas=disciplinas, disciplinas_turma=list(disc_seen.values()),
+                               aluno_nome=session.get("aluno_nome", ""))
 
     @app.route("/professor/atividade/nova", methods=["GET", "POST"])
     @requer_professor
