@@ -97,7 +97,8 @@ leduk/
         ├── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
         ├── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
         ├── test_banco_geral.py       ← banco geral + atividade multidisciplinar
-        └── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
+        ├── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
+        └── test_questao_form.py      ← seções condicionais do form + navegação banco
 ```
 
 ---
@@ -152,7 +153,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 157 testes, todos passando.
+**Resultado esperado:** 163 testes, todos passando.
 
 ---
 
@@ -200,10 +201,10 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/questao/<id>/clonar` | Clonar questão (registro independente) |
 | POST | `/professor/questao/<id>/reclassificar` | Mover questão para outra disciplina/assunto |
 | POST | `/professor/questao/<id>/excluir` | Excluir questão (e remover da atividade) |
-| GET | `/professor/disciplina/<id>/banco-questoes` | Banco reutilizável da disciplina (filtros + uso) |
+| GET | `/professor/disciplina/<id>/banco-questoes` | Banco da disciplina — gerenciar questões (criar/editar/clonar/excluir) |
 | GET/POST | `/professor/disciplina/<id>/questao/nova` | Criar questão direto no banco da disciplina |
 | GET/POST | `/professor/disciplina/<id>/importar-questoes` | Importar questões via JSON (colar/arquivo, imagens link/base64) |
-| GET | `/professor/banco-questoes` | Banco geral (todas disciplinas) com filtros disciplina/tipo/assunto |
+| GET | `/professor/banco-questoes` | Seletor multidisciplinar — selecionar questões de qualquer disciplina (filtros) |
 | GET/POST | `/professor/atividade/multidisciplinar` | Montar atividade com questões de várias disciplinas |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
 | POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |

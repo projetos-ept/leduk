@@ -42,7 +42,7 @@
           {% for t, label in [('mc4','MC 4 alternativas'),('mc5','MC 5 alternativas'),('vf','Verdadeiro/Falso'),('aberta','Dissertativa'),('associativa','Associativa')] %}
             <label class="tipo-tab {% if loop.first %}tipo-tab-ativo{% endif %}">
               <input type="radio" name="tipo" value="{{ t }}" {% if loop.first %}checked{% endif %}
-                     onchange="mudarTipo('{{ t }}')">
+                     onchange="mudarTipo('{{ t }}', this)">
               {{ label }}
             </label>
           {% endfor %}
@@ -114,7 +114,7 @@
       </div>
 
       <!-- ── Seção MC4/MC5 ── -->
-      <div id="secao-mc" class="quest-secao">
+      <div id="secao-alternativas" class="quest-secao">
         <div style="font-weight:600;font-size:.9rem;margin-bottom:10px;color:var(--destaque);">Alternativas</div>
         <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
           <label class="campo-label" style="margin:0;">Alternativa correta:</label>
@@ -124,7 +124,7 @@
               {% for a in questao.alternativas %}{% if a.correta %}{% set correta_atual = a.letra %}{% endif %}{% endfor %}
             {% endif %}
             {% for letra in ['A','B','C','D','E'] %}
-              <label style="display:flex;align-items:center;gap:3px;font-size:.9rem;cursor:pointer;">
+              <label class="{% if letra == 'E' %}alt-mc5-only{% endif %}" style="display:flex;align-items:center;gap:3px;font-size:.9rem;cursor:pointer;">
                 <input type="radio" name="correta" value="{{ letra }}"
                        {% if correta_atual == letra or (not correta_atual and letra == 'A') %}checked{% endif %}>
                 {{ letra }}
@@ -248,43 +248,40 @@
 <script>
 const TIPO_ATUAL = "{{ questao.tipo if questao else 'mc4' }}";
 
-function mudarTipo(tipo) {
-  document.querySelectorAll('.quest-secao').forEach(s => s.style.display = 'none');
-  document.querySelectorAll('.tipo-tab').forEach(t => t.classList.remove('tipo-tab-ativo'));
-  event.target.closest('.tipo-tab').classList.add('tipo-tab-ativo');
-
-  if (tipo === 'mc4') {
-    document.getElementById('secao-mc').style.display = '';
-    document.querySelectorAll('.alt-mc5-only').forEach(e => e.style.display = 'none');
-  } else if (tipo === 'mc5') {
-    document.getElementById('secao-mc').style.display = '';
-    document.querySelectorAll('.alt-mc5-only').forEach(e => e.style.display = '');
-  } else if (tipo === 'vf') {
-    document.getElementById('secao-vf').style.display = '';
-  } else if (tipo === 'associativa') {
-    document.getElementById('secao-associativa').style.display = '';
-  } else {
-    document.getElementById('secao-aberta').style.display = '';
+// Mostra apenas a seção relevante ao tipo selecionado e ajusta a contagem de
+// alternativas (MC4 → A–D, MC5 → A–E).
+function atualizarCampos(tipo) {
+  const secoes = {
+    'mc4': ['secao-alternativas'],
+    'mc5': ['secao-alternativas'],
+    'vf':  ['secao-vf'],
+    'associativa': ['secao-associativa'],
+    'aberta': ['secao-aberta'],
+  };
+  ['secao-alternativas','secao-vf','secao-associativa','secao-aberta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  (secoes[tipo] || []).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+  // A 5ª alternativa (E) só aparece em MC5
+  if (tipo === 'mc4' || tipo === 'mc5') {
+    document.querySelectorAll('.alt-mc5-only').forEach(e => {
+      e.style.display = (tipo === 'mc5') ? '' : 'none';
+    });
   }
 }
 
-// Inicializar para edição
-(function() {
-  const t = TIPO_ATUAL;
-  if (!t || t === 'mc4' || t === 'mc5') {
-    document.getElementById('secao-mc').style.display = '';
-    if (t !== 'mc5') document.querySelectorAll('.alt-mc5-only').forEach(e => e.style.display = 'none');
-  } else if (t === 'vf') {
-    document.getElementById('secao-vf').style.display = '';
-    document.getElementById('secao-mc').style.display = 'none';
-  } else if (t === 'associativa') {
-    document.getElementById('secao-associativa').style.display = '';
-    document.getElementById('secao-mc').style.display = 'none';
-  } else if (t === 'aberta') {
-    document.getElementById('secao-aberta').style.display = '';
-    document.getElementById('secao-mc').style.display = 'none';
-  }
-})();
+function mudarTipo(tipo, el) {
+  document.querySelectorAll('.tipo-tab').forEach(t => t.classList.remove('tipo-tab-ativo'));
+  if (el) el.closest('.tipo-tab').classList.add('tipo-tab-ativo');
+  atualizarCampos(tipo);
+}
+
+// Estado inicial — inclui o modo edição, abrindo a seção do tipo já salvo
+atualizarCampos(TIPO_ATUAL || 'mc4');
 
 // Preview de imagem
 function previewImg(input, previewId) {
