@@ -10,6 +10,9 @@
 
 <nav class="topbar">
   <span class="topbar-logo">LeDuk</span>
+  {% if session_role in ("professor", "admin") %}
+    <a href="/professor/dashboard" class="topbar-prof">Painel do Professor</a>
+  {% endif %}
   {% if aluno_nome %}
     <span class="topbar-aluno">{{ aluno_nome }}</span>
     <a href="/logout" class="topbar-sair">Sair</a>

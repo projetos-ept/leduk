@@ -49,10 +49,18 @@
           Início
         </a>
       </li>
+      {% if session_role in ("professor", "admin") %}
+        <li>
+          <a class="nav-link" href="/professor/dashboard">
+            <span class="nav-link-icon">📋</span>
+            Painel do Professor
+          </a>
+        </li>
+      {% endif %}
       {% if aluno_nome %}
         <li>
           <a class="nav-link" href="/aluno/historico">
-            <span class="nav-link-icon">📋</span>
+            <span class="nav-link-icon">📊</span>
             Histórico
           </a>
         </li>
@@ -78,6 +86,9 @@
 <nav class="topbar">
   <label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>
   <a href="/" class="topbar-logo">LeDuk</a>
+  {% if session_role in ("professor", "admin") %}
+    <a href="/professor/dashboard" class="topbar-prof">Painel do Professor</a>
+  {% endif %}
   {% if aluno_nome %}
     <span class="topbar-aluno">{{ aluno_nome }}</span>
     <a href="/logout" class="topbar-sair">Sair</a>

@@ -176,7 +176,7 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.context_processor
     def _inject_globals():
-        return {"pb_url": pb_url}
+        return {"pb_url": pb_url, "session_role": session.get("role", "")}
 
     @app.template_filter("youtube_id")
     def _youtube_id_filter(url: str) -> str:
@@ -228,6 +228,8 @@ def create_app(config: dict | None = None) -> Flask:
             session["aluno_nome"] = dados["record"].get("name", email)
             session["role"] = dados["record"].get("role", "aluno")
             session["ultimo_acesso"] = datetime.now(timezone.utc).isoformat()
+            if session["role"] in ("professor", "admin"):
+                return redirect(url_for("professor_dashboard"))
             return redirect(url_for("index"))
         except Exception:
             return render_template("auth/login.html", erro="Email ou senha incorretos."), 401

@@ -6,10 +6,18 @@ from app import create_app
 
 PB = "http://pb.test"
 
-LOGIN_RESP = {
+LOGIN_RESP_ALUNO = {
     "token": "tok-abc123",
-    "record": {"id": "aluno01", "name": "Lucas Batista", "email": "lucas@test.com"},
+    "record": {"id": "aluno01", "name": "Lucas Batista", "email": "lucas@test.com", "role": "aluno"},
 }
+
+LOGIN_RESP_PROF = {
+    "token": "tok-prof",
+    "record": {"id": "prof01", "name": "Prof. Ana", "email": "ana@test.com", "role": "professor"},
+}
+
+# keep old name as alias for existing tests
+LOGIN_RESP = LOGIN_RESP_ALUNO
 
 
 @pytest.fixture()
@@ -84,3 +92,29 @@ def test_rota_protegida_com_login_passa(client_auth):
     # /health não requer login — testa que a sessão não interfere
     resp = client_auth.get("/health")
     assert resp.status_code == 200
+
+
+@rsps_lib.activate
+def test_login_aluno_redireciona_para_home(client_auth):
+    rsps_lib.add(
+        rsps_lib.POST,
+        f"{PB}/api/collections/users/auth-with-password",
+        json=LOGIN_RESP_ALUNO,
+    )
+    resp = client_auth.post("/login", data={"email": "lucas@test.com", "senha": "senha123"})
+    assert resp.status_code == 302
+    loc = resp.headers["Location"]
+    assert loc.rstrip("/").endswith("") or loc == "/"
+    assert "/professor" not in loc
+
+
+@rsps_lib.activate
+def test_login_professor_redireciona_para_dashboard(client_auth):
+    rsps_lib.add(
+        rsps_lib.POST,
+        f"{PB}/api/collections/users/auth-with-password",
+        json=LOGIN_RESP_PROF,
+    )
+    resp = client_auth.post("/login", data={"email": "ana@test.com", "senha": "senha123"})
+    assert resp.status_code == 302
+    assert "/professor/dashboard" in resp.headers["Location"]
