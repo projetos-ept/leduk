@@ -1640,3 +1640,54 @@ a.material-header:hover {
 .prof-acoes { display: flex; gap: 8px; align-items: center; }
 .prof-link { font-size: .8rem; font-weight: 600; color: var(--pa); text-decoration: none; white-space: nowrap; }
 .prof-link:hover { text-decoration: underline; }
+
+/* ── Banco de questões ── */
+.quest-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 18px; }
+.quest-row-border { border-bottom: 1px solid var(--borda); }
+.quest-row:hover { background: var(--fundo); }
+.quest-num { width: 28px; min-width: 28px; height: 28px; border-radius: 50%; background: var(--fundo); border: 1px solid var(--borda); display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 700; color: var(--muted); flex-shrink: 0; margin-top: 2px; }
+.quest-acoes { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-top: 2px; }
+.quest-stat { font-size: .8rem; color: var(--muted); background: var(--fundo); border: 1px solid var(--borda); border-radius: 6px; padding: 3px 10px; }
+
+.quest-tipo-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .7rem; font-weight: 700; letter-spacing: .04em; }
+.quest-tipo-mc4   { background: #dbeafe; color: #1d4ed8; }
+.quest-tipo-mc5   { background: #e0e7ff; color: #3730a3; }
+.quest-tipo-vf    { background: #d1fae5; color: #065f46; }
+.quest-tipo-aberta { background: #fef3c7; color: #92400e; }
+.quest-tipo-associativa { background: #fce7f3; color: #9d174d; }
+
+/* ── Formulário de questão ── */
+.campo-label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 5px; color: var(--texto); }
+.quest-secao { padding: 14px; background: var(--fundo); border-radius: 8px; border: 1px solid var(--borda); }
+
+.tipo-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tipo-tab { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: 2px solid var(--borda); border-radius: 8px; cursor: pointer; font-size: .85rem; font-weight: 600; color: var(--muted); transition: all .15s; }
+.tipo-tab input[type=radio] { display: none; }
+.tipo-tab:hover { border-color: var(--primaria); color: var(--primaria); }
+.tipo-tab-ativo { border-color: var(--primaria); color: var(--primaria); background: #eef2ff; }
+
+.alt-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+.alt-letra { width: 32px; min-width: 32px; height: 32px; border-radius: 50%; background: var(--primaria); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: .9rem; margin-top: 4px; flex-shrink: 0; }
+.alt-mc5-only { display: none; }
+
+.vf-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.vf-num { width: 24px; min-width: 24px; text-align: center; font-size: .8rem; color: var(--muted); font-weight: 700; }
+
+.par-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+
+.btn-add-row { margin-top: 4px; padding: 7px 14px; border: 2px dashed var(--borda); background: transparent; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: .83rem; cursor: pointer; transition: border-color .15s, color .15s; }
+.btn-add-row:hover { border-color: var(--primaria); color: var(--primaria); }
+.btn-remove-row { padding: 4px 8px; border: 1px solid var(--borda); background: transparent; border-radius: 6px; color: var(--muted); font-size: .8rem; cursor: pointer; flex-shrink: 0; }
+.btn-remove-row:hover { background: #fff0f0; border-color: #e17055; color: #e17055; }
+
+.img-preview { display: none; max-width: 200px; max-height: 140px; border-radius: 8px; border: 1px solid var(--borda); margin-top: 6px; object-fit: cover; }
+.img-preview-atual { max-width: 180px; max-height: 120px; border-radius: 8px; border: 1px solid var(--borda); object-fit: cover; }
+
+/* ── Ações da turma ── */
+.prof-link-icon { background: none; border: none; cursor: pointer; padding: 0; }
+.prof-link-danger { color: #c0392b !important; }
+.prof-link-danger:hover { color: #e17055 !important; }
+
+/* ── Toast de cópia de link ── */
+.toast-copy { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px); background: #2d3436; color: #fff; padding: 10px 22px; border-radius: 24px; font-size: .88rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 9999; }
+.toast-visible { opacity: 1; transform: translateX(-50%) translateY(0); }

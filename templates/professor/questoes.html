@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Questões — {{ ativ.titulo }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+<nav class="topbar">
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:900px;">
+  <div style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">
+    <a href="/professor/dashboard" style="color:var(--muted);">Dashboard</a> ›
+    <a href="/professor/turma/{{ ativ.turma }}" style="color:var(--muted);">Turma</a> ›
+    <a href="/professor/atividade/{{ ativ.id }}/editar" style="color:var(--muted);">{{ ativ.titulo }}</a> ›
+    Questões
+  </div>
+
+  <div class="portal-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 class="portal-titulo">Banco de questões</h1>
+      <p class="portal-turma">{{ ativ.titulo }}</p>
+    </div>
+    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova"
+       class="btn-home" style="padding:10px 20px;font-size:.9rem;">+ Nova questão</a>
+  </div>
+
+  <!-- Stats bar -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0;">
+    {% set tipos = questoes | map(attribute='tipo') | list %}
+    <span class="quest-stat">Total: <strong>{{ questoes|length }}</strong></span>
+    {% if 'mc4' in tipos or 'mc5' in tipos %}
+      <span class="quest-stat">MC: <strong>{{ questoes | selectattr('tipo', 'in', ['mc4','mc5']) | list | length }}</strong></span>
+    {% endif %}
+    {% if 'vf' in tipos %}
+      <span class="quest-stat">V/F: <strong>{{ questoes | selectattr('tipo', 'equalto', 'vf') | list | length }}</strong></span>
+    {% endif %}
+    {% if 'aberta' in tipos %}
+      <span class="quest-stat">Abertas: <strong>{{ questoes | selectattr('tipo', 'equalto', 'aberta') | list | length }}</strong></span>
+    {% endif %}
+    {% if 'associativa' in tipos %}
+      <span class="quest-stat">Associativas: <strong>{{ questoes | selectattr('tipo', 'equalto', 'associativa') | list | length }}</strong></span>
+    {% endif %}
+    {% if ativ.valor_total %}
+      <span class="quest-stat">Valor total: <strong>{{ ativ.valor_total }}</strong></span>
+    {% endif %}
+  </div>
+
+  {% if not questoes %}
+    <div class="card" style="text-align:center;color:var(--muted);padding:32px;margin-top:8px;">
+      <p style="font-size:1.1rem;margin-bottom:12px;">Nenhuma questão cadastrada nesta atividade.</p>
+      <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-home" style="display:inline-block;">
+        Criar primeira questão
+      </a>
+    </div>
+  {% else %}
+    <div class="card" style="margin-top:8px;padding:0;overflow:hidden;">
+      {% for q in questoes %}
+        <div class="quest-row {% if not loop.last %}quest-row-border{% endif %}">
+          <div class="quest-num">{{ loop.index }}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+              <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
+              {% if q.peso and q.peso != 1 %}
+                <span style="font-size:.75rem;color:var(--muted);background:var(--fundo);padding:2px 6px;border-radius:4px;">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>
+              {% endif %}
+              {% if q.imagem %}
+                <span style="font-size:.75rem;color:var(--muted);">📷</span>
+              {% endif %}
+            </div>
+            <p style="margin:0;font-size:.9rem;color:var(--texto);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px;">
+              {{ q.enunciado }}
+            </p>
+            {% if q.tipo in ('mc4','mc5') and q.alternativas %}
+              <p style="margin:2px 0 0;font-size:.75rem;color:var(--muted);">
+                {{ q.alternativas|length }} alternativas ·
+                {% for a in q.alternativas if a.correta %}correta: {{ a.letra }}{% endfor %}
+              </p>
+            {% elif q.tipo == 'vf' and q.itens_vf %}
+              <p style="margin:2px 0 0;font-size:.75rem;color:var(--muted);">{{ q.itens_vf|length }} afirmações</p>
+            {% elif q.tipo == 'associativa' and q.pares_associativos %}
+              <p style="margin:2px 0 0;font-size:.75rem;color:var(--muted);">{{ q.pares_associativos|length }} pares</p>
+            {% endif %}
+          </div>
+          <div class="quest-acoes">
+            <a class="prof-link" href="/professor/questao/{{ q.id }}/editar?ativ_id={{ ativ.id }}">Editar</a>
+            <form method="post" action="/professor/questao/{{ q.id }}/excluir"
+                  style="display:inline;"
+                  onsubmit="return confirm('Excluir esta questão?');">
+              <input type="hidden" name="ativ_id" value="{{ ativ.id }}">
+              <button type="submit" class="prof-link prof-link-danger">Excluir</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div style="margin-top:16px;display:flex;gap:12px;">
+    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-home" style="font-size:.9rem;">+ Nova questão</a>
+    <a href="/professor/turma/{{ ativ.turma }}" style="padding:10px 16px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;font-size:.9rem;">← Voltar</a>
+  </div>
+</div>
+</body>
+</html>

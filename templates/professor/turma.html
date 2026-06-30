@@ -16,7 +16,7 @@
   {% endif %}
 </nav>
 
-<div class="shell" style="max-width:960px;">
+<div class="shell" style="max-width:1000px;">
   <div class="portal-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
       <h1 class="portal-titulo">{{ turma.nome }}</h1>
@@ -38,23 +38,40 @@
           <tr>
             <th>Título</th>
             <th>Disciplina</th>
+            <th style="text-align:center;">Questões</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           {% for ativ in atividades %}
-            <tr>
+            <tr id="ativ-row-{{ ativ.id }}">
               <td style="font-weight:600;color:var(--texto);">{{ ativ.titulo }}</td>
               <td style="color:var(--muted);font-size:.85rem;">{{ ativ._disc_nome or "—" }}</td>
+              <td style="text-align:center;color:var(--muted);font-size:.85rem;">
+                {{ (ativ.questoes or [])|length }}
+              </td>
               <td>
                 {% include "components/_toggle_ativa.html" with context %}
               </td>
               <td>
-                <div class="prof-acoes">
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/editar">Editar</a>
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas">Notas</a>
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas-abertas">Abertas</a>
+                <div class="prof-acoes" style="flex-wrap:wrap;gap:4px;">
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/editar" title="Editar configurações">Editar</a>
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/questoes" title="Banco de questões">Questões</a>
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas" title="Ver notas">Notas</a>
+                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas-abertas" title="Corrigir abertas">Abertas</a>
+                  <button class="prof-link prof-link-icon"
+                          onclick="copiarLink(this, '{{ ativ.id }}')"
+                          title="Copiar link para alunos">🔗</button>
+                  <form method="post" action="/professor/atividade/{{ ativ.id }}/clonar"
+                        style="display:inline;">
+                    <button type="submit" class="prof-link" title="Duplicar atividade">Clonar</button>
+                  </form>
+                  <form method="post" action="/professor/atividade/{{ ativ.id }}/excluir"
+                        style="display:inline;"
+                        onsubmit="return confirm('Excluir a atividade « {{ ativ.titulo }} »? Esta ação não pode ser desfeita.');">
+                    <button type="submit" class="prof-link prof-link-danger" title="Excluir atividade">Excluir</button>
+                  </form>
                 </div>
               </td>
             </tr>
@@ -64,5 +81,19 @@
     </div>
   {% endif %}
 </div>
+
+<div id="toast-link" class="toast-copy" aria-live="polite"></div>
+
+<script>
+function copiarLink(btn, ativId) {
+  const url = window.location.origin + '/atividade/' + ativId;
+  navigator.clipboard.writeText(url).then(() => {
+    const t = document.getElementById('toast-link');
+    t.textContent = 'Link copiado!';
+    t.classList.add('toast-visible');
+    setTimeout(() => t.classList.remove('toast-visible'), 2000);
+  });
+}
+</script>
 </body>
 </html>
