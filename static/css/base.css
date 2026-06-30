@@ -2088,3 +2088,25 @@ a.material-header:hover {
 .import-resumo-tipos { display: flex; flex-wrap: wrap; gap: 6px; }
 .import-ok { font-size: .75rem; font-weight: 700; color: #007a5a; }
 .import-erro { font-size: .75rem; font-weight: 700; color: var(--erro); }
+
+/* ------------------------------------------------------------------ */
+/* Boletim                                                              */
+/* ------------------------------------------------------------------ */
+
+.boletim-verde   { background: #00b894; color: #fff; }
+.boletim-amarelo { background: #fdcb6e; color: #5d4000; }
+.boletim-vermelho { background: #e17055; color: #fff; }
+.boletim-cinza   { background: #f0f0f0; color: var(--muted); }
+
+.boletim-leg {
+  display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+  vertical-align: middle; margin: 0 3px 0 10px;
+}
+
+.boletim-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
+.boletim-pill {
+  display: inline-block; padding: 3px 12px; border-radius: 20px;
+  font-size: .78rem; font-weight: 700;
+}
+.boletim-pill.on  { background: #e6faf5; color: #007a5a; }
+.boletim-pill.off { background: #f0f0f0; color: var(--muted); }

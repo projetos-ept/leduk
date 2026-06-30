@@ -59,6 +59,12 @@
     </div>
   {% endif %}
 
+  <div class="turma-banco-bar">
+    <span class="turma-banco-titulo">📊 Boletim:</span>
+    <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/boletim">Configurar</a>
+    <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/boletim/notas">Ver notas</a>
+  </div>
+
   {% if not atividades %}
     <div class="qb-empty">
       <p class="dash-empty-icon">📋</p>

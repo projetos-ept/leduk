@@ -46,6 +46,10 @@
               <span class="nav-link-icon">·</span>
               {{ item.turma.nome }}{% if item.turma.modalidade %} · {{ item.turma.modalidade }}{% endif %}
             </a>
+            <a class="nav-link" href="/professor/turma/{{ item.turma.id }}/boletim"
+               style="padding-left:26px;font-size:.82rem;color:var(--muted);">
+              <span class="nav-link-icon">📊</span> Boletim
+            </a>
             {% if item.disciplinas %}
               <ul class="nav-sublist">
                 {% for disc in item.disciplinas %}

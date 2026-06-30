@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unidades do boletim — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+{% macro atividade_checkboxes(selecionadas) %}
+  {% for a in atividades %}
+    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;padding:2px 0;">
+      <input type="checkbox" name="atividades" value="{{ a.id }}" {% if a.id in selecionadas %}checked{% endif %}>
+      {{ a.titulo }}
+      <span style="color:var(--muted);">· {{ (a.expand.disciplina.nome if a.expand and a.expand.disciplina else '—') }}{% if a.valor_total %} · {{ a.valor_total }}pts{% endif %}</span>
+    </label>
+  {% endfor %}
+{% endmacro %}
+
+{% macro rec_select(nome, atual) %}
+  <select name="{{ nome }}" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;">
+    <option value="">— nenhuma —</option>
+    {% for a in atividades %}<option value="{{ a.id }}" {% if atual == a.id %}selected{% endif %}>{{ a.titulo }}</option>{% endfor %}
+  </select>
+{% endmacro %}
+
+<div class="shell" style="max-width:820px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}/boletim">Boletim</a><span>›</span><span>Unidades</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Unidades do boletim</h1>
+      <p class="qb-subtitulo">{{ turma.nome }} · defina as unidades e quais atividades compõem cada uma.</p>
+    </div>
+    <a href="/professor/turma/{{ turma.id }}/boletim/notas" class="btn-primary">Ver notas →</a>
+  </div>
+
+  <!-- Nova unidade -->
+  <details class="import-docs" open>
+    <summary>+ Nova unidade</summary>
+    <form method="post" action="/professor/turma/{{ turma.id }}/boletim/unidade/nova" style="margin-top:12px;display:flex;flex-direction:column;gap:12px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr 2fr;gap:10px;">
+        <div>
+          <label class="campo-label">Disciplina</label>
+          <select name="disciplina" required style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;">
+            <option value="">Selecione…</option>
+            {% for d in disciplinas %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="campo-label">Número</label>
+          <input type="number" name="numero" min="1" value="1" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;">
+        </div>
+        <div>
+          <label class="campo-label">Título</label>
+          <input type="text" name="titulo" placeholder="I Unidade" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;">
+        </div>
+      </div>
+      <div>
+        <label class="campo-label">Atividades desta unidade</label>
+        <div style="max-height:160px;overflow:auto;border:1px solid var(--borda);border-radius:6px;padding:8px 10px;">{{ atividade_checkboxes([]) }}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
+        <div><label class="campo-label">Recuperação (atividade)</label>{{ rec_select('rec_atividade', '') }}</div>
+        <div><label class="campo-label">Rec. nota manual</label>
+          <input type="number" name="rec_nota_manual" step="0.1" min="0" max="10" placeholder="—" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;"></div>
+      </div>
+      <div><button type="submit" class="btn-primary btn-sm">Adicionar unidade</button></div>
+    </form>
+  </details>
+
+  <!-- Unidades existentes -->
+  {% if not unidades %}
+    <div class="qb-empty"><p class="dash-empty-icon">📋</p><p class="qb-empty-msg">Nenhuma unidade criada ainda.</p></div>
+  {% else %}
+    {% set rec_map = {} %}
+    {% for rf in rec_finais %}{% set _ = rec_map.update({rf.disciplina: rf}) %}{% endfor %}
+    {% for d in disciplinas %}
+      {% set unids = unidades | selectattr('disciplina', 'equalto', d.id) | list %}
+      {% if unids %}
+        <h2 style="font-size:1rem;font-weight:700;margin:20px 0 8px;">{{ d.nome }}</h2>
+        <div class="qb-list">
+          {% for u in unids | sort(attribute='numero') %}
+            <div class="qb-card" style="flex-direction:column;align-items:stretch;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <strong>{{ u.titulo or ('Unidade ' ~ u.numero) }} <span style="color:var(--muted);font-weight:400;">· nº {{ u.numero }} · {{ (u.atividades or [])|length }} atividade(s)</span></strong>
+                <form method="post" action="/professor/turma/{{ turma.id }}/boletim/unidade/{{ u.id }}/excluir" style="display:inline;" onsubmit="return confirm('Excluir esta unidade?');">
+                  <button class="btn-danger btn-sm" type="submit">Excluir</button>
+                </form>
+              </div>
+              <details style="margin-top:8px;">
+                <summary style="cursor:pointer;font-size:.85rem;color:var(--primaria);">✏️ Editar</summary>
+                <form method="post" action="/professor/turma/{{ turma.id }}/boletim/unidade/{{ u.id }}/editar" style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+                  <input type="hidden" name="disciplina" value="{{ u.disciplina }}">
+                  <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;">
+                    <div><label class="campo-label">Número</label><input type="number" name="numero" min="1" value="{{ u.numero }}" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;"></div>
+                    <div><label class="campo-label">Título</label><input type="text" name="titulo" value="{{ u.titulo }}" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;"></div>
+                  </div>
+                  <div><label class="campo-label">Atividades</label>
+                    <div style="max-height:160px;overflow:auto;border:1px solid var(--borda);border-radius:6px;padding:8px 10px;">{{ atividade_checkboxes(u.atividades or []) }}</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
+                    <div><label class="campo-label">Recuperação (atividade)</label>{{ rec_select('rec_atividade', u.rec_atividade) }}</div>
+                    <div><label class="campo-label">Rec. nota manual</label><input type="number" name="rec_nota_manual" step="0.1" min="0" max="10" value="{{ u.rec_nota_manual if u.rec_nota_manual is not none else '' }}" style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;"></div>
+                  </div>
+                  <div><button type="submit" class="btn-primary btn-sm">Salvar unidade</button></div>
+                </form>
+              </details>
+            </div>
+          {% endfor %}
+        </div>
+
+        <!-- Recuperação final da disciplina -->
+        <form method="post" action="/professor/turma/{{ turma.id }}/boletim/rec-final" class="turma-banco-bar" style="margin-top:8px;">
+          <input type="hidden" name="disciplina" value="{{ d.id }}">
+          <span class="turma-banco-titulo">Recuperação final:</span>
+          {{ rec_select('rec_atividade', (rec_map[d.id].rec_atividade if rec_map.get(d.id) else '')) }}
+          <input type="number" name="rec_nota_manual" step="0.1" min="0" max="10" placeholder="nota manual"
+                 value="{{ rec_map[d.id].rec_nota_manual if rec_map.get(d.id) and rec_map[d.id].rec_nota_manual is not none else '' }}"
+                 style="width:120px;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.85rem;">
+          <button type="submit" class="btn-ghost btn-sm">Salvar rec. final</button>
+        </form>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+</body>
+</html>

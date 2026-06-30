@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boletim — Relatório — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+{% set aprov = boletim.media_aprovacao or 5.0 %}
+{% macro situacao_badge(s) %}
+  {% if s == 'aprovado' %}<span class="nota-badge nota-verde">Aprovado</span>
+  {% elif s == 'recuperacao' %}<span class="nota-badge nota-amarelo">Recuperação</span>
+  {% else %}<span class="nota-badge nota-vermelho">Reprovado</span>{% endif %}
+{% endmacro %}
+
+<div class="shell" style="max-width:960px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}/boletim">Boletim</a><span>›</span><span>Relatório</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Relatório do boletim — {{ turma.nome }}{% if boletim.ano %} · {{ boletim.ano }}{% endif %}</h1>
+      <p class="qb-subtitulo">Médias finais e situação por disciplina · aprovação ≥ {{ aprov }}</p>
+    </div>
+    <a href="/professor/turma/{{ turma.id }}/boletim/notas" class="btn-ghost">Mapa de notas</a>
+  </div>
+
+  {% for d in disciplinas %}
+    <h2 style="font-size:1rem;font-weight:700;margin:22px 0 8px;">{{ d.nome }}</h2>
+    {% set total = alunos|length %}
+    {% set aprovados = [] %}
+    <table class="prof-tabela">
+      <thead><tr><th>Aluno</th><th style="text-align:center;">Média final</th><th>Situação</th></tr></thead>
+      <tbody>
+        {% for aluno in alunos %}
+          {% set dd = resultado[aluno.aluno_id][d.id] %}
+          <tr>
+            <td style="font-weight:600;">{{ aluno.nome }}</td>
+            <td style="text-align:center;"><strong>{{ '%.1f'|format(dd.media_final) if dd else '—' }}</strong></td>
+            <td>{% if dd %}{{ situacao_badge(dd.situacao) }}{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+</div>
+</body>
+</html>

@@ -126,6 +126,15 @@
       <!-- ── Aba Atividades ── -->
       <div class="tab-panel" id="tab-p-ativ">
         <div class="ativ-list">
+          {% if logado and boletim_ativo %}
+            <a class="ativ-card" href="/aluno/boletim/{{ turma.id }}" style="border:1px solid var(--primaria);">
+              <div class="ativ-icon">📊</div>
+              <div class="ativ-body">
+                <p class="ativ-titulo">Ver meu boletim</p>
+                <div class="ativ-sub"><span>Notas por unidade e situação →</span></div>
+              </div>
+            </a>
+          {% endif %}
           {% if not logado %}
             <div class="ativ-card dim">
               <div class="ativ-icon">🔒</div>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boletim — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:640px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}">{{ turma.nome }}</a><span>›</span><span>Boletim</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Boletim — Configuração</h1>
+      <p class="qb-subtitulo">{{ turma.nome }}</p>
+    </div>
+    {% if boletim %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/professor/turma/{{ turma.id }}/boletim/unidades" class="btn-ghost">Unidades</a>
+        <a href="/professor/turma/{{ turma.id }}/boletim/notas" class="btn-primary">Ver notas →</a>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if boletim %}
+    <div class="boletim-status">
+      <span class="boletim-pill {% if boletim.ativo %}on{% else %}off{% endif %}">{% if boletim.ativo %}● Ativo{% else %}○ Inativo{% endif %}</span>
+      <span class="boletim-pill {% if boletim.liberado %}on{% else %}off{% endif %}">{% if boletim.liberado %}🔓 Liberado p/ alunos{% else %}🔒 Não liberado{% endif %}</span>
+      <form method="post" action="/professor/turma/{{ turma.id }}/boletim/ativar" style="display:inline;">
+        <button class="btn-ghost btn-sm" type="submit">{% if boletim.ativo %}Desativar{% else %}Ativar{% endif %}</button>
+      </form>
+      <form method="post" action="/professor/turma/{{ turma.id }}/boletim/liberar" style="display:inline;">
+        <button class="btn-ghost btn-sm" type="submit">{% if boletim.liberado %}Recolher{% else %}Liberar{% endif %}</button>
+      </form>
+    </div>
+  {% endif %}
+
+  <div class="card" style="margin-top:16px;">
+    <form method="post" style="display:flex;flex-direction:column;gap:18px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Média de aprovação</label>
+          <input type="number" name="media_aprovacao" step="0.1" min="0" max="10"
+                 value="{{ boletim.media_aprovacao if boletim and boletim.media_aprovacao is not none else '5.0' }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Ano</label>
+          <input type="number" name="ano" value="{{ boletim.ano if boletim and boletim.ano else '' }}"
+                 placeholder="2026"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
+        <input type="checkbox" name="ativo" {% if not boletim or boletim.ativo %}checked{% endif %}> Boletim ativo (aparece no portal do aluno)
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
+        <input type="checkbox" name="liberado" {% if boletim and boletim.liberado %}checked{% endif %}> Liberado — alunos podem ver as notas
+      </label>
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">{% if boletim %}Salvar configuração{% else %}Criar boletim{% endif %}</button>
+        <a href="/professor/turma/{{ turma.id }}" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Voltar</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

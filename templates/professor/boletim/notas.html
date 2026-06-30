@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boletim — Notas — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+{% set aprov = boletim.media_aprovacao or 5.0 %}
+{% macro cor(nota, realizada) %}{% if not realizada %}boletim-cinza{% elif nota >= aprov %}boletim-verde{% elif nota >= 3.0 %}boletim-amarelo{% else %}boletim-vermelho{% endif %}{% endmacro %}
+{% macro situacao_badge(s) %}
+  {% if s == 'aprovado' %}<span class="nota-badge nota-verde">✅ Aprovado</span>
+  {% elif s == 'recuperacao' %}<span class="nota-badge nota-amarelo">🔁 Recuperação</span>
+  {% else %}<span class="nota-badge nota-vermelho">❌ Reprovado</span>{% endif %}
+{% endmacro %}
+
+<div class="shell" style="max-width:1000px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}/boletim">Boletim</a><span>›</span><span>Notas</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Boletim — {{ turma.nome }}{% if boletim.ano %} · {{ boletim.ano }}{% endif %}</h1>
+      <p class="qb-subtitulo">Média de aprovação: {{ aprov }} · {{ alunos|length }} aluno(s)</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/professor/turma/{{ turma.id }}/boletim/unidades" class="btn-ghost">Unidades</a>
+      <a href="/professor/turma/{{ turma.id }}/boletim/relatorio" class="btn-ghost">Relatório</a>
+    </div>
+  </div>
+
+  {% if not alunos %}
+    <div class="qb-empty"><p class="dash-empty-icon">📊</p><p class="qb-empty-msg">Nenhum aluno com tentativas registradas ainda.</p></div>
+  {% endif %}
+
+  {% for d in disciplinas %}
+    {% set unids = unidades_por_disc.get(d.id, []) %}
+    <h2 style="font-size:1rem;font-weight:700;margin:22px 0 8px;">{{ d.nome }}</h2>
+    <div style="overflow-x:auto;">
+      <table class="mapa-calor">
+        <thead>
+          <tr>
+            <th class="mapa-nome">Aluno</th>
+            {% for u in unids %}<th title="{{ u.titulo }}">U{{ u.numero }}</th>{% endfor %}
+            <th>Rec</th><th>Média</th><th>Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for aluno in alunos %}
+            {% set dd = resultado[aluno.aluno_id][d.id] %}
+            <tr>
+              <td class="mapa-nome">
+                <a href="/professor/aluno/{{ aluno.aluno_id }}/boletim/{{ turma.id }}" style="color:var(--texto);text-decoration:none;">{{ aluno.nome }}</a>
+              </td>
+              {% if dd %}
+                {% for linha in dd.unidades %}
+                  <td class="{{ cor(linha.nota_final, linha.realizada) }}">{% if linha.realizada %}{{ '%.1f'|format(linha.nota_final) }}{% else %}—{% endif %}</td>
+                {% endfor %}
+                <td class="mapa-vazio">{% if dd.rec_final is not none %}{{ '%.1f'|format(dd.rec_final) }}{% else %}—{% endif %}</td>
+                <td class="{{ cor(dd.media_final, true) }}"><strong>{{ '%.1f'|format(dd.media_final) }}</strong></td>
+                <td>{{ situacao_badge(dd.situacao) }}</td>
+              {% else %}
+                {% for u in unids %}<td class="mapa-vazio">—</td>{% endfor %}
+                <td class="mapa-vazio">—</td><td class="mapa-vazio">—</td><td>—</td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+
+  <p style="margin-top:14px;font-size:.78rem;color:var(--muted);">
+    <span class="boletim-leg boletim-verde"></span> ≥ {{ aprov }}
+    <span class="boletim-leg boletim-amarelo"></span> 3,0–{{ aprov }}
+    <span class="boletim-leg boletim-vermelho"></span> &lt; 3,0
+    <span class="boletim-leg boletim-cinza"></span> não realizada
+  </p>
+</div>
+</body>
+</html>
