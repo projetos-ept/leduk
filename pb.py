@@ -401,6 +401,23 @@ class PocketBaseClient:
         )
         return result.get("totalItems", 0)
 
+    def remover_questao_de_todas_atividades(self, questao_id: str) -> int:
+        """Remove o ID da questão de atividades.questoes[] em todas as atividades
+        que a referenciam (cascade manual — preserva as atividades, só limpa a
+        referência). Retorna o número de atividades atualizadas."""
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={"filter": f'questoes~"{questao_id}"', "perPage": 200},
+        )
+        atualizadas = 0
+        for ativ in result.get("items", []):
+            questoes = ativ.get("questoes") or []
+            if questao_id in questoes:
+                nova = [q for q in questoes if q != questao_id]
+                self.atualizar_atividade(ativ["id"], {"questoes": nova})
+                atualizadas += 1
+        return atualizadas
+
     def criar_questao(self, data: dict, imagem=None) -> dict:
         if imagem:
             return self._post_multipart("/api/collections/questoes/records", data, {"imagem": imagem})

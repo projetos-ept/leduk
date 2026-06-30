@@ -885,10 +885,10 @@ def create_app(config: dict | None = None) -> Flask:
     def professor_questao_excluir(questao_id: str):
         ativ_id = request.form.get("ativ_id", "")
         origem_disc = request.form.get("origem_disciplina", "")
-        if ativ_id:
-            ativ = get_pb().buscar_atividade(ativ_id)
-            nova_lista = [q for q in (ativ.get("questoes") or []) if q != questao_id]
-            get_pb().atualizar_atividade(ativ_id, {"questoes": nova_lista})
+        # Cascade manual: remove a referência de todas as atividades que usam a
+        # questão antes de apagá-la (cascadeDelete=False é proposital — não
+        # queremos apagar a atividade, só limpar o vínculo órfão).
+        get_pb().remover_questao_de_todas_atividades(questao_id)
         get_pb().excluir_questao(questao_id)
         if ativ_id:
             return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))

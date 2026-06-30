@@ -302,7 +302,13 @@ PB_ADMIN_PASSWORD=senha \
 Operações sobre o banco (em `pb.py`): `listar_questoes_disciplina` (filtros por
 tipo/assunto/dificuldade), `clonar_questao` (duplica questão + subitens como
 registro independente), `reclassificar_questao` (move disciplina/assunto sem
-quebrar vínculos), `contar_uso_questao` (em quantas atividades a questão aparece).
+quebrar vínculos), `contar_uso_questao` (em quantas atividades a questão aparece),
+`remover_questao_de_todas_atividades` (cascade manual ao excluir).
+
+Ao excluir uma questão, o sistema faz **cascade manual**: remove o ID de
+`atividades.questoes[]` de todas as atividades que a referenciam antes de apagar
+o registro — assim nenhuma atividade fica com vínculo órfão. Na tela do banco, se
+a questão está em uso, a confirmação avisa explicitamente em quantas atividades.
 
 ### Diagrama de relacionamentos
 
