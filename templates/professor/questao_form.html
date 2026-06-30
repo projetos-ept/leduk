@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if questao %}Editar{% else %}Nova{% endif %} Questão — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:720px;">
+  <div style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">
+    <a href="/professor/atividade/{{ ativ.id }}/questoes" style="color:var(--muted);">← Voltar para questões</a>
+  </div>
+
+  <div class="portal-header">
+    <h1 class="portal-titulo">{% if questao %}Editar questão{% else %}Nova questão{% endif %}</h1>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="post"
+          enctype="multipart/form-data"
+          action="{% if questao %}/professor/questao/{{ questao.id }}/editar{% else %}/professor/atividade/{{ ativ.id }}/questoes/nova{% endif %}"
+          style="display:flex;flex-direction:column;gap:18px;">
+
+      {% if questao %}<input type="hidden" name="ativ_id" value="{{ ativ.id }}">{% endif %}
+
+      <!-- Tipo (apenas na criação) -->
+      {% if not questao %}
+      <div>
+        <label class="campo-label">Tipo de questão *</label>
+        <div class="tipo-tabs" id="tipo-tabs">
+          {% for t, label in [('mc4','MC 4 alternativas'),('mc5','MC 5 alternativas'),('vf','Verdadeiro/Falso'),('aberta','Dissertativa'),('associativa','Associativa')] %}
+            <label class="tipo-tab {% if loop.first %}tipo-tab-ativo{% endif %}">
+              <input type="radio" name="tipo" value="{{ t }}" {% if loop.first %}checked{% endif %}
+                     onchange="mudarTipo('{{ t }}')">
+              {{ label }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="quest-tipo-badge quest-tipo-{{ questao.tipo }}">{{ questao.tipo | upper }}</span>
+        <span style="color:var(--muted);font-size:.85rem;">Tipo não pode ser alterado após a criação.</span>
+        <input type="hidden" name="tipo" value="{{ questao.tipo }}">
+      </div>
+      {% endif %}
+
+      <!-- Enunciado -->
+      <div>
+        <label class="campo-label">Enunciado *</label>
+        <textarea name="enunciado" rows="4" required
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;resize:vertical;font-family:inherit;">{{ questao.enunciado if questao else '' }}</textarea>
+      </div>
+
+      <!-- Imagem da questão -->
+      <div>
+        <label class="campo-label">Imagem da questão (opcional)</label>
+        {% if questao and questao.imagem %}
+          <div style="margin-bottom:8px;">
+            <img src="{{ pb_url }}/api/files/questoes/{{ questao.id }}/{{ questao.imagem }}"
+                 alt="Imagem atual" class="img-preview-atual">
+            <p style="font-size:.75rem;color:var(--muted);margin:4px 0 0;">Envie uma nova imagem para substituir.</p>
+          </div>
+        {% endif %}
+        <input type="file" name="imagem" accept="image/*" onchange="previewImg(this,'prev-enunciado')"
+               style="font-size:.85rem;">
+        <img id="prev-enunciado" class="img-preview" alt="">
+      </div>
+
+      <!-- Peso e dificuldade -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Peso</label>
+          <input type="number" name="peso" min="0.5" step="0.5"
+                 value="{{ questao.peso if questao else 1 }}"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Dificuldade</label>
+          <select name="dificuldade" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            {% for v, l in [('facil','Fácil'),('medio','Médio'),('dificil','Difícil')] %}
+              <option value="{{ v }}" {% if questao and questao.dificuldade == v %}selected{% endif %}>{{ l }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Feedback geral -->
+      <div>
+        <label class="campo-label">Feedback geral (exibido após a resposta)</label>
+        <textarea name="feedback_geral" rows="2"
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;resize:vertical;font-family:inherit;">{{ questao.feedback_geral if questao else '' }}</textarea>
+      </div>
+
+      <!-- ── Seção MC4/MC5 ── -->
+      <div id="secao-mc" class="quest-secao">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:10px;color:var(--destaque);">Alternativas</div>
+        <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+          <label class="campo-label" style="margin:0;">Alternativa correta:</label>
+          <div style="display:flex;gap:8px;" id="radio-correta">
+            {% set correta_atual = '' %}
+            {% if questao and questao.tipo in ('mc4','mc5') %}
+              {% for a in questao.alternativas %}{% if a.correta %}{% set correta_atual = a.letra %}{% endif %}{% endfor %}
+            {% endif %}
+            {% for letra in ['A','B','C','D','E'] %}
+              <label style="display:flex;align-items:center;gap:3px;font-size:.9rem;cursor:pointer;">
+                <input type="radio" name="correta" value="{{ letra }}"
+                       {% if correta_atual == letra or (not correta_atual and letra == 'A') %}checked{% endif %}>
+                {{ letra }}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% for letra in ['A','B','C','D','E'] %}
+          {% set alt = namespace(obj=none) %}
+          {% if questao and questao.alternativas %}
+            {% for a in questao.alternativas %}{% if a.letra == letra %}{% set alt.obj = a %}{% endif %}{% endfor %}
+          {% endif %}
+          <div class="alt-row {% if letra == 'E' %}alt-mc5-only{% endif %}" id="alt-{{ letra }}">
+            <div class="alt-letra">{{ letra }}</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+              <input type="text" name="alt_texto_{{ letra }}"
+                     value="{{ alt.obj.texto if alt.obj else '' }}"
+                     placeholder="Texto da alternativa {{ letra }}"
+                     style="width:100%;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="text" name="alt_feedback_{{ letra }}"
+                       value="{{ alt.obj.feedback if alt.obj else '' }}"
+                       placeholder="Feedback (opcional)"
+                       style="flex:1;padding:6px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.8rem;min-width:160px;">
+                <label style="font-size:.8rem;color:var(--muted);cursor:pointer;white-space:nowrap;">
+                  📷 <input type="file" name="alt_imagem_{{ letra }}" accept="image/*"
+                             onchange="previewImg(this,'prev-alt-{{ letra }}')"
+                             style="width:80px;font-size:.75rem;">
+                </label>
+              </div>
+              <img id="prev-alt-{{ letra }}" class="img-preview" alt="">
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- ── Seção V/F ── -->
+      <div id="secao-vf" class="quest-secao" style="display:none;">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:10px;color:var(--destaque);">Afirmações V/F</div>
+        <div id="vf-lista">
+          {% if questao and questao.itens_vf %}
+            {% for item in questao.itens_vf %}
+              <div class="vf-row" data-idx="{{ loop.index }}">
+                <span class="vf-num">{{ loop.index }}</span>
+                <input type="text" name="vf_af_{{ loop.index }}"
+                       value="{{ item.afirmacao }}"
+                       placeholder="Afirmação..."
+                       style="flex:1;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+                <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;">
+                  <input type="radio" name="vf_ok_{{ loop.index }}" value="V" {% if item.correta %}checked{% endif %}> V
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;">
+                  <input type="radio" name="vf_ok_{{ loop.index }}" value="F" {% if not item.correta %}checked{% endif %}> F
+                </label>
+                <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="vf-row" data-idx="1">
+              <span class="vf-num">1</span>
+              <input type="text" name="vf_af_1" placeholder="Afirmação..." style="flex:1;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+              <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;"><input type="radio" name="vf_ok_1" value="V" checked> V</label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;"><input type="radio" name="vf_ok_1" value="F"> F</label>
+              <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>
+            </div>
+          {% endif %}
+        </div>
+        <button type="button" class="btn-add-row" onclick="adicionarVF()">+ Adicionar afirmação</button>
+      </div>
+
+      <!-- ── Seção Associativa ── -->
+      <div id="secao-associativa" class="quest-secao" style="display:none;">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:10px;color:var(--destaque);">Pares associativos</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;font-size:.78rem;color:var(--muted);font-weight:600;padding:0 4px;margin-bottom:4px;">
+          <span>Coluna A</span><span>Coluna B</span><span></span>
+        </div>
+        <div id="par-lista">
+          {% if questao and questao.pares_associativos %}
+            {% for par in questao.pares_associativos %}
+              <div class="par-row">
+                <input type="text" name="par_a_{{ loop.index }}" value="{{ par.coluna_a }}"
+                       placeholder="Coluna A" style="padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+                <input type="text" name="par_b_{{ loop.index }}" value="{{ par.coluna_b }}"
+                       placeholder="Coluna B" style="padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+                <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="par-row">
+              <input type="text" name="par_a_1" placeholder="Coluna A" style="padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+              <input type="text" name="par_b_1" placeholder="Coluna B" style="padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+              <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>
+            </div>
+          {% endif %}
+        </div>
+        <button type="button" class="btn-add-row" onclick="adicionarPar()">+ Adicionar par</button>
+      </div>
+
+      <!-- ── Seção Aberta ── -->
+      <div id="secao-aberta" class="quest-secao" style="display:none;">
+        <div style="padding:12px;background:var(--fundo);border-radius:8px;font-size:.85rem;color:var(--muted);">
+          A questão dissertativa não possui alternativas. O professor corrige manualmente após a submissão.
+          Use o campo "Feedback geral" acima para dar uma dica ou gabarito esperado.
+        </div>
+      </div>
+
+      <!-- Botões -->
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">
+          {% if questao %}Salvar alterações{% else %}Criar questão{% endif %}
+        </button>
+        <a href="/professor/atividade/{{ ativ.id }}/questoes"
+           style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const TIPO_ATUAL = "{{ questao.tipo if questao else 'mc4' }}";
+
+function mudarTipo(tipo) {
+  document.querySelectorAll('.quest-secao').forEach(s => s.style.display = 'none');
+  document.querySelectorAll('.tipo-tab').forEach(t => t.classList.remove('tipo-tab-ativo'));
+  event.target.closest('.tipo-tab').classList.add('tipo-tab-ativo');
+
+  if (tipo === 'mc4') {
+    document.getElementById('secao-mc').style.display = '';
+    document.querySelectorAll('.alt-mc5-only').forEach(e => e.style.display = 'none');
+  } else if (tipo === 'mc5') {
+    document.getElementById('secao-mc').style.display = '';
+    document.querySelectorAll('.alt-mc5-only').forEach(e => e.style.display = '');
+  } else if (tipo === 'vf') {
+    document.getElementById('secao-vf').style.display = '';
+  } else if (tipo === 'associativa') {
+    document.getElementById('secao-associativa').style.display = '';
+  } else {
+    document.getElementById('secao-aberta').style.display = '';
+  }
+}
+
+// Inicializar para edição
+(function() {
+  const t = TIPO_ATUAL;
+  if (!t || t === 'mc4' || t === 'mc5') {
+    document.getElementById('secao-mc').style.display = '';
+    if (t !== 'mc5') document.querySelectorAll('.alt-mc5-only').forEach(e => e.style.display = 'none');
+  } else if (t === 'vf') {
+    document.getElementById('secao-vf').style.display = '';
+    document.getElementById('secao-mc').style.display = 'none';
+  } else if (t === 'associativa') {
+    document.getElementById('secao-associativa').style.display = '';
+    document.getElementById('secao-mc').style.display = 'none';
+  } else if (t === 'aberta') {
+    document.getElementById('secao-aberta').style.display = '';
+    document.getElementById('secao-mc').style.display = 'none';
+  }
+})();
+
+// Preview de imagem
+function previewImg(input, previewId) {
+  const img = document.getElementById(previewId);
+  if (input.files && input.files[0]) {
+    img.src = URL.createObjectURL(input.files[0]);
+    img.style.display = 'block';
+  }
+}
+
+// Linhas dinâmicas V/F
+let vfCount = document.querySelectorAll('#vf-lista .vf-row').length || 1;
+
+function adicionarVF() {
+  vfCount++;
+  const div = document.createElement('div');
+  div.className = 'vf-row';
+  div.dataset.idx = vfCount;
+  div.innerHTML = `
+    <span class="vf-num">${vfCount}</span>
+    <input type="text" name="vf_af_${vfCount}" placeholder="Afirmação..."
+           style="flex:1;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+    <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;">
+      <input type="radio" name="vf_ok_${vfCount}" value="V" checked> V</label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;">
+      <input type="radio" name="vf_ok_${vfCount}" value="F"> F</label>
+    <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>`;
+  document.getElementById('vf-lista').appendChild(div);
+}
+
+// Linhas dinâmicas Associativa
+let parCount = document.querySelectorAll('#par-lista .par-row').length || 1;
+
+function adicionarPar() {
+  parCount++;
+  const div = document.createElement('div');
+  div.className = 'par-row';
+  div.innerHTML = `
+    <input type="text" name="par_a_${parCount}" placeholder="Coluna A"
+           style="padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+    <input type="text" name="par_b_${parCount}" placeholder="Coluna B"
+           style="padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
+    <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>`;
+  document.getElementById('par-lista').appendChild(div);
+}
+
+function removerLinha(btn) {
+  btn.closest('.vf-row, .par-row').remove();
+}
+</script>
+</body>
+</html>

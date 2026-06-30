@@ -26,6 +26,55 @@ _TEMPLATE_MAP = {
 }
 
 
+_CAMPOS_PB = {"id", "created", "updated", "collectionId", "collectionName", "expand"}
+
+
+def _criar_subitems_questao(pb_inst, questao_id: str, tipo: str, form, files) -> None:
+    """Cria alternativas / itens VF / pares associativos após criar uma questão."""
+    if tipo in ("mc4", "mc5"):
+        letras = list("ABCDE")[: 4 if tipo == "mc4" else 5]
+        correta = form.get("correta", "A")
+        for letra in letras:
+            texto = form.get(f"alt_texto_{letra}", "").strip()
+            if not texto:
+                continue
+            img = files.get(f"alt_imagem_{letra}")
+            img_tuple = (img.filename, img.read(), img.content_type) if img and img.filename else None
+            pb_inst.criar_alternativa(
+                {
+                    "questao": questao_id,
+                    "letra": letra,
+                    "texto": texto,
+                    "correta": letra == correta,
+                    "feedback": form.get(f"alt_feedback_{letra}", ""),
+                },
+                img_tuple,
+            )
+    elif tipo == "vf":
+        for i in range(1, 21):
+            af = form.get(f"vf_af_{i}", "").strip()
+            if not af:
+                break
+            pb_inst.criar_item_vf({
+                "questao": questao_id,
+                "afirmacao": af,
+                "correta": form.get(f"vf_ok_{i}") == "V",
+                "ordem": i,
+            })
+    elif tipo == "associativa":
+        for i in range(1, 21):
+            col_a = form.get(f"par_a_{i}", "").strip()
+            col_b = form.get(f"par_b_{i}", "").strip()
+            if not col_a:
+                break
+            pb_inst.criar_par_associativo({
+                "questao": questao_id,
+                "coluna_a": col_a,
+                "coluna_b": col_b,
+                "ordem": i,
+            })
+
+
 def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
     """Returns (nota_final, detalhamento) from session respostas and atividade record."""
     nota_final = calcular_nota_final(respostas, atividade)
@@ -124,6 +173,10 @@ def create_app(config: dict | None = None) -> Flask:
     def get_pb() -> PocketBaseClient:
         """Retorna um PocketBaseClient com o token JWT da sessão atual."""
         return PocketBaseClient(pb_url, token=session.get("token"))
+
+    @app.context_processor
+    def _inject_globals():
+        return {"pb_url": pb_url}
 
     @app.template_filter("youtube_id")
     def _youtube_id_filter(url: str) -> str:
@@ -698,6 +751,87 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_professor
     def professor_notas_abertas_alt(ativ_id: str):
         return redirect(url_for("professor_notas_abertas", ativ_id=ativ_id))
+
+    @app.route("/professor/atividade/<ativ_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_excluir_atividade(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        turma_id = ativ.get("turma", "")
+        get_pb().excluir_atividade(ativ_id)
+        return redirect(url_for("professor_turma", turma_id=turma_id))
+
+    @app.route("/professor/atividade/<ativ_id>/clonar", methods=["POST"])
+    @requer_professor
+    def professor_clonar_atividade(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        turma_id = ativ.get("turma", "")
+        data = {k: v for k, v in ativ.items() if k not in _CAMPOS_PB}
+        data["titulo"] = f"{ativ['titulo']} (cópia)"
+        data["ativa"] = False
+        get_pb().criar_atividade(data)
+        return redirect(url_for("professor_turma", turma_id=turma_id))
+
+    @app.route("/professor/atividade/<ativ_id>/questoes")
+    @requer_professor
+    def professor_questoes_atividade(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        questao_ids = ativ.get("questoes") or []
+        questoes = get_pb().listar_questoes_atividade(questao_ids)
+        return render_template("professor/questoes.html", ativ=ativ, questoes=questoes,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/<ativ_id>/questoes/nova", methods=["GET", "POST"])
+    @requer_professor
+    def professor_questao_nova(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        if request.method == "GET":
+            return render_template("professor/questao_form.html", ativ=ativ, questao=None,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        tipo = request.form.get("tipo", "mc4")
+        img = request.files.get("imagem")
+        img_tuple = (img.filename, img.read(), img.content_type) if img and img.filename else None
+        questao = get_pb().criar_questao({
+            "enunciado": request.form.get("enunciado", ""),
+            "tipo": tipo,
+            "disciplina": ativ.get("disciplina", ""),
+            "peso": float(request.form.get("peso") or 1),
+            "dificuldade": request.form.get("dificuldade", "medio"),
+            "feedback_geral": request.form.get("feedback_geral", ""),
+        }, img_tuple)
+        _criar_subitems_questao(get_pb(), questao["id"], tipo, request.form, request.files)
+        nova_lista = (ativ.get("questoes") or []) + [questao["id"]]
+        get_pb().atualizar_atividade(ativ_id, {"questoes": nova_lista})
+        return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
+
+    @app.route("/professor/questao/<questao_id>/editar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_questao_editar(questao_id: str):
+        questao = get_pb().buscar_questao(questao_id)
+        ativ_id = request.args.get("ativ_id") or request.form.get("ativ_id", "")
+        if request.method == "GET":
+            return render_template("professor/questao_form.html",
+                                   ativ={"id": ativ_id}, questao=questao,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        img = request.files.get("imagem")
+        img_tuple = (img.filename, img.read(), img.content_type) if img and img.filename else None
+        get_pb().atualizar_questao(questao_id, {
+            "enunciado": request.form.get("enunciado", ""),
+            "peso": float(request.form.get("peso") or 1),
+            "dificuldade": request.form.get("dificuldade", "medio"),
+            "feedback_geral": request.form.get("feedback_geral", ""),
+        }, img_tuple)
+        return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
+
+    @app.route("/professor/questao/<questao_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_questao_excluir(questao_id: str):
+        ativ_id = request.form.get("ativ_id", "")
+        if ativ_id:
+            ativ = get_pb().buscar_atividade(ativ_id)
+            nova_lista = [q for q in (ativ.get("questoes") or []) if q != questao_id]
+            get_pb().atualizar_atividade(ativ_id, {"questoes": nova_lista})
+        get_pb().excluir_questao(questao_id)
+        return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)

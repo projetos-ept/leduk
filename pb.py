@@ -13,6 +13,13 @@ class PocketBaseClient:
             h["Authorization"] = self.token
         return h
 
+    def _auth_headers(self) -> dict:
+        """Headers sem Content-Type para requisições multipart."""
+        h = {}
+        if self.token:
+            h["Authorization"] = self.token
+        return h
+
     def _get(self, path: str, params: dict | None = None) -> dict:
         resp = requests.get(f"{self.base_url}{path}", headers=self._headers(), params=params)
         resp.raise_for_status()
@@ -23,10 +30,26 @@ class PocketBaseClient:
         resp.raise_for_status()
         return resp.json()
 
+    def _post_multipart(self, path: str, data: dict, files: dict | None = None) -> dict:
+        resp = requests.post(f"{self.base_url}{path}", headers=self._auth_headers(),
+                             data=data, files=files or {})
+        resp.raise_for_status()
+        return resp.json()
+
     def _patch(self, path: str, data: dict) -> dict:
         resp = requests.patch(f"{self.base_url}{path}", headers=self._headers(), json=data)
         resp.raise_for_status()
         return resp.json()
+
+    def _patch_multipart(self, path: str, data: dict, files: dict | None = None) -> dict:
+        resp = requests.patch(f"{self.base_url}{path}", headers=self._auth_headers(),
+                              data=data, files=files or {})
+        resp.raise_for_status()
+        return resp.json()
+
+    def _delete(self, path: str) -> None:
+        resp = requests.delete(f"{self.base_url}{path}", headers=self._auth_headers())
+        resp.raise_for_status()
 
     # --- Collections ---
 
@@ -286,6 +309,60 @@ class PocketBaseClient:
     def atualizar_atividade(self, ativ_id: str, data: dict) -> dict:
         return self._patch(f"/api/collections/atividades/records/{ativ_id}", data)
 
+    def excluir_atividade(self, ativ_id: str) -> None:
+        self._delete(f"/api/collections/atividades/records/{ativ_id}")
+
     def listar_disciplinas(self) -> list:
         result = self._get("/api/collections/disciplinas/records", params={"sort": "nome"})
         return result.get("items", [])
+
+    # --- Questões ---
+
+    def listar_questoes_atividade(self, questao_ids: list) -> list:
+        result = []
+        for qid in questao_ids:
+            try:
+                result.append(self.buscar_questao(qid))
+            except Exception:
+                pass
+        return result
+
+    def criar_questao(self, data: dict, imagem=None) -> dict:
+        if imagem:
+            return self._post_multipart("/api/collections/questoes/records", data, {"imagem": imagem})
+        return self._post("/api/collections/questoes/records", data)
+
+    def atualizar_questao(self, questao_id: str, data: dict, imagem=None) -> dict:
+        if imagem:
+            return self._patch_multipart(f"/api/collections/questoes/records/{questao_id}",
+                                         data, {"imagem": imagem})
+        return self._patch(f"/api/collections/questoes/records/{questao_id}", data)
+
+    def excluir_questao(self, questao_id: str) -> None:
+        self._delete(f"/api/collections/questoes/records/{questao_id}")
+
+    # --- Alternativas ---
+
+    def criar_alternativa(self, data: dict, imagem=None) -> dict:
+        if imagem:
+            return self._post_multipart("/api/collections/alternativas/records", data, {"imagem": imagem})
+        return self._post("/api/collections/alternativas/records", data)
+
+    def excluir_alternativa(self, alt_id: str) -> None:
+        self._delete(f"/api/collections/alternativas/records/{alt_id}")
+
+    # --- Itens V/F ---
+
+    def criar_item_vf(self, data: dict) -> dict:
+        return self._post("/api/collections/itens_vf/records", data)
+
+    def excluir_item_vf(self, item_id: str) -> None:
+        self._delete(f"/api/collections/itens_vf/records/{item_id}")
+
+    # --- Pares associativos ---
+
+    def criar_par_associativo(self, data: dict) -> dict:
+        return self._post("/api/collections/pares_associativos/records", data)
+
+    def excluir_par_associativo(self, par_id: str) -> None:
+        self._delete(f"/api/collections/pares_associativos/records/{par_id}")

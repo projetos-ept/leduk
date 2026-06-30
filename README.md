@@ -40,8 +40,10 @@ leduk/
 │   │   └── portal.html
 │   ├── professor/
 │   │   ├── dashboard.html
-│   │   ├── turma.html
+│   │   ├── turma.html           ← lista com excluir/clonar/copiar link
 │   │   ├── atividade_form.html
+│   │   ├── questoes.html        ← banco de questões da atividade
+│   │   ├── questao_form.html    ← criar/editar questão (todos os tipos + imagem)
 │   │   ├── notas.html
 │   │   └── notas_abertas.html
 │   └── relatorio/
@@ -69,7 +71,8 @@ leduk/
         ├── test_melhorias_ux.py
         ├── test_relatorios.py
         ├── test_professor.py
-        └── test_ciclo_atividade.py
+        ├── test_ciclo_atividade.py
+        └── test_gestao_atividade.py  ← smoke tests: excluir/clonar/CRUD questões
 ```
 
 ---
@@ -124,7 +127,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 89 testes, todos passando.
+**Resultado esperado:** 99 testes, todos passando.
 
 ---
 
@@ -157,10 +160,16 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/professor/dashboard` | Dashboard com mapa de calor por turma |
-| GET | `/professor/turma/<id>` | Gestão de atividades da turma |
+| GET | `/professor/turma/<id>` | Gestão de atividades: editar, excluir, clonar, copiar link |
 | GET/POST | `/professor/atividade/nova` | Criar nova atividade |
 | GET/POST | `/professor/atividade/<id>/editar` | Editar atividade existente |
+| POST | `/professor/atividade/<id>/excluir` | Excluir atividade (com confirmação) |
+| POST | `/professor/atividade/<id>/clonar` | Clonar atividade (cópia inativa) |
 | POST | `/professor/atividade/<id>/toggle-ativa` | Ativar/desativar (HTMX) |
+| GET | `/professor/atividade/<id>/questoes` | Banco de questões da atividade |
+| GET/POST | `/professor/atividade/<id>/questoes/nova` | Criar questão (todos os tipos + imagem) |
+| GET/POST | `/professor/questao/<id>/editar` | Editar enunciado/peso/imagem de questão |
+| POST | `/professor/questao/<id>/excluir` | Excluir questão e remover da atividade |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
 | POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |
 | GET | `/professor/atividade/<id>/notas-abertas` | Corrigir questões abertas |
@@ -449,6 +458,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 4 — Autenticação | Concluída | Login JWT, roles, middleware, retomada de atividade |
 | 5 — Portal do professor | Concluída | Dashboard + gestão de atividades + correção + liberação de notas |
 | 6 — Pontuação por peso | Concluída | valor_total, peso por questão, nota_final, mapa de calor |
+| 7 — Banco de questões | Concluída | CRUD completo mc4/mc5/vf/aberta/associativa + upload de imagem |
 
 ### Funcionalidades futuras consideradas
 
