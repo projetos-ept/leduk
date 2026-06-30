@@ -34,14 +34,21 @@
   <!-- Header -->
   <div class="qb-header">
     <div>
-      <h1 class="qb-titulo">Banco de questões</h1>
-      <p class="qb-subtitulo">{{ disciplina.nome }}</p>
+      <h1 class="qb-titulo">Banco da Disciplina — Gerenciar Questões</h1>
+      <p class="qb-subtitulo">{{ disciplina.nome }} · Crie, edite e organize as questões desta disciplina.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="/professor/disciplina/{{ disciplina.id }}/importar-questoes" class="btn-ghost">⬆ Importar JSON</a>
       <a href="/professor/disciplina/{{ disciplina.id }}/questao/nova" class="btn-primary">+ Nova questão</a>
     </div>
   </div>
+
+  <p style="margin:-8px 0 14px;">
+    <a href="/professor/banco-questoes?disciplina={{ disciplina.id }}"
+       style="color:var(--accent2, var(--primaria));text-decoration:none;font-weight:600;font-size:.85rem;">
+      🧩 Selecionar para atividade multidisciplinar →
+    </a>
+  </p>
 
   <!-- Filtros -->
   <form method="get" class="banco-filtros">

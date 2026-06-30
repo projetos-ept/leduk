@@ -52,6 +52,7 @@ leduk/
 │   │   ├── banco_questoes.html     ← banco reutilizável da disciplina (filtros + uso)
 │   │   ├── banco_geral.html        ← banco geral (todas disciplinas) + seleção multidisciplinar
 │   │   ├── atividade_multidisciplinar.html ← montar atividade com questões de várias disciplinas
+│   │   ├── importar_questoes.html  ← importação JSON (colar/arquivo) com pré-visualização
 │   │   ├── selecionar_questoes.html ← seletor do banco para adicionar à atividade
 │   │   ├── turmas.html / turma_form.html         ← CRUD de turmas
 │   │   ├── disciplinas.html / disciplina_form.html ← CRUD de disciplinas
@@ -69,6 +70,7 @@ leduk/
 │       └── aluno.html
 │
 ├── static/css/base.css     ← identidade visual + temas por disciplina
+├── static/exemplos/questoes_exemplo.json ← exemplo de importação (todos os tipos)
 │
 └── tests/
     ├── conftest.py
@@ -95,7 +97,8 @@ leduk/
         ├── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
         ├── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
         ├── test_banco_geral.py       ← banco geral + atividade multidisciplinar
-        └── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
+        ├── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
+        └── test_questao_form.py      ← seções condicionais do form + navegação banco
 ```
 
 ---
@@ -150,7 +153,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 157 testes, todos passando.
+**Resultado esperado:** 163 testes, todos passando.
 
 ---
 
@@ -198,10 +201,10 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/questao/<id>/clonar` | Clonar questão (registro independente) |
 | POST | `/professor/questao/<id>/reclassificar` | Mover questão para outra disciplina/assunto |
 | POST | `/professor/questao/<id>/excluir` | Excluir questão (e remover da atividade) |
-| GET | `/professor/disciplina/<id>/banco-questoes` | Banco reutilizável da disciplina (filtros + uso) |
+| GET | `/professor/disciplina/<id>/banco-questoes` | Banco da disciplina — gerenciar questões (criar/editar/clonar/excluir) |
 | GET/POST | `/professor/disciplina/<id>/questao/nova` | Criar questão direto no banco da disciplina |
 | GET/POST | `/professor/disciplina/<id>/importar-questoes` | Importar questões via JSON (colar/arquivo, imagens link/base64) |
-| GET | `/professor/banco-questoes` | Banco geral (todas disciplinas) com filtros disciplina/tipo/assunto |
+| GET | `/professor/banco-questoes` | Seletor multidisciplinar — selecionar questões de qualquer disciplina (filtros) |
 | GET/POST | `/professor/atividade/multidisciplinar` | Montar atividade com questões de várias disciplinas |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
 | POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |
@@ -289,7 +292,13 @@ Questões abertas sem correção contribuem 0 até o professor avaliar.
 | itens_vf | `dkc5b8csbsus7es` | Afirmações V/F ordenadas |
 | pares_associativos | `8okcm31re6gxm4p` | Coluna A : Coluna B com imagens |
 | tentativas | `2cgvat5j77ne31y` | Log completo de respostas por aluno |
-| atividades | `44qehlo0jku49lq` | Agrupador de questões por turma/disciplina |
+| atividades | `44qehlo0jku49lq` | Agrupa `questoes[]` por turma/disciplina (campo `multidisciplinar`) |
+| materiais | — | Vídeos/PDFs/links/arquivos do banco da disciplina (+ `assunto`) |
+| turma_materiais | — | Pivô N:N turma ↔ material — criada por `scripts/migrate_materiais.py` |
+
+> `materiais` e `turma_materiais` não têm ID fixo seedado aqui: `materiais` já
+> existia na instância e `turma_materiais` é criada dinamicamente pela migração
+> (resolve os IDs em runtime). Consulte `/api/collections` para os IDs reais.
 
 ### Tipos de questão
 
@@ -426,8 +435,10 @@ O PocketBase rejeita campos `relation` que apontam para collections inexistentes
 5. alternativas       (depende de questoes)
 6. itens_vf           (depende de questoes)
 7. pares_associativos (depende de questoes)
-8. tentativas         (depende de turmas + disciplinas + questoes)
-9. atividades         (depende de turmas + disciplinas + questoes)
+8. materiais          (depende de disciplinas)
+9. turma_materiais    (depende de turmas + materiais)
+10. tentativas        (depende de turmas + disciplinas + questoes)
+11. atividades        (depende de turmas + disciplinas + questoes)
 ```
 
 ### Campos `bool` nunca devem ser `required: true`
@@ -455,7 +466,7 @@ O login é feito via PocketBase JWT (`/api/collections/users/auth-with-password`
 | Role | Acesso |
 |---|---|
 | `aluno` | Portal, atividades, histórico, revisão |
-| `professor` | Tudo do aluno + dashboard professor, gestão de atividades, correção |
+| `professor` | Tudo do aluno + dashboard, gestão de turmas/disciplinas, bancos de questões e materiais, atividades (inclui multidisciplinar e importação JSON) e correção |
 | `admin` | Igual ao professor |
 
 O decorador `@requer_professor` bloqueia acesso a rotas `/professor/*` para usuários com `role="aluno"` e redireciona não autenticados para `/login`.

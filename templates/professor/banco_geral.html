@@ -24,10 +24,19 @@
 
   <div class="qb-header">
     <div>
-      <h1 class="qb-titulo">Banco geral de questões</h1>
-      <p class="qb-subtitulo">Todas as disciplinas. Selecione questões para montar uma atividade multidisciplinar.</p>
+      <h1 class="qb-titulo">Seletor Multidisciplinar</h1>
+      <p class="qb-subtitulo">Selecione questões de qualquer disciplina para montar uma atividade multidisciplinar.</p>
     </div>
   </div>
+
+  {% if filtros.disciplina %}
+    {% set disc_sel = (disciplinas | selectattr('id', 'equalto', filtros.disciplina) | first) %}
+    <div class="alerta-bloqueio" style="background:#eef2ff;color:#3730a3;border-color:#c7d2fe;">
+      Mostrando questões de <strong>{{ disc_sel.nome if disc_sel else 'disciplina selecionada' }}</strong> ·
+      <a href="/professor/disciplina/{{ filtros.disciplina }}/banco-questoes"
+         style="color:inherit;font-weight:700;">Ver banco completo desta disciplina →</a>
+    </div>
+  {% endif %}
 
   <!-- Filtros -->
   <form method="get" class="banco-filtros">
@@ -63,18 +72,23 @@
     <form method="get" action="/professor/atividade/multidisciplinar" id="form-multi">
       <div class="qb-list">
         {% for q in questoes %}
-          <label class="seletor-row">
-            <input type="checkbox" name="questoes" value="{{ q.id }}" class="seletor-check" onchange="atualizarContagem()">
-            <div class="qb-card-body">
-              <div class="qb-card-meta">
-                <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
-                <span class="banco-assunto-badge">{{ q._disc_nome }}</span>
-                {% if q.assunto %}<span class="qb-peso-badge">{{ q.assunto }}</span>{% endif %}
-                {% if q.peso and q.peso != 1 %}<span class="qb-peso-badge">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>{% endif %}
+          <div style="display:flex;align-items:stretch;gap:8px;">
+            <label class="seletor-row" style="flex:1;margin:0;">
+              <input type="checkbox" name="questoes" value="{{ q.id }}" class="seletor-check" onchange="atualizarContagem()">
+              <div class="qb-card-body">
+                <div class="qb-card-meta">
+                  <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
+                  <span class="banco-assunto-badge">{{ q._disc_nome }}</span>
+                  {% if q.assunto %}<span class="qb-peso-badge">{{ q.assunto }}</span>{% endif %}
+                  {% if q.peso and q.peso != 1 %}<span class="qb-peso-badge">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>{% endif %}
+                </div>
+                <p class="qb-card-enunciado">{{ q.enunciado }}</p>
               </div>
-              <p class="qb-card-enunciado">{{ q.enunciado }}</p>
-            </div>
-          </label>
+            </label>
+            <a href="/professor/disciplina/{{ q.disciplina }}/banco-questoes"
+               class="btn-ghost btn-sm" style="white-space:nowrap;align-self:center;"
+               title="Abrir no banco da disciplina para editar">✏️ Editar no banco</a>
+          </div>
         {% endfor %}
       </div>
       <div class="multi-barra">
