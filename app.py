@@ -1,10 +1,15 @@
+import base64
+import binascii
+import json
 import logging
+import mimetypes
 import os
 import re
 import time
 from datetime import datetime, timezone
 from functools import wraps
 
+import requests
 from flask import Flask, make_response, redirect, render_template, request, session, url_for
 
 from pb import PocketBaseClient
@@ -113,6 +118,111 @@ def _material_campos_comuns(form) -> dict:
         "url": form.get("url", "").strip(),
         "assunto": form.get("assunto", "").strip(),
     }
+
+
+def _imagem_spec_to_tuple(spec):
+    """Converte um campo de imagem do JSON de importação em (nome, bytes, content_type).
+
+    Aceita data URI base64 (data:image/png;base64,...) e URL http(s). Qualquer
+    falha (formato inválido, download que não responde) retorna None — a questão
+    é importada sem imagem em vez de quebrar a importação inteira.
+    """
+    if not spec or not isinstance(spec, str):
+        return None
+    spec = spec.strip()
+    if spec.startswith("data:"):
+        try:
+            header, b64 = spec.split(",", 1)
+            ctype = (header[5:].split(";")[0] or "image/png").strip()
+            data = base64.b64decode(b64)
+            ext = mimetypes.guess_extension(ctype) or ".png"
+            return (f"import{ext}", data, ctype)
+        except (ValueError, binascii.Error):
+            return None
+    if spec.startswith(("http://", "https://")):
+        try:
+            r = requests.get(spec, timeout=15)
+            r.raise_for_status()
+            ctype = r.headers.get("Content-Type", "image/png").split(";")[0].strip()
+            ext = mimetypes.guess_extension(ctype) or os.path.splitext(spec.split("?")[0])[1] or ".png"
+            nome = os.path.basename(spec.split("?")[0]) or f"import{ext}"
+            return (nome, r.content, ctype)
+        except Exception:
+            return None
+    return None
+
+
+def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int, list]:
+    """Importa uma lista de questões no banco da disciplina. Best-effort: importa
+    as válidas e coleta mensagens de erro das demais. Retorna (criadas, erros)."""
+    criadas = 0
+    erros: list[str] = []
+    for i, q in enumerate(questoes, 1):
+        try:
+            if not isinstance(q, dict):
+                erros.append(f"Questão {i}: formato inválido (esperado objeto)")
+                continue
+            tipo = q.get("tipo")
+            enunciado = (q.get("enunciado") or "").strip()
+            if tipo not in ("mc4", "mc5", "vf", "aberta", "associativa"):
+                erros.append(f"Questão {i}: tipo inválido ({tipo!r})")
+                continue
+            if not enunciado:
+                erros.append(f"Questão {i}: enunciado vazio")
+                continue
+            if tipo in ("mc4", "mc5"):
+                alts = q.get("alternativas") or []
+                if not any(a.get("correta") for a in alts if isinstance(a, dict)):
+                    erros.append(f"Questão {i}: múltipla escolha sem alternativa correta")
+                    continue
+            img = _imagem_spec_to_tuple(q.get("imagem"))
+            criada = pb_inst.criar_questao({
+                "enunciado": enunciado,
+                "tipo": tipo,
+                "disciplina": disciplina_id,
+                "peso": float(q.get("peso") or 1),
+                "dificuldade": q.get("dificuldade") or "medio",
+                "feedback_geral": q.get("feedback_geral") or "",
+                "assunto": q.get("assunto") or "",
+            }, img)
+            qid = criada["id"]
+            if tipo in ("mc4", "mc5"):
+                for a in q.get("alternativas") or []:
+                    if not isinstance(a, dict):
+                        continue
+                    pb_inst.criar_alternativa({
+                        "questao": qid,
+                        "letra": a.get("letra", ""),
+                        "texto": a.get("texto", ""),
+                        "correta": bool(a.get("correta")),
+                        "feedback": a.get("feedback", ""),
+                    }, _imagem_spec_to_tuple(a.get("imagem")))
+            elif tipo == "vf":
+                itens = q.get("itens_vf") or q.get("itens") or []
+                for j, it in enumerate(itens, 1):
+                    if not isinstance(it, dict):
+                        continue
+                    pb_inst.criar_item_vf({
+                        "questao": qid,
+                        "afirmacao": it.get("afirmacao", ""),
+                        "correta": bool(it.get("correta")),
+                        "ordem": j,
+                    })
+            elif tipo == "associativa":
+                pares = q.get("pares") or q.get("pares_associativos") or []
+                for j, p in enumerate(pares, 1):
+                    if not isinstance(p, dict):
+                        continue
+                    pb_inst.criar_par_associativo({
+                        "questao": qid,
+                        "coluna_a": p.get("coluna_a", ""),
+                        "coluna_b": p.get("coluna_b", ""),
+                        "ordem": j,
+                    })
+            criadas += 1
+        except Exception as exc:
+            erros.append(f"Questão {i}: erro ao importar ({exc})")
+    return criadas, erros
 
 
 def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
@@ -954,6 +1064,39 @@ def create_app(config: dict | None = None) -> Flask:
         }, img_tuple)
         _criar_subitems_questao(get_pb(), questao["id"], tipo, request.form, request.files)
         return redirect(url_for("professor_banco_questoes", disciplina_id=disciplina_id))
+
+    @app.route("/professor/disciplina/<disciplina_id>/importar-questoes", methods=["GET", "POST"])
+    @requer_professor
+    def professor_importar_questoes(disciplina_id: str):
+        disciplina = get_pb().buscar_disciplina(disciplina_id)
+        if request.method == "GET":
+            return render_template("professor/importar_questoes.html", disciplina=disciplina,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        # Lê do arquivo .json se enviado; senão do texto colado.
+        arquivo = request.files.get("json_file")
+        if arquivo and arquivo.filename:
+            raw = arquivo.read().decode("utf-8", errors="replace")
+        else:
+            raw = request.form.get("json_text", "")
+        if not raw.strip():
+            return render_template("professor/importar_questoes.html", disciplina=disciplina,
+                                   erro="Cole o JSON ou envie um arquivo .json.",
+                                   aluno_nome=session.get("aluno_nome", ""))
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return render_template("professor/importar_questoes.html", disciplina=disciplina,
+                                   erro=f"JSON inválido: {exc}", json_text=raw,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        questoes = parsed.get("questoes") if isinstance(parsed, dict) else parsed
+        if not isinstance(questoes, list):
+            return render_template("professor/importar_questoes.html", disciplina=disciplina,
+                                   erro='Esperado uma lista de questões ou um objeto {"questoes": [...]}.',
+                                   json_text=raw, aluno_nome=session.get("aluno_nome", ""))
+        criadas, erros = _importar_questoes(get_pb(), disciplina_id, questoes)
+        return render_template("professor/importar_questoes.html", disciplina=disciplina,
+                               criadas=criadas, erros=erros, total=len(questoes),
+                               aluno_nome=session.get("aluno_nome", ""))
 
     @app.route("/professor/questao/<questao_id>/editar", methods=["GET", "POST"])
     @requer_professor

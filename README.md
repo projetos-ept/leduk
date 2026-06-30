@@ -94,7 +94,8 @@ leduk/
         ├── test_banco_questoes.py    ← banco reutilizável: filtros, clonar, reuso, uso
         ├── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
         ├── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
-        └── test_banco_geral.py       ← banco geral + atividade multidisciplinar
+        ├── test_banco_geral.py       ← banco geral + atividade multidisciplinar
+        └── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
 ```
 
 ---
@@ -149,7 +150,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 149 testes, todos passando.
+**Resultado esperado:** 155 testes, todos passando.
 
 ---
 
@@ -199,6 +200,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/questao/<id>/excluir` | Excluir questão (e remover da atividade) |
 | GET | `/professor/disciplina/<id>/banco-questoes` | Banco reutilizável da disciplina (filtros + uso) |
 | GET/POST | `/professor/disciplina/<id>/questao/nova` | Criar questão direto no banco da disciplina |
+| GET/POST | `/professor/disciplina/<id>/importar-questoes` | Importar questões via JSON (colar/arquivo, imagens link/base64) |
 | GET | `/professor/banco-questoes` | Banco geral (todas disciplinas) com filtros disciplina/tipo/assunto |
 | GET/POST | `/professor/atividade/multidisciplinar` | Montar atividade com questões de várias disciplinas |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
@@ -368,6 +370,23 @@ confia no pivô (mesmo vazio) para não exibir dados legados defasados.
 Exclusão de material faz **cascade manual** em `turma_materiais` antes de apagar
 o registro; gestão de turmas/disciplinas **bloqueia exclusão** quando há vínculos
 (turma_disciplina, atividades, tentativas, questões, materiais), com aviso explícito.
+
+### Importação de questões via JSON
+
+`/professor/disciplina/<id>/importar-questoes` aceita uma lista de questões (ou
+`{"questoes": [...]}`) colada num textarea ou enviada como arquivo `.json`. As
+questões entram no banco da disciplina. Exemplo completo cobrindo todos os tipos
+em [`static/exemplos/questoes_exemplo.json`](static/exemplos/questoes_exemplo.json).
+
+Campos por questão: `tipo` (mc4/mc5/vf/aberta/associativa), `enunciado`, `peso`,
+`dificuldade`, `assunto`, `feedback_geral`, `imagem`; e por tipo:
+`alternativas[]` (mc4/mc5), `itens_vf[]` (vf), `pares[]` (associativa).
+
+O campo `imagem` (na questão e em cada alternativa) aceita **URL** `https://...`
+ou **data URI base64** `data:image/png;base64,...` — em ambos os casos o conteúdo
+é baixado/decodificado e enviado como arquivo ao PocketBase (multipart). A
+importação é *best-effort*: questões válidas são criadas e as inválidas são
+reportadas individualmente (tipo desconhecido, enunciado vazio, MC sem gabarito).
 
 ### Diagrama de relacionamentos
 
@@ -569,6 +588,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 9 — Navegação do professor | Concluída | Menu hambúrguer dedicado (turmas + disciplinas + atalho ao banco), atalhos ao banco no dashboard e na turma |
 | 10 — Gestão escolar completa | Concluída | CRUD de turmas/disciplinas (com bloqueio de exclusão), vínculo turma↔disciplina, banco de materiais reutilizável por disciplina (`turma_materiais`) |
 | 11 — Banco geral e multidisciplinar | Concluída | Banco geral de questões (filtros cross-disciplina), montagem de atividade multidisciplinar e aba dedicada "Multidisciplinar" no portal do aluno |
+| 12 — Importação JSON | Concluída | Importar questões via JSON (colar ou arquivo .json), com imagens por URL ou base64; arquivo de exemplo cobrindo todos os tipos |
 
 ### Funcionalidades futuras consideradas
 
