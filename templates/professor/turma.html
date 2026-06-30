@@ -8,7 +8,9 @@
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 </head>
 <body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
 <nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
   <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
   {% if aluno_nome %}
     <span class="topbar-aluno">{{ aluno_nome }}</span>
@@ -33,6 +35,15 @@
     </div>
     <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-primary">+ Nova atividade</a>
   </div>
+
+  {% if disciplinas_turma %}
+    <div class="turma-banco-bar">
+      <span class="turma-banco-titulo">📋 Banco de questões:</span>
+      {% for disc in disciplinas_turma %}
+        <a class="btn-ghost btn-sm" href="/professor/disciplina/{{ disc.id }}/banco-questoes">{{ disc.nome }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   {% if not atividades %}
     <div class="qb-empty">

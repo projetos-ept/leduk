@@ -7,7 +7,9 @@
   <link rel="stylesheet" href="/static/css/base.css">
 </head>
 <body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
 <nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
   <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
   {% if session_role in ("professor", "admin") %}
     <a href="/professor/dashboard" class="topbar-prof">Painel do Professor</a>

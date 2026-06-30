@@ -32,7 +32,8 @@ leduk/
 │   │   ├── _questao_aberta.html
 │   │   ├── _feedback.html
 │   │   ├── _placar.html
-│   │   └── _toggle_ativa.html
+│   │   ├── _toggle_ativa.html
+│   │   └── _drawer_professor.html  ← menu hambúrguer do professor (turmas + banco)
 │   ├── quiz/
 │   │   └── shell.html
 │   ├── aluno/
@@ -79,7 +80,8 @@ leduk/
         ├── test_professor.py
         ├── test_ciclo_atividade.py
         ├── test_gestao_atividade.py  ← smoke tests: excluir/clonar/CRUD questões
-        └── test_banco_questoes.py    ← banco reutilizável: filtros, clonar, reuso, uso
+        ├── test_banco_questoes.py    ← banco reutilizável: filtros, clonar, reuso, uso
+        └── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
 ```
 
 ---
@@ -134,7 +136,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 110 testes, todos passando.
+**Resultado esperado:** 118 testes, todos passando.
 
 ---
 
@@ -500,6 +502,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 6 — Pontuação por peso | Concluída | valor_total, peso por questão, nota_final, mapa de calor |
 | 7 — Banco de questões | Concluída | CRUD completo mc4/mc5/vf/aberta/associativa + upload de imagem |
 | 8 — Banco reutilizável | Concluída | Questões compartilhadas por disciplina: campo `assunto`, filtros, clonar, reclassificar, seletor para reuso entre atividades |
+| 9 — Navegação do professor | Concluída | Menu hambúrguer dedicado (turmas + disciplinas + atalho ao banco), atalhos ao banco no dashboard e na turma |
 
 ### Funcionalidades futuras consideradas
 

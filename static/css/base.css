@@ -1984,3 +1984,53 @@ a.material-header:hover {
   .banco-filtros { flex-direction: column; align-items: stretch; }
   .banco-filtro-select { width: 100%; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Drawer do professor — sub-lista de disciplinas                       */
+/* ------------------------------------------------------------------ */
+
+.nav-sublist { list-style: none; margin: 2px 0 8px 26px; padding: 0; }
+.nav-subitem {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 5px 8px; border-radius: 8px;
+}
+.nav-subitem:hover { background: var(--bg); }
+.nav-subitem-nome { font-size: .82rem; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-bank-link {
+  flex-shrink: 0; text-decoration: none; font-size: .9rem; line-height: 1;
+  padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border);
+}
+.nav-bank-link:hover { border-color: var(--primaria); background: var(--card); }
+
+/* ------------------------------------------------------------------ */
+/* Dashboard — bloco de disciplinas no card de turma                    */
+/* ------------------------------------------------------------------ */
+
+.dash-disc-bloco { margin: 4px 0 14px; }
+.dash-disc-label {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); margin-bottom: 6px;
+}
+.dash-disc-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.dash-disc-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 6px 10px; background: var(--fundo);
+  border: 1px solid var(--borda); border-radius: 8px;
+}
+.dash-disc-nome { font-size: .85rem; color: var(--texto); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-disc-banco {
+  flex-shrink: 0; font-size: .75rem; font-weight: 600; color: var(--primaria);
+  text-decoration: none; white-space: nowrap;
+}
+.dash-disc-banco:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------------ */
+/* Turma — barra de atalho ao banco de questões                         */
+/* ------------------------------------------------------------------ */
+
+.turma-banco-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 12px 14px; margin-bottom: 16px;
+  background: var(--card); border: 1px solid var(--borda); border-radius: 12px;
+}
+.turma-banco-titulo { font-size: .85rem; font-weight: 600; color: var(--muted); }
