@@ -184,6 +184,45 @@ def test_reclassificar_muda_disciplina_e_assunto(client):
     assert patch_body[0]["assunto"] == "Novo assunto"
 
 
+# ── Excluir questão em uso limpa os vínculos órfãos ─────────────────────────────
+
+@rsps_lib.activate
+def test_excluir_questao_em_uso_limpa_vinculos_orfaos(client):
+    _sess_prof(client)
+    ativ_a = {"id": "ativA", "titulo": "Prova A", "questoes": ["q001", "q002"],
+              "turma": "t1", "disciplina": "disc01"}
+    ativ_b = {"id": "ativB", "titulo": "Prova B", "questoes": ["q003", "q001"],
+              "turma": "t1", "disciplina": "disc01"}
+
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [ativ_a, ativ_b]})
+
+    patch_a, patch_b = [], []
+
+    def cap_a(req):
+        patch_a.append(json.loads(req.body))
+        return (200, {}, json.dumps(ativ_a))
+
+    def cap_b(req):
+        patch_b.append(json.loads(req.body))
+        return (200, {}, json.dumps(ativ_b))
+
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/ativA",
+                          callback=cap_a, content_type="application/json")
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/ativB",
+                          callback=cap_b, content_type="application/json")
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
+                 status=204, body="")
+
+    resp = client.post("/professor/questao/q001/excluir",
+                       data={"origem_disciplina": "disc01"})
+    assert resp.status_code in (200, 302)
+    # ambas as atividades foram atualizadas sem o ID removido, preservando as demais
+    assert patch_a and patch_b, "nem todas as atividades em uso foram atualizadas"
+    assert patch_a[0]["questoes"] == ["q002"]
+    assert patch_b[0]["questoes"] == ["q003"]
+
+
 # ── Contagem de uso reflete quantas atividades usam a questão ───────────────────
 
 @rsps_lib.activate

@@ -111,7 +111,7 @@
               Reclassificar
             </button>
             <button type="button" class="btn-danger btn-sm"
-                    onclick="abrirExcluir('{{ q.id }}', {{ loop.index }})">
+                    onclick="abrirExcluir('{{ q.id }}', {{ loop.index }}, {{ q._uso or 0 }})">
               Excluir
             </button>
           </div>
@@ -150,7 +150,7 @@
 <div id="modal-excluir" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="excluir-titulo" hidden>
   <div class="modal-box">
     <h2 class="modal-titulo" id="excluir-titulo">Excluir questão</h2>
-    <p class="modal-msg">Tem certeza que deseja excluir a <strong id="excluir-num"></strong> do banco? Esta ação não pode ser desfeita.</p>
+    <p class="modal-msg" id="excluir-msg"></p>
     <div class="modal-acoes">
       <button type="button" class="btn-ghost" onclick="fecharExcluir()">Cancelar</button>
       <form id="form-excluir" method="post" style="display:inline;">
@@ -173,9 +173,17 @@ function abrirReclassificar(qid, assunto, discId) {
 }
 function fecharReclass() { document.getElementById('modal-reclass').hidden = true; }
 
-function abrirExcluir(qid, num) {
+function abrirExcluir(qid, num, uso) {
   document.getElementById('form-excluir').action = '/professor/questao/' + qid + '/excluir';
-  document.getElementById('excluir-num').textContent = 'questão #' + num;
+  let msg;
+  if (uso > 0) {
+    msg = 'Esta questão está em uso em ' + uso + ' atividade' + (uso > 1 ? 's' : '') +
+          '. Ela será removida dessas atividades e excluída em definitivo. Excluir mesmo assim?';
+  } else {
+    msg = 'Tem certeza que deseja excluir a questão #' + num +
+          ' do banco? Esta ação não pode ser desfeita.';
+  }
+  document.getElementById('excluir-msg').textContent = msg;
   const m = document.getElementById('modal-excluir');
   m.hidden = false;
   m.querySelector('.btn-ghost').focus();

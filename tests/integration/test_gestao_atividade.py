@@ -172,8 +172,9 @@ def test_questao_nova_mc4_cria_questao_e_alternativas(client):
 @rsps_lib.activate
 def test_excluir_questao_remove_da_atividade(client):
     _sess_prof(client)
-    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
-                 json=ATIVIDADE)
+    # cascade: busca atividades que referenciam q001 e limpa o vínculo
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [ATIVIDADE]})
 
     patch_body = []
 
@@ -185,9 +186,6 @@ def test_excluir_questao_remove_da_atividade(client):
                           callback=capture_patch, content_type="application/json")
     rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
                  status=204, body="")
-    # redirect
-    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
-                 json={**ATIVIDADE, "questoes": []})
 
     resp = client.post("/professor/questao/q001/excluir", data={"ativ_id": "ativ01"})
     assert resp.status_code in (200, 302)
