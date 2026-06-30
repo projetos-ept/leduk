@@ -17,97 +17,165 @@
 </nav>
 
 <div class="shell" style="max-width:900px;">
-  <div style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">
-    <a href="/professor/dashboard" style="color:var(--muted);">Dashboard</a> ›
-    <a href="/professor/turma/{{ ativ.turma }}" style="color:var(--muted);">Turma</a> ›
-    <a href="/professor/atividade/{{ ativ.id }}/editar" style="color:var(--muted);">{{ ativ.titulo }}</a> ›
-    Questões
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a href="/professor/dashboard">Dashboard</a>
+    <span>›</span>
+    <a href="/professor/turma/{{ ativ.turma }}">Turma</a>
+    <span>›</span>
+    <a href="/professor/atividade/{{ ativ.id }}/editar">{{ ativ.titulo }}</a>
+    <span>›</span>
+    <span>Questões</span>
   </div>
 
-  <div class="portal-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <!-- Header -->
+  <div class="qb-header">
     <div>
-      <h1 class="portal-titulo">Banco de questões</h1>
-      <p class="portal-turma">{{ ativ.titulo }}</p>
+      <h1 class="qb-titulo">Banco de questões</h1>
+      <p class="qb-subtitulo">{{ ativ.titulo }}</p>
     </div>
-    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova"
-       class="btn-home" style="padding:10px 20px;font-size:.9rem;">+ Nova questão</a>
+    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-primary">+ Nova questão</a>
   </div>
 
-  <!-- Stats bar -->
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0;">
-    {% set tipos = questoes | map(attribute='tipo') | list %}
-    <span class="quest-stat">Total: <strong>{{ questoes|length }}</strong></span>
+  <!-- Stats cards -->
+  {% set tipos = questoes | map(attribute='tipo') | list %}
+  <div class="qb-stats">
+    <div class="qb-stat-card">
+      <span class="qb-stat-num">{{ questoes|length }}</span>
+      <span class="qb-stat-label">Total</span>
+    </div>
     {% if 'mc4' in tipos or 'mc5' in tipos %}
-      <span class="quest-stat">MC: <strong>{{ questoes | selectattr('tipo', 'in', ['mc4','mc5']) | list | length }}</strong></span>
+    <div class="qb-stat-card">
+      <span class="qb-stat-num">{{ questoes | selectattr('tipo', 'in', ['mc4','mc5']) | list | length }}</span>
+      <span class="qb-stat-label">Múltipla escolha</span>
+    </div>
     {% endif %}
     {% if 'vf' in tipos %}
-      <span class="quest-stat">V/F: <strong>{{ questoes | selectattr('tipo', 'equalto', 'vf') | list | length }}</strong></span>
+    <div class="qb-stat-card">
+      <span class="qb-stat-num">{{ questoes | selectattr('tipo', 'equalto', 'vf') | list | length }}</span>
+      <span class="qb-stat-label">Verdadeiro / Falso</span>
+    </div>
     {% endif %}
     {% if 'aberta' in tipos %}
-      <span class="quest-stat">Abertas: <strong>{{ questoes | selectattr('tipo', 'equalto', 'aberta') | list | length }}</strong></span>
+    <div class="qb-stat-card">
+      <span class="qb-stat-num">{{ questoes | selectattr('tipo', 'equalto', 'aberta') | list | length }}</span>
+      <span class="qb-stat-label">Abertas</span>
+    </div>
     {% endif %}
     {% if 'associativa' in tipos %}
-      <span class="quest-stat">Associativas: <strong>{{ questoes | selectattr('tipo', 'equalto', 'associativa') | list | length }}</strong></span>
+    <div class="qb-stat-card">
+      <span class="qb-stat-num">{{ questoes | selectattr('tipo', 'equalto', 'associativa') | list | length }}</span>
+      <span class="qb-stat-label">Associativas</span>
+    </div>
     {% endif %}
     {% if ativ.valor_total %}
-      <span class="quest-stat">Valor total: <strong>{{ ativ.valor_total }}</strong></span>
+    <div class="qb-stat-card qb-stat-card--accent">
+      <span class="qb-stat-num">{{ ativ.valor_total }}</span>
+      <span class="qb-stat-label">Valor total</span>
+    </div>
     {% endif %}
   </div>
 
+  <!-- Empty state -->
   {% if not questoes %}
-    <div class="card" style="text-align:center;color:var(--muted);padding:32px;margin-top:8px;">
-      <p style="font-size:1.1rem;margin-bottom:12px;">Nenhuma questão cadastrada nesta atividade.</p>
-      <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-home" style="display:inline-block;">
+    <div class="qb-empty">
+      <p class="qb-empty-msg">Nenhuma questão cadastrada nesta atividade.</p>
+      <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-primary">
         Criar primeira questão
       </a>
     </div>
+
+  <!-- Question cards -->
   {% else %}
-    <div class="card" style="margin-top:8px;padding:0;overflow:hidden;">
+    <div class="qb-list">
       {% for q in questoes %}
-        <div class="quest-row {% if not loop.last %}quest-row-border{% endif %}">
-          <div class="quest-num">{{ loop.index }}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+        <div class="qb-card">
+          <!-- Number badge -->
+          <div class="qb-card-num">{{ loop.index }}</div>
+
+          <!-- Content -->
+          <div class="qb-card-body">
+            <!-- Badges row -->
+            <div class="qb-card-meta">
               <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
               {% if q.peso and q.peso != 1 %}
-                <span style="font-size:.75rem;color:var(--muted);background:var(--fundo);padding:2px 6px;border-radius:4px;">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>
+                <span class="qb-peso-badge">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>
               {% endif %}
               {% if q.imagem %}
-                <span style="font-size:.75rem;color:var(--muted);">📷</span>
+                <span class="qb-img-indicator" title="Tem imagem">📷</span>
               {% endif %}
             </div>
-            <p style="margin:0;font-size:.9rem;color:var(--texto);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px;">
-              {{ q.enunciado }}
-            </p>
+
+            <!-- Enunciado -->
+            <p class="qb-card-enunciado">{{ q.enunciado }}</p>
+
+            <!-- Sub-item count -->
             {% if q.tipo in ('mc4','mc5') and q.alternativas %}
-              <p style="margin:2px 0 0;font-size:.75rem;color:var(--muted);">
+              <p class="qb-card-info">
                 {{ q.alternativas|length }} alternativas ·
                 {% for a in q.alternativas if a.correta %}correta: {{ a.letra }}{% endfor %}
               </p>
             {% elif q.tipo == 'vf' and q.itens_vf %}
-              <p style="margin:2px 0 0;font-size:.75rem;color:var(--muted);">{{ q.itens_vf|length }} afirmações</p>
+              <p class="qb-card-info">{{ q.itens_vf|length }} afirmações</p>
             {% elif q.tipo == 'associativa' and q.pares_associativos %}
-              <p style="margin:2px 0 0;font-size:.75rem;color:var(--muted);">{{ q.pares_associativos|length }} pares</p>
+              <p class="qb-card-info">{{ q.pares_associativos|length }} pares</p>
             {% endif %}
           </div>
-          <div class="quest-acoes">
-            <a class="prof-link" href="/professor/questao/{{ q.id }}/editar?ativ_id={{ ativ.id }}">Editar</a>
-            <form method="post" action="/professor/questao/{{ q.id }}/excluir"
-                  style="display:inline;"
-                  onsubmit="return confirm('Excluir esta questão?');">
-              <input type="hidden" name="ativ_id" value="{{ ativ.id }}">
-              <button type="submit" class="prof-link prof-link-danger">Excluir</button>
-            </form>
+
+          <!-- Actions -->
+          <div class="qb-card-acoes">
+            <a class="btn-ghost btn-sm" href="/professor/questao/{{ q.id }}/editar?ativ_id={{ ativ.id }}">Editar</a>
+            <button type="button" class="btn-danger btn-sm"
+                    onclick="abrirModalExcluir('{{ q.id }}', '{{ ativ.id }}', {{ loop.index }})">
+              Excluir
+            </button>
           </div>
         </div>
       {% endfor %}
     </div>
   {% endif %}
 
-  <div style="margin-top:16px;display:flex;gap:12px;">
-    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-home" style="font-size:.9rem;">+ Nova questão</a>
-    <a href="/professor/turma/{{ ativ.turma }}" style="padding:10px 16px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;font-size:.9rem;">← Voltar</a>
+  <!-- Footer actions -->
+  <div class="qb-footer">
+    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-primary">+ Nova questão</a>
+    <a href="/professor/turma/{{ ativ.turma }}" class="btn-ghost">← Voltar</a>
   </div>
 </div>
+
+<!-- Modal de confirmação de exclusão -->
+<div id="modal-excluir" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-titulo" hidden>
+  <div class="modal-box">
+    <h2 class="modal-titulo" id="modal-titulo">Excluir questão</h2>
+    <p class="modal-msg">Tem certeza que deseja excluir a <strong id="modal-num-label"></strong>? Esta ação não pode ser desfeita.</p>
+    <div class="modal-acoes">
+      <button type="button" class="btn-ghost" onclick="fecharModal()">Cancelar</button>
+      <form id="form-excluir" method="post" style="display:inline;">
+        <input type="hidden" name="ativ_id" id="modal-ativ-id">
+        <button type="submit" class="btn-danger">Excluir questão</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function abrirModalExcluir(questaoId, ativId, num) {
+  document.getElementById('form-excluir').action = '/professor/questao/' + questaoId + '/excluir';
+  document.getElementById('modal-ativ-id').value = ativId;
+  document.getElementById('modal-num-label').textContent = 'questão #' + num;
+  const modal = document.getElementById('modal-excluir');
+  modal.hidden = false;
+  modal.querySelector('.btn-ghost').focus();
+}
+function fecharModal() {
+  document.getElementById('modal-excluir').hidden = true;
+}
+document.getElementById('modal-excluir').addEventListener('click', function(e) {
+  if (e.target === this) fecharModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') fecharModal();
+});
+</script>
 </body>
 </html>
