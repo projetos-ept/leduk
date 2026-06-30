@@ -1,4 +1,6 @@
 """Testes de integração para o módulo de correção do professor."""
+import json
+
 import responses as rsps_lib
 
 PB = "http://pb.test"
@@ -237,3 +239,79 @@ def test_liberar_notas_em_lote(client):
     resp = client.post("/professor/atividade/ativ01/liberar-notas",
                        data={"tentativa_ids": ["tent01", "tent02"]})
     assert resp.status_code in (200, 302)
+
+
+# ── Datas de disponibilidade ─────────────────────────────────────────────────
+
+DISCIPLINAS = [{"id": "disc01", "nome": "Hematologia"}]
+TURMAS_LISTA = [{"id": "turma01", "nome": "1º EMI"}]
+
+
+@rsps_lib.activate
+def test_criar_atividade_sem_datas_aceita(client):
+    """Criar atividade sem datas de disponibilidade envia None e PocketBase aceita."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["role"] = "professor"
+
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
+                 json={"items": TURMAS_LISTA})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records",
+                 json={"items": DISCIPLINAS})
+
+    captured = []
+
+    def capture(req):
+        captured.append(json.loads(req.body))
+        return (200, {}, json.dumps({"id": "ativ_new", **json.loads(req.body)}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/atividades/records",
+                          callback=capture, content_type="application/json")
+
+    resp = client.post("/professor/atividade/nova", data={
+        "titulo": "Prova Hematologia",
+        "turma": "turma01",
+        "disciplina": "disc01",
+        "max_tentativas": "1",
+        "tempo_limite": "0",
+    })
+    assert resp.status_code in (200, 302)
+    assert captured, "POST para PocketBase não foi feito"
+    assert captured[0]["disponivel_de"] is None
+    assert captured[0]["disponivel_ate"] is None
+
+
+@rsps_lib.activate
+def test_criar_atividade_com_datas_formato_pb(client):
+    """Criar atividade com datas converte para formato ISO aceito pelo PocketBase."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["role"] = "professor"
+
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
+                 json={"items": TURMAS_LISTA})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records",
+                 json={"items": DISCIPLINAS})
+
+    captured = []
+
+    def capture(req):
+        captured.append(json.loads(req.body))
+        return (200, {}, json.dumps({"id": "ativ_new", **json.loads(req.body)}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/atividades/records",
+                          callback=capture, content_type="application/json")
+
+    resp = client.post("/professor/atividade/nova", data={
+        "titulo": "Prova Hematologia",
+        "turma": "turma01",
+        "disciplina": "disc01",
+        "max_tentativas": "1",
+        "tempo_limite": "0",
+        "disponivel_de": "2026-06-29T08:00",
+        "disponivel_ate": "2026-07-31T23:59",
+    })
+    assert resp.status_code in (200, 302)
+    assert captured, "POST para PocketBase não foi feito"
+    assert captured[0]["disponivel_de"] == "2026-06-29 08:00:00.000Z"
+    assert captured[0]["disponivel_ate"] == "2026-07-31 23:59:00.000Z"

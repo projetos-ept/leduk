@@ -93,13 +93,13 @@
         <div>
           <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Disponível de</label>
           <input type="datetime-local" name="disponivel_de"
-                 value="{{ atividade.disponivel_de[:16] if atividade and atividade.disponivel_de else '' }}"
+                 value="{{ atividade.disponivel_de[:16].replace(' ', 'T') if atividade and atividade.disponivel_de else '' }}"
                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
         </div>
         <div>
           <label style="display:block;font-weight:600;font-size:.85rem;margin-bottom:4px;">Disponível até</label>
           <input type="datetime-local" name="disponivel_ate"
-                 value="{{ atividade.disponivel_ate[:16] if atividade and atividade.disponivel_ate else '' }}"
+                 value="{{ atividade.disponivel_ate[:16].replace(' ', 'T') if atividade and atividade.disponivel_ate else '' }}"
                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
         </div>
       </div>
