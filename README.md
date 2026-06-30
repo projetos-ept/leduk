@@ -16,9 +16,11 @@ leduk/
 ├── requirements.txt        ← dependências de produção
 ├── requirements-dev.txt    ← pytest, pytest-flask, responses
 ├── pytest.ini
+├── IDENTIDADE-VISUAL.md    ← design system: paleta, componentes, responsividade
 │
 ├── scripts/
-│   └── migrate_tentativas.py   ← migração: adiciona campo atividade ao schema
+│   ├── migrate_tentativas.py    ← migração: adiciona campo atividade ao schema
+│   └── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
 │
 ├── templates/
 │   ├── index.html
@@ -40,10 +42,14 @@ leduk/
 │   │   └── portal.html
 │   ├── professor/
 │   │   ├── dashboard.html
-│   │   ├── turma.html           ← lista com excluir/clonar/copiar link
+│   │   ├── turma.html              ← lista com excluir/clonar/copiar link
 │   │   ├── atividade_form.html
-│   │   ├── questoes.html        ← banco de questões da atividade
-│   │   ├── questao_form.html    ← criar/editar questão (todos os tipos + imagem)
+│   │   ├── questoes.html           ← questões de uma atividade
+│   │   ├── questao_form.html       ← criar/editar questão (todos os tipos + imagem)
+│   │   ├── banco_questoes.html     ← banco reutilizável da disciplina (filtros + uso)
+│   │   ├── selecionar_questoes.html ← seletor do banco para adicionar à atividade
+│   │   ├── components/
+│   │   │   └── _seletor_questoes.html ← cards com checkbox (reuso de questões)
 │   │   ├── notas.html
 │   │   └── notas_abertas.html
 │   └── relatorio/
@@ -72,7 +78,8 @@ leduk/
         ├── test_relatorios.py
         ├── test_professor.py
         ├── test_ciclo_atividade.py
-        └── test_gestao_atividade.py  ← smoke tests: excluir/clonar/CRUD questões
+        ├── test_gestao_atividade.py  ← smoke tests: excluir/clonar/CRUD questões
+        └── test_banco_questoes.py    ← banco reutilizável: filtros, clonar, reuso, uso
 ```
 
 ---
@@ -275,6 +282,27 @@ PB_ADMIN_EMAIL=admin@exemplo.com \
 PB_ADMIN_PASSWORD=senha \
   python scripts/migrate_tentativas.py
 ```
+
+### Banco de questões reutilizável (campo `assunto`)
+
+Questões pertencem ao **banco da disciplina** (`questoes.disciplina`), não a uma
+atividade específica. Uma atividade apenas referencia IDs em `atividades.questoes[]`,
+então a mesma questão pode ser reusada em várias atividades sem duplicar o registro.
+
+O campo livre `assunto` (text, opcional) organiza e filtra as questões dentro da
+disciplina (ex: "Fases do LIS", "Imunoglobulinas"). Para adicioná-lo ao schema:
+
+```bash
+PB_URL=https://pb.repoept.duckdns.org \
+PB_ADMIN_EMAIL=admin@exemplo.com \
+PB_ADMIN_PASSWORD=senha \
+  python scripts/add_assunto_questoes.py
+```
+
+Operações sobre o banco (em `pb.py`): `listar_questoes_disciplina` (filtros por
+tipo/assunto/dificuldade), `clonar_questao` (duplica questão + subitens como
+registro independente), `reclassificar_questao` (move disciplina/assunto sem
+quebrar vínculos), `contar_uso_questao` (em quantas atividades a questão aparece).
 
 ### Diagrama de relacionamentos
 
