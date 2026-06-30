@@ -772,6 +772,19 @@ body {
   color: var(--erro);
 }
 
+.topbar-prof {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--primaria);
+  text-decoration: none;
+  border: 1.5px solid var(--primaria);
+  border-radius: 6px;
+  padding: 3px 10px;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.topbar-prof:hover { background: var(--primaria); color: #fff; }
+
 /* ------------------------------------------------------------------ */
 /* Timer                                                                */
 /* ------------------------------------------------------------------ */
