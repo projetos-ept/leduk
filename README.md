@@ -9,7 +9,7 @@ Plataforma de atividades educacionais interativas self-hosted, construída sobre
 ```
 leduk/
 ├── app.py                  ← aplicação Flask (factory create_app)
-├── questao.py              ← lógica de validação e cálculo de score
+├── questao.py              ← lógica de validação e cálculo de score/nota
 ├── pb.py                   ← cliente HTTP para o PocketBase
 ├── gunicorn.conf.py        ← bind, workers, wsgi_app = "app:create_app()"
 ├── deploy.sh               ← pull → pip install → restart → health check
@@ -17,16 +17,33 @@ leduk/
 ├── requirements-dev.txt    ← pytest, pytest-flask, responses
 ├── pytest.ini
 │
+├── scripts/
+│   └── migrate_tentativas.py   ← migração: adiciona campo atividade ao schema
+│
 ├── templates/
 │   ├── index.html
+│   ├── login.html
 │   ├── components/
 │   │   ├── _questao_mc.html
 │   │   ├── _questao_vf.html
 │   │   ├── _questao_assoc.html
+│   │   ├── _questao_aberta.html
 │   │   ├── _feedback.html
-│   │   └── _placar.html
+│   │   ├── _placar.html
+│   │   └── _toggle_ativa.html
 │   ├── quiz/
 │   │   └── shell.html
+│   ├── aluno/
+│   │   ├── historico.html
+│   │   └── revisao.html
+│   ├── turma/
+│   │   └── portal.html
+│   ├── professor/
+│   │   ├── dashboard.html
+│   │   ├── turma.html
+│   │   ├── atividade_form.html
+│   │   ├── notas.html
+│   │   └── notas_abertas.html
 │   └── relatorio/
 │       ├── turma.html
 │       └── aluno.html
@@ -41,11 +58,18 @@ leduk/
     │   └── questao_associativa.json
     ├── unit/
     │   ├── test_questao.py
-    │   └── test_score.py
+    │   ├── test_score.py
+    │   └── test_peso.py
     └── integration/
+        ├── test_auth.py
         ├── test_rotas_atividade.py
         ├── test_rotas_htmx.py
-        └── test_relatorios.py
+        ├── test_portal_turma.py
+        ├── test_tentativas.py
+        ├── test_melhorias_ux.py
+        ├── test_relatorios.py
+        ├── test_professor.py
+        └── test_ciclo_atividade.py
 ```
 
 ---
@@ -100,21 +124,52 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 33 testes, todos passando.
+**Resultado esperado:** 89 testes, todos passando.
 
 ---
 
 ## Rotas Flask
 
+### Autenticação
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET/POST | `/login` | Formulário de login via PocketBase JWT |
+| GET | `/logout` | Limpa sessão e redireciona |
+
+### Aluno
+
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/health` | Health check |
 | GET | `/` | Home com atividades agrupadas por turma |
+| GET | `/turma/<id>` | Portal da turma (disciplinas, atividades, materiais) |
 | GET | `/atividade/<id>` | Shell da atividade (inicia fila de questões) |
 | GET | `/htmx/questao/<id>` | Fragmento HTML da questão |
 | POST | `/htmx/responder` | Valida resposta e retorna feedback |
 | GET | `/htmx/proxima/<ativ_id>` | Fragmento da próxima questão |
 | GET | `/htmx/resultado/<ativ_id>` | Placar final |
+| GET | `/aluno/historico` | Histórico de tentativas do aluno |
+| GET | `/aluno/atividade/<id>/revisao/<tent_id>` | Revisão detalhada com gabarito |
+
+### Professor (requer role `professor` ou `admin`)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/professor/dashboard` | Dashboard com mapa de calor por turma |
+| GET | `/professor/turma/<id>` | Gestão de atividades da turma |
+| GET/POST | `/professor/atividade/nova` | Criar nova atividade |
+| GET/POST | `/professor/atividade/<id>/editar` | Editar atividade existente |
+| POST | `/professor/atividade/<id>/toggle-ativa` | Ativar/desativar (HTMX) |
+| GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
+| POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |
+| GET | `/professor/atividade/<id>/notas-abertas` | Corrigir questões abertas |
+| POST | `/professor/questao-aberta/<tent_id>/avaliar` | Gravar nota de questão aberta |
+
+### Relatórios
+
+| Método | Rota | Descrição |
+|---|---|---|
 | GET | `/relatorio/turma/<id>` | Relatório agregado por turma |
 | GET | `/relatorio/aluno/<id>` | Histórico individual |
 
@@ -123,7 +178,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 ```
 GET /atividade/<id>          ← carrega shell + primeira questão via hx-trigger
         ↓
-GET /htmx/questao/<id>       ← renderiza fragmento mc / vf / associativa
+GET /htmx/questao/<id>       ← renderiza fragmento mc / vf / associativa / aberta
         ↓
 POST /htmx/responder         ← valida resposta, grava tentativa no PocketBase
         ↓
@@ -146,6 +201,20 @@ Funções puras, sem dependência de Flask ou rede — testáveis isoladamente.
 | `validar_vf(questao, respostas)` | `{str(ordem): bool}` | `{correta, score_raw, score_max, feedback}` |
 | `validar_associativa(questao, respostas)` | `{str(ordem): valor_b}` | `{correta, score_raw, score_max, feedback}` |
 | `calcular_score(tipo, questao, resposta)` | qualquer tipo | `(score_raw, score_max)` |
+| `calcular_valor_ponto(atividade, pesos)` | atividade + lista de pesos | valor em pontos por unidade de peso |
+| `calcular_nota_final(respostas, atividade)` | respostas da sessão + atividade | nota em pontos (1 casa decimal) ou `None` |
+
+### Pontuação por peso
+
+Quando a atividade tem `valor_total > 0`, a nota é calculada proporcionalmente ao peso de cada questão:
+
+```
+valor_ponto = valor_total / soma_de_todos_os_pesos
+contribuição_q = (score_raw / score_max) * peso_q * valor_ponto
+nota_final = soma das contribuições
+```
+
+Questões abertas sem correção contribuem 0 até o professor avaliar.
 
 ---
 
@@ -173,8 +242,24 @@ Funções puras, sem dependência de Flask ou rede — testáveis isoladamente.
 | `mc4` | Múltipla escolha — 4 alternativas | questão + cada alternativa |
 | `mc5` | Múltipla escolha — 5 alternativas | questão + cada alternativa |
 | `vf` | Lista de afirmações V/F ordenadas | por afirmação |
-| `aberta` | Resposta dissertativa | questão |
+| `aberta` | Resposta dissertativa (corrigida pelo professor) | questão |
 | `associativa` | Pares coluna A : coluna B | imagem por par |
+
+### Campo `atividade` na collection `tentativas`
+
+A collection `tentativas` armazena dois tipos de registro:
+
+- **Registro-pai da tentativa** — criado em `/atividade/<id>` com `atividade`, `aluno_id`, `aluno_nome`, `numero_tentativa`, `concluida`, `nota_liberada`, `questoes_respondidas`
+- **Registro de resposta** — criado em `/htmx/responder` com `atividade`, `questao`, `tipo_questao`, `resposta_dada`, `correta`, `score_raw`, `score_max`, `tentativa_id`
+
+O campo `atividade` (relation → `atividades`) é obrigatório em ambos. Para migrar registros legados que usavam o campo `disciplina`:
+
+```bash
+PB_URL=https://pb.repoept.duckdns.org \
+PB_ADMIN_EMAIL=admin@exemplo.com \
+PB_ADMIN_PASSWORD=senha \
+  python scripts/migrate_tentativas.py
+```
 
 ### Diagrama de relacionamentos
 
@@ -190,7 +275,7 @@ turmas ──── turma_disciplina ──── disciplinas
               (A/B/C/D/E)       (afirmações)    (col_A : col_B)
 
 atividades  → agrupa questoes[] por turma + disciplina
-tentativas  → log de cada resposta (aluno, questão, correta, score)
+tentativas  → log de respostas + registro-pai da tentativa
 ```
 
 ### Ordem de criação obrigatória
@@ -209,42 +294,11 @@ O PocketBase rejeita campos `relation` que apontam para collections inexistentes
 9. atividades         (depende de turmas + disciplinas + questoes)
 ```
 
-Capturar IDs dinamicamente após cada criação:
-
-```bash
-ID_TURMAS=$(curl -s -X POST ".../api/collections" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"turmas",...}' | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-```
-
 ### Campos `bool` nunca devem ser `required: true`
 
-O PocketBase trata `false` como valor vazio em campos bool obrigatórios e rejeita a inserção com `validation_required`. Sempre usar `"required": false` em campos bool:
-
-```json
-{"name": "correta",    "type": "bool", "required": false}
-{"name": "ativa",      "type": "bool", "required": false}
-{"name": "embaralhar", "type": "bool", "required": false}
-```
+O PocketBase trata `false` como valor vazio em campos bool obrigatórios e rejeita a inserção com `validation_required`. Sempre usar `"required": false` em campos bool.
 
 ### Regras de acesso (listRule / viewRule)
-
-Collections criadas via API ficam com acesso restrito a admins por padrão. O Flask recebe HTTP 403 ao tentar listas turmas, questões e alternativas sem liberar as regras.
-
-Liberar em lote logo após criar as collections:
-
-```bash
-for col in turmas disciplinas atividades questoes alternativas itens_vf pares_associativos; do
-  ID=$(curl -s ".../api/collections/${col}" -H "Authorization: Bearer $TOKEN" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-  curl -s -X PATCH ".../api/collections/${ID}" \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{"listRule":"","viewRule":""}' > /dev/null
-  echo "liberado: $col"
-done
-```
-
-Regras por collection:
 
 | Collection | listRule | viewRule | createRule | Observação |
 |---|---|---|---|---|
@@ -255,6 +309,22 @@ Regras por collection:
 | itens_vf | `""` | `""` | admin | leitura pública |
 | atividades | `""` | `""` | admin | leitura pública |
 | tentativas | restrito | restrito | `""` | apenas escrita pública |
+
+---
+
+## Autenticação e papéis (roles)
+
+O login é feito via PocketBase JWT (`/api/collections/users/auth-with-password`). O token e o `role` do usuário são armazenados na sessão Flask.
+
+| Role | Acesso |
+|---|---|
+| `aluno` | Portal, atividades, histórico, revisão |
+| `professor` | Tudo do aluno + dashboard professor, gestão de atividades, correção |
+| `admin` | Igual ao professor |
+
+O decorador `@requer_professor` bloqueia acesso a rotas `/professor/*` para usuários com `role="aluno"` e redireciona não autenticados para `/login`.
+
+Em testes (`LOGIN_REQUIRED=False`), o decorador respeita o `role` da sessão — permitindo testar cenários de bloqueio sem autenticação real.
 
 ---
 
@@ -292,13 +362,6 @@ workers = 2
 wsgi_app = "app:create_app()"
 ```
 
-O `ExecStart` do service deve ser:
-```
-ExecStart=/opt/leduk/.venv/bin/gunicorn -c /opt/leduk/gunicorn.conf.py app:create_app()
-```
-
-O `deploy.sh` detecta e corrige o `ExecStart` automaticamente se ainda estiver com o padrão antigo `app:app`.
-
 ### Deploy
 
 ```bash
@@ -306,16 +369,6 @@ bash /opt/leduk/deploy.sh
 ```
 
 O script executa: `git pull` → `pip install` → corrige ExecStart → `systemctl restart leduk` → `curl /health`.
-
-**Atenção:** o setup cria arquivos localmente antes do primeiro `git pull`. Se o pull for bloqueado por arquivos não rastreados, usar:
-
-```bash
-git checkout -f HEAD -- . 2>/dev/null || true
-git clean -fd --exclude=.venv 2>/dev/null || true
-git pull origin main
-```
-
-Esse padrão já está embutido no `deploy.sh`.
 
 ### Setup do zero
 
@@ -325,124 +378,32 @@ chmod +x setup-leduk-completo.sh
 ./setup-leduk-completo.sh
 ```
 
-O script executa em ordem:
-1. Checagem de portas 8090 e 8091
-2. Instalação de dependências (Python 3.11, Nginx, Certbot)
-3. PocketBase como serviço systemd
-4. Estrutura Flask + venv + Gunicorn
-5. Nginx com proxy para ambos os subdomínios
-6. SSL via Certbot
-7. Criação das 9 collections com IDs capturados dinamicamente
-
-Para resetar antes de rodar novamente:
-
-```bash
-sudo systemctl stop leduk pocketbase
-sudo rm -rf /opt/pocketbase /opt/leduk
-sudo rm -f /etc/systemd/system/{pocketbase,leduk}.service
-sudo rm -f /etc/nginx/sites-{available,enabled}/{pocketbase,leduk}
-sudo systemctl daemon-reload && sudo systemctl reload nginx
-```
-
-### Consumo de RAM
-
-| Serviço | RAM idle |
-|---|---|
-| PocketBase | ~35 MB |
-| Flask + Gunicorn (2w) | ~80 MB |
-| Nginx | ~10 MB |
-| **Total** | **~125 MB** |
-
-Objetivo: manter abaixo de 250 MB em produção.
-
 ---
 
 ## API PocketBase — referência rápida
 
-### Autenticação
+### Autenticação admin
 
-O token JWT expira em ~30 minutos. **Sempre reautenticar no início de cada bloco de operações**, nunca reutilizar token de sessão anterior.
+O token JWT expira em ~30 minutos. **Sempre reautenticar no início de cada bloco de operações.**
 
 ```bash
 TOKEN=$(curl -s -X POST https://pb.repoept.duckdns.org/api/admins/auth-with-password \
   -H "Content-Type: application/json" \
   -d "{\"identity\":\"$EMAIL\",\"password\":\"$PASS\"}" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
-
-[ -z "$TOKEN" ] && echo "ERRO: autenticação falhou" && exit 1
-echo "Token obtido: ${TOKEN:0:20}..."
 ```
 
 ### Inserções em lote — usar Python, não bash
 
-Caracteres Unicode como `→` dentro de strings bash com escape manual são interpretados pelo shell como redirecionamento de saída, corrompendo silenciosamente os dados. Para inserções em lote, **sempre usar Python**:
+Caracteres Unicode como `→` dentro de strings bash são interpretados pelo shell como redirecionamento de saída, corrompendo silenciosamente os dados. Para inserções em lote, **sempre usar Python**:
 
 ```python
 import requests
-
-headers = {"Authorization": f"Bearer {TOKEN}"}
-
+headers = {"Authorization": TOKEN}
 requests.post(f"{PB}/api/collections/alternativas/records",
     headers=headers,
-    json={
-        "questao":   questao_id,
-        "letra":     "A",
-        "texto":     "Texto sem risco de escape — acentos e símbolos funcionam normalmente",
-        "correta":   False,
-        "feedback":  "Feedback da alternativa"
-    })
-```
-
-Se precisar de setas em textos, usar `->` ou `para` no lugar de `→`.
-
-### Criar questão mc5
-
-```bash
-curl -X POST https://pb.repoept.duckdns.org/api/collections/questoes/records \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "enunciado": "Qual Ig atravessa a barreira placentária?",
-    "tipo": "mc5",
-    "disciplina": "ID_DISCIPLINA",
-    "dificuldade": "medio",
-    "tags": "imunoglobulinas,placenta",
-    "feedback_geral": "A IgG é a única Ig que atravessa a placenta."
-  }'
-```
-
-### Criar alternativa
-
-```bash
-curl -X POST https://pb.repoept.duckdns.org/api/collections/alternativas/records \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "questao": "ID_QUESTAO",
-    "letra": "A",
-    "texto": "IgG",
-    "correta": true,
-    "feedback": "Correto. IgG é a única que atravessa a barreira placentária."
-  }'
-```
-
-### Upload de imagem em questão
-
-```bash
-curl -X POST https://pb.repoept.duckdns.org/api/collections/questoes/records \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "enunciado=Identifique a morfologia:" \
-  -F "tipo=mc4" \
-  -F "disciplina=ID_DISCIPLINA" \
-  -F "imagem=@hemacia-falciforme.jpg"
-```
-
-### Buscar questões por disciplina
-
-```bash
-curl "https://pb.repoept.duckdns.org/api/collections/questoes/records\
-?filter=(disciplina='ID'%26%26tipo='mc5')&sort=-created&perPage=20" \
-  -H "Authorization: Bearer $TOKEN"
+    json={"questao": questao_id, "letra": "A", "texto": "Texto com acentos",
+          "correta": False, "feedback": "Feedback da alternativa"})
 ```
 
 ---
@@ -467,12 +428,10 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 
 ## Checklist de deploy
 
-Verificar antes de qualquer deploy ou operação em produção:
-
 - [ ] PocketBase respondendo: `curl http://127.0.0.1:8090/api/health`
 - [ ] Flask respondendo: `curl http://127.0.0.1:8091/health`
-- [ ] Collections existem: resposta com 10 items em `/api/collections?perPage=50`
-- [ ] `listRule` e `viewRule` vazias nas collections públicas
+- [ ] Collections existem com `listRule`/`viewRule` vazias nas públicas
+- [ ] Campo `atividade` existe na collection `tentativas` (relation → atividades)
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`
@@ -487,8 +446,9 @@ Verificar antes de qualquer deploy ou operação em produção:
 | 1 — Infraestrutura | Concluída | PocketBase, Flask/Gunicorn, Nginx, SSL |
 | 2 — Schema | Concluída | 9 collections criadas com IDs fixos |
 | 3 — Motor de atividades | Concluída | Rotas Flask + HTMX + validação de respostas |
-| 4 — Autenticação | Pendente | Login JWT, middleware, retomada de atividade |
-| 5 — Relatórios | Pendente | Dashboard professor, PDF/Excel, taxa de erro |
+| 4 — Autenticação | Concluída | Login JWT, roles, middleware, retomada de atividade |
+| 5 — Portal do professor | Concluída | Dashboard + gestão de atividades + correção + liberação de notas |
+| 6 — Pontuação por peso | Concluída | valor_total, peso por questão, nota_final, mapa de calor |
 
 ### Funcionalidades futuras consideradas
 
