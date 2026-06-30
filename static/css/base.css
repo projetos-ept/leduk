@@ -1691,3 +1691,175 @@ a.material-header:hover {
 /* ── Toast de cópia de link ── */
 .toast-copy { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px); background: #2d3436; color: #fff; padding: 10px 22px; border-radius: 24px; font-size: .88rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 9999; }
 .toast-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ------------------------------------------------------------------ */
+/* Shared button variants                                               */
+/* ------------------------------------------------------------------ */
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 20px; background: var(--primaria); color: #fff;
+  border: 2px solid var(--primaria); border-radius: 10px;
+  font-size: .88rem; font-weight: 700; text-decoration: none;
+  cursor: pointer; transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn-primary:hover { background: #4a7de0; border-color: #4a7de0; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 16px; background: transparent; color: var(--texto);
+  border: 2px solid var(--borda); border-radius: 10px;
+  font-size: .88rem; font-weight: 600; text-decoration: none;
+  cursor: pointer; transition: border-color .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-ghost:hover { border-color: var(--primaria); color: var(--primaria); }
+
+.btn-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 16px; background: transparent; color: #c0392b;
+  border: 2px solid #e0b3b0; border-radius: 10px;
+  font-size: .88rem; font-weight: 600; text-decoration: none;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-danger:hover { background: #c0392b; border-color: #c0392b; color: #fff; }
+
+.btn-sm { padding: 7px 12px; font-size: .8rem; border-radius: 8px; }
+
+/* ------------------------------------------------------------------ */
+/* Breadcrumb                                                           */
+/* ------------------------------------------------------------------ */
+
+.breadcrumb {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  font-size: .8rem; color: var(--muted); margin-bottom: 18px;
+}
+.breadcrumb a { color: var(--muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--primaria); }
+.breadcrumb span { color: var(--borda); }
+
+/* ------------------------------------------------------------------ */
+/* Banco de questões — redesign                                         */
+/* ------------------------------------------------------------------ */
+
+/* Header */
+.qb-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 14px; margin-bottom: 20px;
+}
+.qb-titulo { font-size: 1.3rem; font-weight: 800; color: var(--texto); line-height: 1.2; }
+.qb-subtitulo { font-size: .9rem; color: var(--muted); margin-top: 3px; }
+
+/* Stats cards row */
+.qb-stats {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px;
+}
+.qb-stat-card {
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: 12px; padding: 12px 20px; min-width: 80px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.qb-stat-card--accent { border-color: var(--primaria); background: #eef2ff; }
+.qb-stat-num { font-size: 1.5rem; font-weight: 800; color: var(--primaria); line-height: 1; }
+.qb-stat-label { font-size: .7rem; color: var(--muted); margin-top: 4px; text-align: center; }
+
+/* Question card list */
+.qb-list { display: flex; flex-direction: column; gap: 12px; }
+
+.qb-card {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: 14px; padding: 16px 18px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  transition: box-shadow .15s;
+}
+.qb-card:hover { box-shadow: 0 4px 16px rgba(91,141,238,.12); }
+
+.qb-card-num {
+  width: 32px; min-width: 32px; height: 32px;
+  border-radius: 50%; background: var(--primaria); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .8rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+}
+
+.qb-card-body { flex: 1; min-width: 0; }
+
+.qb-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+
+.qb-peso-badge {
+  font-size: .72rem; font-weight: 700; font-family: monospace;
+  background: var(--fundo); color: var(--muted);
+  border: 1px solid var(--borda); border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.qb-img-indicator { font-size: .8rem; }
+
+.qb-card-enunciado {
+  font-size: .9rem; color: var(--texto); line-height: 1.45;
+  margin: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; max-width: 540px;
+}
+
+.qb-card-info { margin: 4px 0 0; font-size: .75rem; color: var(--muted); }
+
+.qb-card-acoes {
+  display: flex; flex-direction: column; gap: 6px;
+  flex-shrink: 0; align-items: stretch; min-width: 90px;
+}
+
+/* Empty state */
+.qb-empty {
+  text-align: center; padding: 48px 24px;
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.qb-empty-msg { font-size: 1.05rem; color: var(--muted); margin-bottom: 16px; }
+
+/* Footer */
+.qb-footer { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+/* ------------------------------------------------------------------ */
+/* Confirmation modal                                                   */
+/* ------------------------------------------------------------------ */
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10000; padding: 16px;
+}
+.modal-overlay[hidden] { display: none; }
+
+.modal-box {
+  background: var(--card); border-radius: 16px;
+  padding: 28px 28px 24px; max-width: 440px; width: 100%;
+  box-shadow: 0 16px 40px rgba(0,0,0,.18);
+  animation: modal-in .18s ease;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)  translateY(0); }
+}
+
+.modal-titulo { font-size: 1.05rem; font-weight: 800; color: var(--texto); margin-bottom: 10px; }
+.modal-msg    { font-size: .9rem; color: var(--muted); line-height: 1.5; margin-bottom: 22px; }
+.modal-acoes  { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------------ */
+/* Responsive overrides for QB                                          */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 600px) {
+  .qb-header { flex-direction: column; }
+  .qb-header .btn-primary { width: 100%; justify-content: center; }
+  .qb-card { flex-wrap: wrap; }
+  .qb-card-acoes { flex-direction: row; min-width: unset; width: 100%; }
+  .qb-card-acoes .btn-ghost,
+  .qb-card-acoes .btn-danger { flex: 1; justify-content: center; min-height: 44px; }
+  .qb-card-enunciado { white-space: normal; max-width: 100%; }
+  .qb-footer .btn-primary,
+  .qb-footer .btn-ghost { flex: 1; justify-content: center; }
+}
