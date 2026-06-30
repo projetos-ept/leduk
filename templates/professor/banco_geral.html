@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banco geral de questões — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:960px;">
+  <div class="breadcrumb">
+    <a href="/professor/dashboard">Dashboard</a><span>›</span><span>Banco geral de questões</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Banco geral de questões</h1>
+      <p class="qb-subtitulo">Todas as disciplinas. Selecione questões para montar uma atividade multidisciplinar.</p>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="banco-filtros">
+    <select name="disciplina" class="banco-filtro-select" onchange="this.form.submit()" style="min-width:180px;">
+      <option value="">Todas as disciplinas</option>
+      {% for d in disciplinas %}<option value="{{ d.id }}" {% if filtros.disciplina == d.id %}selected{% endif %}>{{ d.nome }}</option>{% endfor %}
+    </select>
+    <select name="tipo" class="banco-filtro-select" onchange="this.form.submit()">
+      <option value="">Todos os tipos</option>
+      {% for t, label in [('mc4','MC 4'),('mc5','MC 5'),('vf','V/F'),('aberta','Aberta'),('associativa','Associativa')] %}
+        <option value="{{ t }}" {% if filtros.tipo == t %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="assunto" class="banco-filtro-select" onchange="this.form.submit()">
+      <option value="">Todos os assuntos</option>
+      {% for a in assuntos %}<option value="{{ a }}" {% if filtros.assunto == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+    {% if filtros.disciplina or filtros.tipo or filtros.assunto %}
+      <a href="/professor/banco-questoes" class="btn-ghost btn-sm">Limpar filtros</a>
+    {% endif %}
+  </form>
+
+  {% if not questoes %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🗂️</p>
+      <p class="qb-empty-msg">
+        {% if filtros.disciplina or filtros.tipo or filtros.assunto %}Nenhuma questão corresponde aos filtros.{% else %}Nenhuma questão cadastrada ainda.{% endif %}
+      </p>
+    </div>
+  {% else %}
+    <p class="banco-total">{{ questoes|length }} questã{{ 'o' if questoes|length == 1 else 'ões' }}</p>
+
+    <form method="get" action="/professor/atividade/multidisciplinar" id="form-multi">
+      <div class="qb-list">
+        {% for q in questoes %}
+          <label class="seletor-row">
+            <input type="checkbox" name="questoes" value="{{ q.id }}" class="seletor-check" onchange="atualizarContagem()">
+            <div class="qb-card-body">
+              <div class="qb-card-meta">
+                <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
+                <span class="banco-assunto-badge">{{ q._disc_nome }}</span>
+                {% if q.assunto %}<span class="qb-peso-badge">{{ q.assunto }}</span>{% endif %}
+                {% if q.peso and q.peso != 1 %}<span class="qb-peso-badge">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>{% endif %}
+              </div>
+              <p class="qb-card-enunciado">{{ q.enunciado }}</p>
+            </div>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="multi-barra">
+        <span id="multi-contagem" class="multi-contagem">0 questões selecionadas</span>
+        <button type="submit" class="btn-primary" id="multi-btn" disabled>Criar atividade multidisciplinar →</button>
+      </div>
+    </form>
+  {% endif %}
+</div>
+
+<script>
+function atualizarContagem() {
+  const n = document.querySelectorAll('#form-multi .seletor-check:checked').length;
+  document.getElementById('multi-contagem').textContent = n + (n === 1 ? ' questão selecionada' : ' questões selecionadas');
+  document.getElementById('multi-btn').disabled = (n === 0);
+}
+</script>
+</body>
+</html>

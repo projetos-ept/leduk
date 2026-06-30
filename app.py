@@ -1035,6 +1035,57 @@ def create_app(config: dict | None = None) -> Flask:
         get_pb().atualizar_atividade(ativ_id, {"questoes": atual})
         return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
 
+    # ── Banco geral de questões (todas as disciplinas) ──
+
+    @app.route("/professor/banco-questoes")
+    @requer_professor
+    def professor_banco_geral():
+        filtros = {c: request.args.get(c, "") for c in ("disciplina", "tipo", "assunto")}
+        questoes = get_pb().listar_questoes(filtros)
+        disciplinas = get_pb().listar_disciplinas()
+        disc_map = {d["id"]: d.get("nome", "") for d in disciplinas}
+        for q in questoes:
+            q["_disc_nome"] = disc_map.get(q.get("disciplina", ""), "—")
+        # assuntos para o filtro: do conjunto sem filtro de assunto
+        if any(filtros.values()):
+            todas = get_pb().listar_questoes(
+                {"disciplina": filtros.get("disciplina", "")})
+        else:
+            todas = questoes
+        assuntos = sorted({q.get("assunto", "") for q in todas if q.get("assunto")})
+        return render_template("professor/banco_geral.html", questoes=questoes,
+                               disciplinas=disciplinas, assuntos=assuntos, filtros=filtros,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/multidisciplinar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_atividade_multidisciplinar():
+        if request.method == "GET":
+            ids = request.args.getlist("questoes")
+            questoes = get_pb().listar_questoes_atividade(ids) if ids else []
+            disciplinas = get_pb().listar_disciplinas()
+            disc_map = {d["id"]: d.get("nome", "") for d in disciplinas}
+            # disciplina principal sugerida: a mais frequente entre as selecionadas
+            freq: dict[str, int] = {}
+            for q in questoes:
+                q["_disc_nome"] = disc_map.get(q.get("disciplina", ""), "—")
+                did = q.get("disciplina", "")
+                if did:
+                    freq[did] = freq.get(did, 0) + 1
+            sugerida = max(freq, key=freq.get) if freq else ""
+            turmas = get_pb().listar_turmas()
+            return render_template("professor/atividade_multidisciplinar.html",
+                                   questoes=questoes, ids=ids, turmas=turmas,
+                                   disciplinas=disciplinas, disciplina_sugerida=sugerida,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        data = _form_to_atividade(request.form)
+        data["questoes"] = request.form.getlist("questoes")
+        try:
+            get_pb().criar_atividade(data)
+        except Exception as exc:
+            log.warning("criar_atividade multidisciplinar falhou: %s", exc)
+        return redirect(url_for("professor_turma", turma_id=data.get("turma", "")))
+
     # ── Gestão de turmas ──
 
     @app.route("/professor/turmas")

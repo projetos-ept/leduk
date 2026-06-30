@@ -49,6 +49,8 @@ leduk/
 │   │   ├── questoes.html           ← questões de uma atividade
 │   │   ├── questao_form.html       ← criar/editar questão (todos os tipos + imagem)
 │   │   ├── banco_questoes.html     ← banco reutilizável da disciplina (filtros + uso)
+│   │   ├── banco_geral.html        ← banco geral (todas disciplinas) + seleção multidisciplinar
+│   │   ├── atividade_multidisciplinar.html ← montar atividade com questões de várias disciplinas
 │   │   ├── selecionar_questoes.html ← seletor do banco para adicionar à atividade
 │   │   ├── turmas.html / turma_form.html         ← CRUD de turmas
 │   │   ├── disciplinas.html / disciplina_form.html ← CRUD de disciplinas
@@ -90,7 +92,8 @@ leduk/
         ├── test_gestao_atividade.py  ← smoke tests: excluir/clonar/CRUD questões
         ├── test_banco_questoes.py    ← banco reutilizável: filtros, clonar, reuso, uso
         ├── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
-        └── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
+        ├── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
+        └── test_banco_geral.py       ← banco geral + atividade multidisciplinar
 ```
 
 ---
@@ -145,7 +148,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 143 testes, todos passando.
+**Resultado esperado:** 147 testes, todos passando.
 
 ---
 
@@ -194,6 +197,8 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/questao/<id>/excluir` | Excluir questão (e remover da atividade) |
 | GET | `/professor/disciplina/<id>/banco-questoes` | Banco reutilizável da disciplina (filtros + uso) |
 | GET/POST | `/professor/disciplina/<id>/questao/nova` | Criar questão direto no banco da disciplina |
+| GET | `/professor/banco-questoes` | Banco geral (todas disciplinas) com filtros disciplina/tipo/assunto |
+| GET/POST | `/professor/atividade/multidisciplinar` | Montar atividade com questões de várias disciplinas |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
 | POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |
 | GET | `/professor/atividade/<id>/notas-abertas` | Corrigir questões abertas |
