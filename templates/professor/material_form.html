@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if material %}Editar{% else %}Novo{% endif %} material — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:640px;">
+  <div class="breadcrumb">
+    <a href="{{ voltar_url }}">← Voltar</a>
+  </div>
+  <div class="portal-header"><h1 class="portal-titulo">{% if material %}Editar material{% else %}Novo material{% endif %}</h1></div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="post" enctype="multipart/form-data" action="{{ form_action }}"
+          style="display:flex;flex-direction:column;gap:18px;">
+      {% if disciplina_id %}<input type="hidden" name="disciplina" value="{{ disciplina_id }}">{% endif %}
+
+      <!-- Tipo -->
+      {% if not material %}
+      <div>
+        <label class="campo-label">Tipo *</label>
+        <div class="tipo-tabs">
+          {% for t, label in [('video','🎬 Vídeo'),('pdf','📄 PDF'),('link','🔗 Link'),('arquivo','📎 Arquivo')] %}
+            <label class="tipo-tab {% if loop.first %}tipo-tab-ativo{% endif %}">
+              <input type="radio" name="tipo" value="{{ t }}" {% if loop.first %}checked{% endif %}
+                     onchange="document.querySelectorAll('.tipo-tab').forEach(x=>x.classList.remove('tipo-tab-ativo'));this.closest('.tipo-tab').classList.add('tipo-tab-ativo');mostrarArquivo('{{ t }}')">
+              {{ label }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="quest-tipo-badge quest-tipo-vf">{{ material.tipo | upper }}</span>
+          <span style="color:var(--muted);font-size:.85rem;">Tipo não pode ser alterado.</span>
+          <input type="hidden" name="tipo" value="{{ material.tipo }}">
+        </div>
+      {% endif %}
+
+      <div>
+        <label class="campo-label">Título *</label>
+        <input type="text" name="titulo" required value="{{ material.titulo if material else '' }}"
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+
+      <div>
+        <label class="campo-label">Descrição</label>
+        <textarea name="descricao" rows="2" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;resize:vertical;font-family:inherit;">{{ material.descricao if material else '' }}</textarea>
+      </div>
+
+      <div id="campo-url">
+        <label class="campo-label">URL (vídeo / PDF / link)</label>
+        <input type="url" name="url" value="{{ material.url if material else '' }}"
+               placeholder="https://..."
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+
+      <div id="campo-arquivo" style="{% if not material or material.tipo != 'arquivo' %}display:none;{% endif %}">
+        <label class="campo-label">Arquivo {% if material and material.arquivo %}(enviar novo substitui o atual){% endif %}</label>
+        <input type="file" name="arquivo" style="font-size:.85rem;">
+      </div>
+
+      <div>
+        <label class="campo-label">Assunto / tópico</label>
+        <input type="text" name="assunto" value="{{ material.assunto if material else '' }}"
+               placeholder="Ex: Fases do LIS"
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">{% if material %}Salvar{% else %}Criar material{% endif %}</button>
+        <a href="{{ voltar_url }}" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function mostrarArquivo(tipo) {
+  document.getElementById('campo-arquivo').style.display = (tipo === 'arquivo') ? '' : 'none';
+  document.getElementById('campo-url').style.display = (tipo === 'arquivo') ? 'none' : '';
+}
+</script>
+</body>
+</html>

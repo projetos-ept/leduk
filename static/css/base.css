@@ -2034,3 +2034,17 @@ a.material-header:hover {
   background: var(--card); border: 1px solid var(--borda); border-radius: 12px;
 }
 .turma-banco-titulo { font-size: .85rem; font-weight: 600; color: var(--muted); }
+
+/* Sub-itens do drawer com dois atalhos (questões + materiais) */
+.nav-subitem-acoes { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* ------------------------------------------------------------------ */
+/* Alerta de exclusão bloqueada (vínculos órfãos)                       */
+/* ------------------------------------------------------------------ */
+
+.alerta-bloqueio {
+  background: #fff3cd; color: #856404; border: 1px solid #ffe69c;
+  border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; font-size: .88rem;
+}
+.alerta-bloqueio ul { margin: 8px 0 0 18px; }
+.alerta-bloqueio li { margin: 2px 0; }

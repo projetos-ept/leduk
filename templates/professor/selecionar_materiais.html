@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adicionar materiais — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+{% set tipo_emoji = {'video':'🎬','pdf':'📄','link':'🔗','arquivo':'📎'} %}
+
+<div class="shell" style="max-width:900px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}/materiais">{{ turma.nome }}</a><span>›</span><span>Adicionar do banco</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Adicionar materiais do banco</h1>
+      <p class="qb-subtitulo">Selecione a disciplina e os materiais para incluir nesta turma.</p>
+    </div>
+  </div>
+
+  <!-- Escolha de disciplina + filtros -->
+  <form method="get" class="banco-filtros">
+    <select name="disciplina" class="banco-filtro-select" onchange="this.form.submit()" style="min-width:200px;">
+      <option value="">Escolha a disciplina…</option>
+      {% for d in disciplinas %}<option value="{{ d.id }}" {% if disc_id == d.id %}selected{% endif %}>{{ d.nome }}</option>{% endfor %}
+    </select>
+    {% if disc_id %}
+      <select name="tipo" class="banco-filtro-select" onchange="this.form.submit()">
+        <option value="">Todos os tipos</option>
+        {% for t, label in [('video','Vídeo'),('pdf','PDF'),('link','Link'),('arquivo','Arquivo')] %}
+          <option value="{{ t }}" {% if filtros.tipo == t %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="assunto" class="banco-filtro-select" onchange="this.form.submit()">
+        <option value="">Todos os assuntos</option>
+        {% for a in assuntos %}<option value="{{ a }}" {% if filtros.assunto == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+    {% endif %}
+  </form>
+
+  {% if not disc_id %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📚</p>
+      <p class="qb-empty-msg">Escolha uma disciplina acima para ver o banco de materiais.</p>
+    </div>
+  {% elif not materiais %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🎬</p>
+      <p class="qb-empty-msg">Não há materiais disponíveis no banco desta disciplina para adicionar.</p>
+      <a href="/professor/material/novo?disciplina={{ disc_id }}" class="btn-primary">+ Criar material no banco</a>
+    </div>
+  {% else %}
+    <form method="post" action="/professor/turma/{{ turma.id }}/materiais/adicionar">
+      <div class="qb-list">
+        {% for m in materiais %}
+          <label class="seletor-row">
+            <input type="checkbox" name="materiais" value="{{ m.id }}" class="seletor-check">
+            <div class="qb-card-body">
+              <div class="qb-card-meta">
+                <span class="quest-tipo-badge quest-tipo-vf">{{ tipo_emoji.get(m.tipo,'📦') }} {{ m.tipo | upper }}</span>
+                {% if m.assunto %}<span class="banco-assunto-badge">{{ m.assunto }}</span>{% endif %}
+              </div>
+              <p class="qb-card-enunciado">{{ m.titulo }}</p>
+            </div>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="qb-footer">
+        <button type="submit" class="btn-primary">Adicionar selecionados à turma</button>
+        <a href="/professor/turma/{{ turma.id }}/materiais" class="btn-ghost">Cancelar</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+</body>
+</html>

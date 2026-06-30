@@ -20,7 +20,8 @@ leduk/
 │
 ├── scripts/
 │   ├── migrate_tentativas.py    ← migração: adiciona campo atividade ao schema
-│   └── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
+│   ├── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
+│   └── migrate_materiais.py     ← migração: assunto + collection turma_materiais + backfill
 │
 ├── templates/
 │   ├── index.html
@@ -49,6 +50,13 @@ leduk/
 │   │   ├── questao_form.html       ← criar/editar questão (todos os tipos + imagem)
 │   │   ├── banco_questoes.html     ← banco reutilizável da disciplina (filtros + uso)
 │   │   ├── selecionar_questoes.html ← seletor do banco para adicionar à atividade
+│   │   ├── turmas.html / turma_form.html         ← CRUD de turmas
+│   │   ├── disciplinas.html / disciplina_form.html ← CRUD de disciplinas
+│   │   ├── turma_disciplinas.html  ← vínculo turma ↔ disciplina (pivô)
+│   │   ├── banco_materiais.html    ← banco de materiais da disciplina
+│   │   ├── material_form.html      ← criar/editar material (vídeo/pdf/link/arquivo)
+│   │   ├── selecionar_materiais.html ← seletor do banco para adicionar à turma
+│   │   ├── turma_materiais.html    ← materiais vinculados a uma turma
 │   │   ├── components/
 │   │   │   └── _seletor_questoes.html ← cards com checkbox (reuso de questões)
 │   │   ├── notas.html
@@ -81,7 +89,8 @@ leduk/
         ├── test_ciclo_atividade.py
         ├── test_gestao_atividade.py  ← smoke tests: excluir/clonar/CRUD questões
         ├── test_banco_questoes.py    ← banco reutilizável: filtros, clonar, reuso, uso
-        └── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
+        ├── test_navegacao_professor.py ← drawer do professor + atalhos ao banco
+        └── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
 ```
 
 ---
@@ -136,7 +145,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 118 testes, todos passando.
+**Resultado esperado:** 140 testes, todos passando.
 
 ---
 
@@ -189,6 +198,20 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |
 | GET | `/professor/atividade/<id>/notas-abertas` | Corrigir questões abertas |
 | POST | `/professor/questao-aberta/<tent_id>/avaliar` | Gravar nota de questão aberta |
+| GET | `/professor/turmas` | Gerenciar turmas (CRUD) |
+| GET/POST | `/professor/turma/nova` · `/professor/turma/<id>/editar` | Criar/editar turma |
+| POST | `/professor/turma/<id>/excluir` | Excluir turma (bloqueado se houver vínculos) |
+| GET | `/professor/disciplinas` | Gerenciar disciplinas (CRUD) |
+| GET/POST | `/professor/disciplina/nova` · `/professor/disciplina/<id>/editar` | Criar/editar disciplina |
+| POST | `/professor/disciplina/<id>/excluir` | Excluir disciplina (bloqueado se houver vínculos) |
+| GET | `/professor/turma/<id>/disciplinas` | Vincular/desvincular disciplinas da turma (pivô) |
+| POST | `/professor/turma/<id>/disciplinas/vincular` · `/desvincular/<vinc_id>` | Gerenciar vínculo |
+| GET | `/professor/disciplina/<id>/banco-materiais` | Banco de materiais da disciplina (filtros + uso) |
+| GET/POST | `/professor/material/novo` · `/professor/material/<id>/editar` | Criar/editar material |
+| POST | `/professor/material/<id>/clonar` · `/reclassificar` · `/excluir` | Clonar/reclassificar/excluir (cascade) |
+| GET | `/professor/turma/<id>/materiais` | Materiais vinculados à turma |
+| GET | `/professor/turma/<id>/materiais/selecionar` | Selecionar materiais do banco |
+| POST | `/professor/turma/<id>/materiais/adicionar` · `/remover/<vinc_id>` | Vincular/desvincular (sem duplicar) |
 
 ### Relatórios
 
@@ -312,18 +335,49 @@ Ao excluir uma questão, o sistema faz **cascade manual**: remove o ID de
 o registro — assim nenhuma atividade fica com vínculo órfão. Na tela do banco, se
 a questão está em uso, a confirmação avisa explicitamente em quantas atividades.
 
+### Banco de materiais reutilizável (campo `assunto` + `turma_materiais`)
+
+Materiais seguem o mesmo modelo das questões: pertencem ao **banco da disciplina**
+(ganharam o campo `assunto`) e a turma os "usa" através da collection pivô
+`turma_materiais` (`turma`, `material`, `ordem`, `ativo`). Um mesmo material pode
+aparecer em várias turmas sem duplicar o registro.
+
+Migração (idempotente — adiciona `assunto`, cria `turma_materiais`, faz backfill
+dos materiais legados que tinham `turma` preenchido):
+
+```bash
+PB_URL=https://pb.repoept.duckdns.org \
+PB_ADMIN_EMAIL=admin@exemplo.com \
+PB_ADMIN_PASSWORD=senha \
+  python scripts/migrate_materiais.py
+```
+
+**Leitura retrocompatível:** `pb.listar_materiais` lê via `turma_materiais`
+(expand `material`, filtrando pela disciplina). Se a collection pivô ainda não
+existir (pré-migração) ou a consulta falhar, cai no filtro legado
+`materiais.turma` — o portal do aluno nunca quebra. Uma vez migrada, a leitura
+confia no pivô (mesmo vazio) para não exibir dados legados defasados.
+
+Exclusão de material faz **cascade manual** em `turma_materiais` antes de apagar
+o registro; gestão de turmas/disciplinas **bloqueia exclusão** quando há vínculos
+(turma_disciplina, atividades, tentativas, questões, materiais), com aviso explícito.
+
 ### Diagrama de relacionamentos
 
 ```
 turmas ──── turma_disciplina ──── disciplinas
-                                       │
-                                   questoes
-                                  (mc4/mc5/vf/aberta/assoc)
-                                       │
-                    ┌──────────────────┼───────────────────┐
-                    │                  │                   │
-              alternativas         itens_vf     pares_associativos
-              (A/B/C/D/E)       (afirmações)    (col_A : col_B)
+   │                                   │
+   │                          ┌────────┴────────┐
+   │                       questoes          materiais
+   │                  (mc4/mc5/vf/...)   (vídeo/pdf/link/arquivo)
+   │                          │           + assunto (banco)
+   │         ┌────────────────┼──────────┐
+   │         │                │          │
+   │   alternativas       itens_vf  pares_associativos
+   │   (A/B/C/D/E)       (afirmações) (col_A : col_B)
+   │                                       │
+   └──── turma_materiais ──────────────────┘
+        (pivô: turma usa material)
 
 atividades  → agrupa questoes[] por turma + disciplina
 tentativas  → log de respostas + registro-pai da tentativa
@@ -483,6 +537,8 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] Flask respondendo: `curl http://127.0.0.1:8091/health`
 - [ ] Collections existem com `listRule`/`viewRule` vazias nas públicas
 - [ ] Campo `atividade` existe na collection `tentativas` (relation → atividades)
+- [ ] Campo `assunto` existe em `questoes` e `materiais` (migração)
+- [ ] Collection `turma_materiais` criada e com backfill rodado (`scripts/migrate_materiais.py`)
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`
@@ -503,6 +559,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 7 — Banco de questões | Concluída | CRUD completo mc4/mc5/vf/aberta/associativa + upload de imagem |
 | 8 — Banco reutilizável | Concluída | Questões compartilhadas por disciplina: campo `assunto`, filtros, clonar, reclassificar, seletor para reuso entre atividades |
 | 9 — Navegação do professor | Concluída | Menu hambúrguer dedicado (turmas + disciplinas + atalho ao banco), atalhos ao banco no dashboard e na turma |
+| 10 — Gestão escolar completa | Concluída | CRUD de turmas/disciplinas (com bloqueio de exclusão), vínculo turma↔disciplina, banco de materiais reutilizável por disciplina (`turma_materiais`) |
 
 ### Funcionalidades futuras consideradas
 

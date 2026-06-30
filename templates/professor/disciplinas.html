@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gerenciar disciplinas — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:900px;">
+  <div class="breadcrumb">
+    <a href="/professor/dashboard">Dashboard</a><span>›</span><span>Disciplinas</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Gerenciar disciplinas</h1>
+      <p class="qb-subtitulo">Cada disciplina tem seu banco de questões e materiais.</p>
+    </div>
+    <a href="/professor/disciplina/nova" class="btn-primary">+ Nova disciplina</a>
+  </div>
+
+  {% if erro_vinculo %}
+    <div class="alerta-bloqueio">
+      <strong>Não foi possível excluir a disciplina.</strong>
+      Há vínculos que precisam ser removidos antes:
+      <ul>
+        {% if erro_vinculo.turma_disciplina %}<li>{{ erro_vinculo.turma_disciplina }} vínculo(s) com turmas</li>{% endif %}
+        {% if erro_vinculo.questoes %}<li>{{ erro_vinculo.questoes }} questão(ões) no banco</li>{% endif %}
+        {% if erro_vinculo.materiais %}<li>{{ erro_vinculo.materiais }} material(is) no banco</li>{% endif %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if not disciplinas %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📖</p>
+      <p class="qb-empty-msg">Nenhuma disciplina cadastrada.</p>
+      <a href="/professor/disciplina/nova" class="btn-primary">+ Criar primeira disciplina</a>
+    </div>
+  {% else %}
+    <div class="qb-list">
+      {% for d in disciplinas %}
+        <div class="qb-card">
+          <div class="qb-card-num" style="background:{{ d.cor_tema or 'var(--primaria)' }};">{{ d.icone or '📖' }}</div>
+          <div class="qb-card-body">
+            <div class="qb-card-meta">
+              {% if d.codigo %}<span class="qb-peso-badge">{{ d.codigo }}</span>{% endif %}
+              {% if d.ativa %}<span class="banco-assunto-badge">ativa</span>{% else %}<span class="banco-dif-badge">inativa</span>{% endif %}
+            </div>
+            <p class="qb-card-enunciado">{{ d.nome }}</p>
+            <p class="qb-card-info">
+              <a href="/professor/disciplina/{{ d.id }}/banco-questoes" style="color:var(--primaria);text-decoration:none;">📋 Banco de questões</a> ·
+              <a href="/professor/disciplina/{{ d.id }}/banco-materiais" style="color:var(--primaria);text-decoration:none;">🎬 Banco de materiais</a>
+            </p>
+          </div>
+          <div class="qb-card-acoes">
+            <a class="btn-ghost btn-sm" href="/professor/disciplina/{{ d.id }}/editar">Editar</a>
+            <button type="button" class="btn-danger btn-sm"
+                    onclick="abrirExcluir('{{ d.id }}', '{{ d.nome | replace("'", "\\'") }}')">Excluir</button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<div id="modal-excluir" class="modal-overlay" role="dialog" aria-modal="true" hidden>
+  <div class="modal-box">
+    <h2 class="modal-titulo">Excluir disciplina</h2>
+    <p class="modal-msg">Excluir <strong id="excluir-nome"></strong>? Se houver questões, materiais ou turmas vinculadas, a exclusão será bloqueada.</p>
+    <div class="modal-acoes">
+      <button type="button" class="btn-ghost" onclick="fecharExcluir()">Cancelar</button>
+      <form id="form-excluir" method="post" style="display:inline;">
+        <button type="submit" class="btn-danger">Excluir disciplina</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+function abrirExcluir(id, nome) {
+  document.getElementById('form-excluir').action = '/professor/disciplina/' + id + '/excluir';
+  document.getElementById('excluir-nome').textContent = nome;
+  const m = document.getElementById('modal-excluir'); m.hidden = false; m.querySelector('.btn-ghost').focus();
+}
+function fecharExcluir() { document.getElementById('modal-excluir').hidden = true; }
+document.getElementById('modal-excluir').addEventListener('click', e => { if (e.target === e.currentTarget) fecharExcluir(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharExcluir(); });
+</script>
+</body>
+</html>

@@ -86,6 +86,35 @@ def _questao_campos_comuns(form) -> dict:
     }
 
 
+def _form_to_turma(form) -> dict:
+    return {
+        "nome": form.get("nome", "").strip(),
+        "modalidade": form.get("modalidade", ""),
+        "ano": form.get("ano", "").strip(),
+        "ativa": "ativa" in form,
+    }
+
+
+def _form_to_disciplina(form) -> dict:
+    return {
+        "nome": form.get("nome", "").strip(),
+        "codigo": form.get("codigo", "").strip(),
+        "cor_tema": form.get("cor_tema", "").strip(),
+        "icone": form.get("icone", "").strip(),
+        "ativa": "ativa" in form,
+    }
+
+
+def _material_campos_comuns(form) -> dict:
+    """Campos editáveis comuns a criação e edição de material (sem tipo/disciplina)."""
+    return {
+        "titulo": form.get("titulo", "").strip(),
+        "descricao": form.get("descricao", "").strip(),
+        "url": form.get("url", "").strip(),
+        "assunto": form.get("assunto", "").strip(),
+    }
+
+
 def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
     """Returns (nota_final, detalhamento) from session respostas and atividade record."""
     nota_final = calcular_nota_final(respostas, atividade)
@@ -992,6 +1021,244 @@ def create_app(config: dict | None = None) -> Flask:
                 atual.append(qid)
         get_pb().atualizar_atividade(ativ_id, {"questoes": atual})
         return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
+
+    # ── Gestão de turmas ──
+
+    @app.route("/professor/turmas")
+    @requer_professor
+    def professor_turmas():
+        turmas = get_pb().listar_turmas()
+        return render_template("professor/turmas.html", turmas=turmas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/nova", methods=["GET", "POST"])
+    @requer_professor
+    def professor_turma_nova():
+        if request.method == "GET":
+            return render_template("professor/turma_form.html", turma=None,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        get_pb().criar_turma(_form_to_turma(request.form))
+        return redirect(url_for("professor_turmas"))
+
+    @app.route("/professor/turma/<turma_id>/editar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_turma_editar(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        if request.method == "GET":
+            return render_template("professor/turma_form.html", turma=turma,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        get_pb().atualizar_turma(turma_id, _form_to_turma(request.form))
+        return redirect(url_for("professor_turmas"))
+
+    @app.route("/professor/turma/<turma_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_turma_excluir(turma_id: str):
+        vinculos = get_pb().contar_vinculos_turma(turma_id)
+        if sum(vinculos.values()) > 0:
+            turmas = get_pb().listar_turmas()
+            return render_template(
+                "professor/turmas.html", turmas=turmas, erro_vinculo=vinculos,
+                erro_turma_id=turma_id, aluno_nome=session.get("aluno_nome", "")), 422
+        get_pb().excluir_turma(turma_id)
+        return redirect(url_for("professor_turmas"))
+
+    # ── Gestão de disciplinas ──
+
+    @app.route("/professor/disciplinas")
+    @requer_professor
+    def professor_disciplinas():
+        disciplinas = get_pb().listar_disciplinas()
+        return render_template("professor/disciplinas.html", disciplinas=disciplinas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/disciplina/nova", methods=["GET", "POST"])
+    @requer_professor
+    def professor_disciplina_nova():
+        if request.method == "GET":
+            return render_template("professor/disciplina_form.html", disciplina=None,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        get_pb().criar_disciplina(_form_to_disciplina(request.form))
+        return redirect(url_for("professor_disciplinas"))
+
+    @app.route("/professor/disciplina/<disciplina_id>/editar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_disciplina_editar(disciplina_id: str):
+        disciplina = get_pb().buscar_disciplina(disciplina_id)
+        if request.method == "GET":
+            return render_template("professor/disciplina_form.html", disciplina=disciplina,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        get_pb().atualizar_disciplina(disciplina_id, _form_to_disciplina(request.form))
+        return redirect(url_for("professor_disciplinas"))
+
+    @app.route("/professor/disciplina/<disciplina_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_disciplina_excluir(disciplina_id: str):
+        vinculos = get_pb().contar_vinculos_disciplina(disciplina_id)
+        if sum(vinculos.values()) > 0:
+            disciplinas = get_pb().listar_disciplinas()
+            return render_template(
+                "professor/disciplinas.html", disciplinas=disciplinas, erro_vinculo=vinculos,
+                erro_disciplina_id=disciplina_id, aluno_nome=session.get("aluno_nome", "")), 422
+        get_pb().excluir_disciplina(disciplina_id)
+        return redirect(url_for("professor_disciplinas"))
+
+    # ── Vínculo turma ↔ disciplina ──
+
+    @app.route("/professor/turma/<turma_id>/disciplinas")
+    @requer_professor
+    def professor_turma_disciplinas(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        vinculos = get_pb().listar_turma_disciplinas(turma_id)
+        vinculadas_ids = {(v.get("expand") or {}).get("disciplina", {}).get("id")
+                          or v.get("disciplina") for v in vinculos}
+        disponiveis = [d for d in get_pb().listar_disciplinas() if d["id"] not in vinculadas_ids]
+        return render_template("professor/turma_disciplinas.html", turma=turma,
+                               vinculos=vinculos, disponiveis=disponiveis,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>/disciplinas/vincular", methods=["POST"])
+    @requer_professor
+    def professor_vincular_disciplina(turma_id: str):
+        disc_id = request.form.get("disciplina", "")
+        if disc_id:
+            get_pb().vincular_disciplina(
+                turma_id, disc_id,
+                request.form.get("professor", ""), request.form.get("semestre", ""))
+        return redirect(url_for("professor_turma_disciplinas", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/disciplinas/desvincular/<vinculo_id>", methods=["POST"])
+    @requer_professor
+    def professor_desvincular_disciplina(turma_id: str, vinculo_id: str):
+        get_pb().desvincular_disciplina(vinculo_id)
+        return redirect(url_for("professor_turma_disciplinas", turma_id=turma_id))
+
+    # ── Banco de materiais (por disciplina) ──
+
+    @app.route("/professor/disciplina/<disciplina_id>/banco-materiais")
+    @requer_professor
+    def professor_banco_materiais(disciplina_id: str):
+        disciplina = get_pb().buscar_disciplina(disciplina_id)
+        filtros = {c: request.args.get(c, "") for c in ("tipo", "assunto")}
+        materiais = get_pb().listar_materiais_disciplina(disciplina_id, filtros)
+        for m in materiais:
+            try:
+                m["_uso"] = get_pb().contar_uso_material(m["id"])
+            except Exception:
+                m["_uso"] = 0
+        todos = materiais if not any(filtros.values()) else \
+            get_pb().listar_materiais_disciplina(disciplina_id)
+        assuntos = sorted({m.get("assunto", "") for m in todos if m.get("assunto")})
+        disciplinas = get_pb().listar_disciplinas()
+        return render_template("professor/banco_materiais.html", disciplina=disciplina,
+                               materiais=materiais, assuntos=assuntos, filtros=filtros,
+                               disciplinas=disciplinas, aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/material/novo", methods=["GET", "POST"])
+    @requer_professor
+    def professor_material_novo():
+        disciplina_id = request.values.get("disciplina", "")
+        if request.method == "GET":
+            return render_template(
+                "professor/material_form.html", material=None, disciplina_id=disciplina_id,
+                form_action=url_for("professor_material_novo"),
+                voltar_url=url_for("professor_banco_materiais", disciplina_id=disciplina_id),
+                aluno_nome=session.get("aluno_nome", ""))
+        arq = request.files.get("arquivo")
+        arq_tuple = (arq.filename, arq.read(), arq.content_type) if arq and arq.filename else None
+        get_pb().criar_material({
+            **_material_campos_comuns(request.form),
+            "tipo": request.form.get("tipo", "link"),
+            "disciplina": disciplina_id,
+            "ativo": True,
+        }, arq_tuple)
+        return redirect(url_for("professor_banco_materiais", disciplina_id=disciplina_id))
+
+    @app.route("/professor/material/<material_id>/editar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_material_editar(material_id: str):
+        material = get_pb().buscar_material(material_id)
+        disc_id = material.get("disciplina", "")
+        voltar_url = url_for("professor_banco_materiais", disciplina_id=disc_id)
+        if request.method == "GET":
+            return render_template(
+                "professor/material_form.html", material=material, disciplina_id=disc_id,
+                form_action=url_for("professor_material_editar", material_id=material_id),
+                voltar_url=voltar_url, aluno_nome=session.get("aluno_nome", ""))
+        arq = request.files.get("arquivo")
+        arq_tuple = (arq.filename, arq.read(), arq.content_type) if arq and arq.filename else None
+        get_pb().atualizar_material(material_id, _material_campos_comuns(request.form), arq_tuple)
+        return redirect(voltar_url)
+
+    @app.route("/professor/material/<material_id>/clonar", methods=["POST"])
+    @requer_professor
+    def professor_clonar_material(material_id: str):
+        material = get_pb().buscar_material(material_id)
+        get_pb().clonar_material(material_id)
+        return redirect(url_for("professor_banco_materiais",
+                                disciplina_id=material.get("disciplina", "")))
+
+    @app.route("/professor/material/<material_id>/reclassificar", methods=["POST"])
+    @requer_professor
+    def professor_reclassificar_material(material_id: str):
+        nova_disc = request.form.get("disciplina", "")
+        novo_assunto = request.form.get("assunto", "")
+        get_pb().reclassificar_material(material_id, nova_disc, novo_assunto)
+        destino = nova_disc or request.form.get("origem_disciplina", "")
+        return redirect(url_for("professor_banco_materiais", disciplina_id=destino))
+
+    @app.route("/professor/material/<material_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_material_excluir(material_id: str):
+        origem_disc = request.form.get("origem_disciplina", "")
+        # cascade: limpa vínculos turma_materiais antes de apagar
+        get_pb().remover_material_de_todas_turmas(material_id)
+        get_pb().excluir_material(material_id)
+        return redirect(url_for("professor_banco_materiais", disciplina_id=origem_disc))
+
+    # ── Materiais de uma turma (vínculo turma_materiais) ──
+
+    @app.route("/professor/turma/<turma_id>/materiais")
+    @requer_professor
+    def professor_turma_materiais(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        vinculos = get_pb().listar_turma_materiais(turma_id)
+        return render_template("professor/turma_materiais.html", turma=turma,
+                               vinculos=vinculos, aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>/materiais/selecionar")
+    @requer_professor
+    def professor_selecionar_materiais(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        disc_id = request.args.get("disciplina", "")
+        filtros = {c: request.args.get(c, "") for c in ("tipo", "assunto")}
+        ja_ids = {(v.get("expand") or {}).get("material", {}).get("id") or v.get("material")
+                  for v in get_pb().listar_turma_materiais(turma_id)}
+        materiais = []
+        assuntos = []
+        if disc_id:
+            todos = get_pb().listar_materiais_disciplina(disc_id, filtros)
+            materiais = [m for m in todos if m["id"] not in ja_ids]
+            base = todos if not any(filtros.values()) else get_pb().listar_materiais_disciplina(disc_id)
+            assuntos = sorted({m.get("assunto", "") for m in base if m.get("assunto")})
+        disciplinas = get_pb().listar_disciplinas()
+        return render_template("professor/selecionar_materiais.html", turma=turma,
+                               materiais=materiais, disciplinas=disciplinas, disc_id=disc_id,
+                               assuntos=assuntos, filtros=filtros,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>/materiais/adicionar", methods=["POST"])
+    @requer_professor
+    def professor_adicionar_materiais(turma_id: str):
+        for mid in request.form.getlist("materiais"):
+            if mid and not get_pb().material_ja_na_turma(turma_id, mid):
+                get_pb().adicionar_material_turma(turma_id, mid)
+        return redirect(url_for("professor_turma_materiais", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/materiais/remover/<vinculo_id>", methods=["POST"])
+    @requer_professor
+    def professor_remover_material_turma(turma_id: str, vinculo_id: str):
+        get_pb().remover_material_turma(vinculo_id)
+        return redirect(url_for("professor_turma_materiais", turma_id=turma_id))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)
