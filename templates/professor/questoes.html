@@ -80,9 +80,10 @@
   <!-- Empty state -->
   {% if not questoes %}
     <div class="qb-empty">
+      <p class="dash-empty-icon">📝</p>
       <p class="qb-empty-msg">Nenhuma questão cadastrada nesta atividade.</p>
       <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-primary">
-        Criar primeira questão
+        + Criar primeira questão
       </a>
     </div>
 
@@ -138,7 +139,9 @@
 
   <!-- Footer actions -->
   <div class="qb-footer">
-    <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-primary">+ Nova questão</a>
+    {% if questoes %}
+      <a href="/professor/atividade/{{ ativ.id }}/questoes/nova" class="btn-primary">+ Nova questão</a>
+    {% endif %}
     <a href="/professor/turma/{{ ativ.turma }}" class="btn-ghost">← Voltar</a>
   </div>
 </div>

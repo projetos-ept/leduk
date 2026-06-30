@@ -1863,3 +1863,67 @@ a.material-header:hover {
   .qb-footer .btn-primary,
   .qb-footer .btn-ghost { flex: 1; justify-content: center; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Dashboard do professor                                               */
+/* ------------------------------------------------------------------ */
+
+.dash-page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
+}
+.dash-page-title { font-size: 1.4rem; font-weight: 800; color: var(--texto); line-height: 1.2; }
+.dash-page-sub   { font-size: .9rem; color: var(--muted); margin-top: 4px; }
+
+.dash-empty-icon { font-size: 2.4rem; margin-bottom: 10px; }
+
+/* Pending-notes alert variant for prof-card */
+.prof-card--alert { border-color: #f7b731; box-shadow: 0 0 0 2px rgba(247,183,49,.18); }
+
+.prof-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 14px;
+}
+.prof-pending-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  background: #fff3cd; color: #856404; font-size: .72rem; font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Override prof-card to be a flex column so btn-sm aligns left */
+.prof-card { display: flex; flex-direction: column; }
+.prof-card-stats { flex: 1; }
+
+/* ------------------------------------------------------------------ */
+/* Turma — atividade desktop/mobile layouts                            */
+/* ------------------------------------------------------------------ */
+
+.turma-mobile { display: none; }
+.turma-desktop { display: block; }
+
+/* Mobile activity card */
+.ativ-mcard {
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: 14px; padding: 16px 18px; margin-bottom: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.ativ-mcard-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.ativ-mcard-titulo { font-weight: 700; font-size: .95rem; color: var(--texto); margin-bottom: 3px; }
+.ativ-mcard-disc   { font-size: .8rem; color: var(--muted); }
+.ativ-mcard-acoes  { display: flex; flex-wrap: wrap; gap: 6px; }
+.ativ-mcard-acoes .btn-ghost,
+.ativ-mcard-acoes .btn-danger { min-height: 44px; }
+
+/* Icon-only button (link copy) */
+.btn-icon-only { min-width: 40px; justify-content: center; padding-left: 10px; padding-right: 10px; }
+
+@media (max-width: 700px) {
+  .turma-desktop { display: none; }
+  .turma-mobile  { display: block; }
+  .qb-header { flex-direction: column; }
+  .qb-header .btn-primary,
+  .dash-page-header .btn-primary { width: 100%; justify-content: center; }
+}
