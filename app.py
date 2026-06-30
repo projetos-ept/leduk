@@ -214,6 +214,19 @@ def create_app(config: dict | None = None) -> Flask:
         """Retorna um PocketBaseClient com o token JWT da sessão atual."""
         return PocketBaseClient(pb_url, token=session.get("token"))
 
+    def _disciplinas_da_turma(turma_id: str) -> list:
+        """Disciplinas distintas de uma turma, derivadas das atividades (expand)."""
+        try:
+            ativs = get_pb().listar_todas_atividades_turma(turma_id)
+        except Exception:
+            return []
+        seen: dict[str, dict] = {}
+        for a in ativs:
+            d = (a.get("expand") or {}).get("disciplina")
+            if d and d.get("id") and d["id"] not in seen:
+                seen[d["id"]] = d
+        return list(seen.values())
+
     def _professor_nav() -> list:
         """Estrutura de navegação do professor (turmas + disciplinas) para o drawer.
 
@@ -1157,20 +1170,39 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_professor
     def professor_material_novo():
         disciplina_id = request.values.get("disciplina", "")
+        turma_id = request.values.get("turma", "")
         if request.method == "GET":
+            # Quando a disciplina não vem fixa, oferece um seletor. Vindo de uma
+            # turma, restringe às disciplinas da turma; senão, todas.
+            disciplinas_opcoes = []
+            if not disciplina_id:
+                if turma_id:
+                    disciplinas_opcoes = _disciplinas_da_turma(turma_id)
+                if not disciplinas_opcoes:
+                    disciplinas_opcoes = get_pb().listar_disciplinas()
+            voltar_url = (url_for("professor_turma_materiais", turma_id=turma_id) if turma_id
+                          else url_for("professor_banco_materiais", disciplina_id=disciplina_id))
             return render_template(
                 "professor/material_form.html", material=None, disciplina_id=disciplina_id,
+                turma_id=turma_id, disciplinas_opcoes=disciplinas_opcoes,
                 form_action=url_for("professor_material_novo"),
-                voltar_url=url_for("professor_banco_materiais", disciplina_id=disciplina_id),
-                aluno_nome=session.get("aluno_nome", ""))
+                voltar_url=voltar_url, aluno_nome=session.get("aluno_nome", ""))
+        disciplina_id = request.form.get("disciplina", "") or disciplina_id
         arq = request.files.get("arquivo")
         arq_tuple = (arq.filename, arq.read(), arq.content_type) if arq and arq.filename else None
-        get_pb().criar_material({
+        material = get_pb().criar_material({
             **_material_campos_comuns(request.form),
             "tipo": request.form.get("tipo", "link"),
             "disciplina": disciplina_id,
             "ativo": True,
         }, arq_tuple)
+        # Criado a partir de uma turma: já vincula o material à turma.
+        if turma_id:
+            try:
+                get_pb().adicionar_material_turma(turma_id, material["id"])
+            except Exception as exc:
+                log.warning("adicionar_material_turma falhou: %s", exc)
+            return redirect(url_for("professor_turma_materiais", turma_id=turma_id))
         return redirect(url_for("professor_banco_materiais", disciplina_id=disciplina_id))
 
     @app.route("/professor/material/<material_id>/editar", methods=["GET", "POST"])

@@ -310,6 +310,59 @@ def test_selecionar_materiais_render(client):
     assert r.status_code == 200 and "Apostila LIS" in r.data.decode()
 
 
+# ── Novo material a partir da página da turma ───────────────────────────────────
+
+@rsps_lib.activate
+def test_turma_pagina_tem_botao_novo_material(client):
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [{"id": "a1", "titulo": "X", "turma": "turma01",
+                                  "disciplina": "disc01", "expand": {"disciplina": DISCIPLINA}}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records", json={"items": [DISCIPLINA]})
+    resp = client.get("/professor/turma/turma01")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "+ Novo material" in html
+    assert "/professor/material/novo?turma=turma01" in html
+
+
+@rsps_lib.activate
+def test_material_novo_form_com_turma_mostra_seletor_disciplina(client):
+    _sess_prof(client)
+    # sem disciplina fixa: deriva disciplinas da turma para o seletor
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [{"id": "a1", "turma": "turma01", "disciplina": "disc01",
+                                  "expand": {"disciplina": DISCIPLINA}}]})
+    r = client.get("/professor/material/novo?turma=turma01")
+    assert r.status_code == 200
+    html = r.data.decode()
+    assert "Disciplina *" in html
+    assert "Informática Aplicada" in html
+
+
+@rsps_lib.activate
+def test_material_novo_a_partir_da_turma_cria_e_vincula(client):
+    _sess_prof(client)
+    cap_mat = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/materiais/records",
+                          callback=lambda r: (cap_mat.append(json.loads(r.body)), (200, {}, json.dumps({"id": "matZ"})))[1],
+                          content_type="application/json")
+    cap_vinc = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/turma_materiais/records",
+                          callback=lambda r: (cap_vinc.append(json.loads(r.body)), (200, {}, json.dumps({"id": "tmZ"})))[1],
+                          content_type="application/json")
+    resp = client.post("/professor/material/novo?turma=turma01", data={
+        "tipo": "link", "titulo": "Guia rápido", "url": "https://x", "assunto": "Intro",
+        "disciplina": "disc01",
+    })
+    assert resp.status_code in (200, 302)
+    assert cap_mat and cap_mat[0]["disciplina"] == "disc01" and cap_mat[0]["titulo"] == "Guia rápido"
+    assert cap_vinc and cap_vinc[0]["turma"] == "turma01" and cap_vinc[0]["material"] == "matZ"
+    # redireciona para os materiais da turma
+    assert "/professor/turma/turma01/materiais" in resp.headers.get("Location", "")
+
+
 # ── Portal do aluno após migração de modelo ─────────────────────────────────────
 
 @rsps_lib.activate

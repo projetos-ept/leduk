@@ -26,7 +26,19 @@
   <div class="card" style="margin-top:16px;">
     <form method="post" enctype="multipart/form-data" action="{{ form_action }}"
           style="display:flex;flex-direction:column;gap:18px;">
-      {% if disciplina_id %}<input type="hidden" name="disciplina" value="{{ disciplina_id }}">{% endif %}
+      {% if disciplina_id %}
+        <input type="hidden" name="disciplina" value="{{ disciplina_id }}">
+      {% elif disciplinas_opcoes is defined and disciplinas_opcoes %}
+        <div>
+          <label class="campo-label">Disciplina *</label>
+          <select name="disciplina" required
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            <option value="">Selecione a disciplina…</option>
+            {% for d in disciplinas_opcoes %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+          </select>
+        </div>
+      {% endif %}
+      {% if turma_id is defined and turma_id %}<input type="hidden" name="turma" value="{{ turma_id }}">{% endif %}
 
       <!-- Tipo -->
       {% if not material %}
