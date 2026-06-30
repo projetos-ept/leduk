@@ -1,0 +1,66 @@
+{
+  "questoes": [
+    {
+      "tipo": "mc4",
+      "enunciado": "Qual é a principal função dos eritrócitos (hemácias)?",
+      "peso": 1,
+      "dificuldade": "facil",
+      "assunto": "Hemácias",
+      "feedback_geral": "Os eritrócitos contêm hemoglobina, responsável pelo transporte de gases.",
+      "alternativas": [
+        { "letra": "A", "texto": "Transportar oxigênio e gás carbônico", "correta": true, "feedback": "Correto: via hemoglobina." },
+        { "letra": "B", "texto": "Combater infecções", "correta": false, "feedback": "Essa é função dos leucócitos." },
+        { "letra": "C", "texto": "Produzir anticorpos", "correta": false },
+        { "letra": "D", "texto": "Coagular o sangue", "correta": false }
+      ]
+    },
+    {
+      "tipo": "mc5",
+      "enunciado": "Observe a imagem. Qual fase do processamento laboratorial está representada?",
+      "peso": 2,
+      "dificuldade": "medio",
+      "assunto": "Fases do LIS",
+      "imagem": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Commons-logo.svg/64px-Commons-logo.svg.png",
+      "alternativas": [
+        { "letra": "A", "texto": "Pré-analítica", "correta": true },
+        { "letra": "B", "texto": "Analítica", "correta": false },
+        { "letra": "C", "texto": "Pós-analítica", "correta": false },
+        { "letra": "D", "texto": "Triagem", "correta": false },
+        { "letra": "E", "texto": "Descarte", "correta": false }
+      ]
+    },
+    {
+      "tipo": "vf",
+      "enunciado": "Classifique as afirmações sobre biossegurança em Verdadeiro ou Falso.",
+      "peso": 1.5,
+      "dificuldade": "medio",
+      "assunto": "Biossegurança",
+      "itens_vf": [
+        { "afirmacao": "O uso de luvas dispensa a higienização das mãos.", "correta": false },
+        { "afirmacao": "Materiais perfurocortantes devem ir em coletor rígido.", "correta": true },
+        { "afirmacao": "EPIs devem ser usados conforme o nível de risco.", "correta": true }
+      ]
+    },
+    {
+      "tipo": "associativa",
+      "enunciado": "Associe cada exame ao material biológico mais comum.",
+      "peso": 2,
+      "dificuldade": "dificil",
+      "assunto": "Coleta",
+      "pares": [
+        { "coluna_a": "Hemograma", "coluna_b": "Sangue total (EDTA)" },
+        { "coluna_a": "Urocultura", "coluna_b": "Urina" },
+        { "coluna_a": "Coprocultura", "coluna_b": "Fezes" }
+      ]
+    },
+    {
+      "tipo": "aberta",
+      "enunciado": "Explique, com suas palavras, a importância da rastreabilidade da amostra no LIS.",
+      "peso": 3,
+      "dificuldade": "dificil",
+      "assunto": "Conformidade",
+      "feedback_geral": "Espera-se menção à identificação inequívoca, cadeia de custódia e redução de erros.",
+      "imagem": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    }
+  ]
+}

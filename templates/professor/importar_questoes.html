@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Importar questões (JSON) — {{ disciplina.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:760px;">
+  <div class="breadcrumb">
+    <a href="/professor/dashboard">Dashboard</a><span>›</span>
+    <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes">{{ disciplina.nome }}</a><span>›</span>
+    <span>Importar questões</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Importar questões (JSON)</h1>
+      <p class="qb-subtitulo">As questões entram no banco de <strong>{{ disciplina.nome }}</strong>.</p>
+    </div>
+  </div>
+
+  {% if criadas is defined %}
+    <div class="{% if erros %}alerta-bloqueio{% else %}import-sucesso{% endif %}">
+      <strong>{{ criadas }} de {{ total }} questão(ões) importada(s) com sucesso.</strong>
+      {% if erros %}
+        <p style="margin-top:8px;">Ocorrências:</p>
+        <ul>{% for e in erros %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    <div class="qb-footer">
+      <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes" class="btn-primary">Ver banco de questões</a>
+      <a href="/professor/disciplina/{{ disciplina.id }}/importar-questoes" class="btn-ghost">Importar mais</a>
+    </div>
+  {% else %}
+    {% if erro %}<div class="alerta-bloqueio"><strong>{{ erro }}</strong></div>{% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="card" style="display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <label class="campo-label">Colar JSON</label>
+        <textarea name="json_text" rows="12" placeholder='[{"tipo":"mc4","enunciado":"...","alternativas":[...]}]'
+                  style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-family:monospace;font-size:.82rem;resize:vertical;">{{ json_text or '' }}</textarea>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.85rem;">
+        <span style="flex:1;height:1px;background:var(--borda);"></span> ou enviar arquivo <span style="flex:1;height:1px;background:var(--borda);"></span>
+      </div>
+
+      <div>
+        <label class="campo-label">Arquivo .json</label>
+        <input type="file" name="json_file" accept="application/json,.json" style="font-size:.85rem;">
+      </div>
+
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">Importar questões</button>
+        <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes"
+           style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+      </div>
+    </form>
+
+    <details class="import-docs">
+      <summary>📄 Formato do JSON (clique para ver) — <a href="/static/exemplos/questoes_exemplo.json" download>baixar exemplo completo</a></summary>
+      <p>Envie uma <strong>lista</strong> de questões ou um objeto <code>{"questoes": [...]}</code>. Campos por tipo:</p>
+      <ul>
+        <li><strong>Comuns:</strong> <code>tipo</code> (mc4/mc5/vf/aberta/associativa), <code>enunciado</code>, <code>peso</code>, <code>dificuldade</code> (facil/medio/dificil), <code>assunto</code>, <code>feedback_geral</code>, <code>imagem</code></li>
+        <li><strong>mc4 / mc5:</strong> <code>alternativas: [{"letra","texto","correta","feedback","imagem"}]</code> (pelo menos uma <code>correta: true</code>)</li>
+        <li><strong>vf:</strong> <code>itens_vf: [{"afirmacao","correta"}]</code></li>
+        <li><strong>associativa:</strong> <code>pares: [{"coluna_a","coluna_b"}]</code></li>
+        <li><strong>aberta:</strong> sem itens — correção manual</li>
+      </ul>
+      <p><strong>Imagens</strong> (campo <code>imagem</code>, opcional na questão e em cada alternativa): aceita
+      URL <code>https://...</code> ou data URI base64 <code>data:image/png;base64,iVBOR...</code>.</p>
+    </details>
+  {% endif %}
+</div>
+</body>
+</html>

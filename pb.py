@@ -102,6 +102,16 @@ class PocketBaseClient:
         )
         return result.get("items", [])
 
+    def listar_atividades_multidisciplinares(self, turma_id: str) -> list:
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={
+                "filter": f'turma="{turma_id}"&&ativa=true&&multidisciplinar=true',
+                "sort": "titulo",
+            },
+        )
+        return result.get("items", [])
+
     def listar_materiais(self, turma_id: str, disciplina_id: str) -> list:
         """Materiais de uma turma+disciplina, exibidos no portal do aluno.
 

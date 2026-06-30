@@ -37,7 +37,10 @@
       <h1 class="qb-titulo">Banco de questões</h1>
       <p class="qb-subtitulo">{{ disciplina.nome }}</p>
     </div>
-    <a href="/professor/disciplina/{{ disciplina.id }}/questao/nova" class="btn-primary">+ Nova questão</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/professor/disciplina/{{ disciplina.id }}/importar-questoes" class="btn-ghost">⬆ Importar JSON</a>
+      <a href="/professor/disciplina/{{ disciplina.id }}/questao/nova" class="btn-primary">+ Nova questão</a>
+    </div>
   </div>
 
   <!-- Filtros -->
