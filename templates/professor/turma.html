@@ -31,9 +31,16 @@
   <div class="qb-header">
     <div>
       <h1 class="qb-titulo">{{ turma.nome }}</h1>
-      <p class="qb-subtitulo">Gerenciamento de atividades</p>
+      <p class="qb-subtitulo">Gerenciamento de atividades e materiais</p>
     </div>
-    <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-primary">+ Nova atividade</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if disciplinas_turma|length == 1 %}
+        <a href="/professor/material/novo?turma={{ turma.id }}&disciplina={{ disciplinas_turma[0].id }}" class="btn-ghost">+ Novo material</a>
+      {% else %}
+        <a href="/professor/material/novo?turma={{ turma.id }}" class="btn-ghost">+ Novo material</a>
+      {% endif %}
+      <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-primary">+ Nova atividade</a>
+    </div>
   </div>
 
   {% if disciplinas_turma %}
@@ -41,6 +48,13 @@
       <span class="turma-banco-titulo">📋 Banco de questões:</span>
       {% for disc in disciplinas_turma %}
         <a class="btn-ghost btn-sm" href="/professor/disciplina/{{ disc.id }}/banco-questoes">{{ disc.nome }}</a>
+      {% endfor %}
+    </div>
+    <div class="turma-banco-bar">
+      <span class="turma-banco-titulo">🎬 Materiais:</span>
+      <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/materiais">Ver materiais da turma</a>
+      {% for disc in disciplinas_turma %}
+        <a class="btn-ghost btn-sm" href="/professor/disciplina/{{ disc.id }}/banco-materiais">Banco · {{ disc.nome }}</a>
       {% endfor %}
     </div>
   {% endif %}
