@@ -21,7 +21,8 @@ leduk/
 ├── scripts/
 │   ├── migrate_tentativas.py    ← migração: adiciona campo atividade ao schema
 │   ├── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
-│   └── migrate_materiais.py     ← migração: assunto + collection turma_materiais + backfill
+│   ├── migrate_materiais.py     ← migração: assunto + collection turma_materiais + backfill
+│   └── add_multidisciplinar_atividades.py ← migração: campo multidisciplinar em atividades
 │
 ├── templates/
 │   ├── index.html
@@ -148,7 +149,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 147 testes, todos passando.
+**Resultado esperado:** 149 testes, todos passando.
 
 ---
 
@@ -168,6 +169,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | GET | `/health` | Health check |
 | GET | `/` | Home com atividades agrupadas por turma |
 | GET | `/turma/<id>` | Portal da turma (disciplinas, atividades, materiais) |
+| GET | `/turma/<id>/multidisciplinar` | Aba dedicada com atividades multidisciplinares da turma |
 | GET | `/atividade/<id>` | Shell da atividade (inicia fila de questões) |
 | GET | `/htmx/questao/<id>` | Fragmento HTML da questão |
 | POST | `/htmx/responder` | Valida resposta e retorna feedback |
@@ -544,6 +546,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] Campo `atividade` existe na collection `tentativas` (relation → atividades)
 - [ ] Campo `assunto` existe em `questoes` e `materiais` (migração)
 - [ ] Collection `turma_materiais` criada e com backfill rodado (`scripts/migrate_materiais.py`)
+- [ ] Campo `multidisciplinar` (bool) existe em `atividades` (`scripts/add_multidisciplinar_atividades.py`)
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`
@@ -565,6 +568,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 8 — Banco reutilizável | Concluída | Questões compartilhadas por disciplina: campo `assunto`, filtros, clonar, reclassificar, seletor para reuso entre atividades |
 | 9 — Navegação do professor | Concluída | Menu hambúrguer dedicado (turmas + disciplinas + atalho ao banco), atalhos ao banco no dashboard e na turma |
 | 10 — Gestão escolar completa | Concluída | CRUD de turmas/disciplinas (com bloqueio de exclusão), vínculo turma↔disciplina, banco de materiais reutilizável por disciplina (`turma_materiais`) |
+| 11 — Banco geral e multidisciplinar | Concluída | Banco geral de questões (filtros cross-disciplina), montagem de atividade multidisciplinar e aba dedicada "Multidisciplinar" no portal do aluno |
 
 ### Funcionalidades futuras consideradas
 

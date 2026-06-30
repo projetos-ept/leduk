@@ -367,6 +367,58 @@ def create_app(config: dict | None = None) -> Flask:
     # ------------------------------------------------------------------
     # Portal de turma/disciplina
 
+    def _enriquecer_atividades(atividades: list, aluno_id: str) -> None:
+        """Calcula status/prazo/tentativas de cada atividade (in-place) para o portal."""
+        for ativ in atividades:
+            disponivel, motivo = _atividade_disponivel(ativ)
+            ativ["_status"] = "disponivel" if disponivel else motivo
+            if motivo == "ainda_nao" and ativ.get("disponivel_de"):
+                try:
+                    dt = datetime.fromisoformat(ativ["disponivel_de"].replace("Z", "+00:00"))
+                    ativ["_abre_em"] = dt.strftime("%d/%m")
+                except Exception:
+                    ativ["_abre_em"] = ""
+            ate = ativ.get("disponivel_ate")
+            if ate:
+                try:
+                    dt = datetime.fromisoformat(ate.replace("Z", "+00:00"))
+                    ativ["_prazo"] = dt.strftime("%d/%m/%Y")
+                except Exception:
+                    ativ["_prazo"] = ""
+            else:
+                ativ["_prazo"] = ""
+
+            max_tent = int(ativ.get("max_tentativas", 0) or 0)
+            ativ["_max_tentativas"] = max_tent
+            ativ["_exibir_feedback"] = bool(ativ.get("exibir_feedback_pos", True))
+            ativ["_tentativas_usadas"] = 0
+            ativ["_melhor_nota"] = 0
+            ativ["_nota_liberada"] = False
+            ativ["_melhor_tentativa_id"] = None
+            ativ["_questoes_respondidas"] = 0
+            if aluno_id and ativ["_status"] == "disponivel":
+                try:
+                    st = get_pb().status_atividade_aluno(ativ["id"], aluno_id, max_tent)
+                    ativ["_tentativas_usadas"] = st["tentativas_usadas"]
+                    ativ["_melhor_nota"] = st["melhor_nota"]
+                    ativ["_nota_liberada"] = st["nota_liberada"]
+                    ativ["_melhor_tentativa_id"] = st["melhor_tentativa_id"]
+                    ativ["_nota_final"] = st.get("melhor_nota_final")
+                    if not st["pode_tentar"]:
+                        ativ["_status"] = "realizada"
+                    elif st["tentativas_usadas"] > 0:
+                        ativ["_status"] = "tentar_novamente"
+                except Exception as exc:
+                    log.warning("status_atividade_aluno falhou: %s", exc)
+                if ativ["_status"] in ("disponivel", "tentar_novamente"):
+                    try:
+                        prog = get_pb().progresso_tentativa_atual(ativ["id"], aluno_id)
+                        if prog:
+                            ativ["_status"] = "em_andamento"
+                            ativ["_questoes_respondidas"] = prog.get("questoes_respondidas", 0)
+                    except Exception as exc:
+                        log.warning("progresso_tentativa_atual falhou: %s", exc)
+
     @app.route("/turma/<turma_id>/<disciplina_id>")
     def portal_turma(turma_id: str, disciplina_id: str):
         turma = get_pb().buscar_turma(turma_id)
@@ -379,60 +431,15 @@ def create_app(config: dict | None = None) -> Flask:
                 m["_arquivo_url"] = f"{pb_url}/api/files/materiais/{m['id']}/{m['arquivo']}"
 
         todas_disciplinas = get_pb().listar_disciplinas_da_turma(turma_id)
+        tem_multidisciplinar = bool(get_pb().listar_atividades_multidisciplinares(turma_id))
 
         logado = bool(session.get("token"))
         aluno_id = session.get("aluno_id", "")
         if logado:
             atividades = get_pb().listar_atividades_por_disciplina(turma_id, disciplina_id)
-            for ativ in atividades:
-                disponivel, motivo = _atividade_disponivel(ativ)
-                ativ["_status"] = "disponivel" if disponivel else motivo
-                if motivo == "ainda_nao" and ativ.get("disponivel_de"):
-                    try:
-                        dt = datetime.fromisoformat(ativ["disponivel_de"].replace("Z", "+00:00"))
-                        ativ["_abre_em"] = dt.strftime("%d/%m")
-                    except Exception:
-                        ativ["_abre_em"] = ""
-                ate = ativ.get("disponivel_ate")
-                if ate:
-                    try:
-                        dt = datetime.fromisoformat(ate.replace("Z", "+00:00"))
-                        ativ["_prazo"] = dt.strftime("%d/%m/%Y")
-                    except Exception:
-                        ativ["_prazo"] = ""
-                else:
-                    ativ["_prazo"] = ""
-
-                max_tent = int(ativ.get("max_tentativas", 0) or 0)
-                ativ["_max_tentativas"] = max_tent
-                ativ["_exibir_feedback"] = bool(ativ.get("exibir_feedback_pos", True))
-                ativ["_tentativas_usadas"] = 0
-                ativ["_melhor_nota"] = 0
-                ativ["_nota_liberada"] = False
-                ativ["_melhor_tentativa_id"] = None
-                ativ["_questoes_respondidas"] = 0
-                if aluno_id and ativ["_status"] == "disponivel":
-                    try:
-                        st = get_pb().status_atividade_aluno(ativ["id"], aluno_id, max_tent)
-                        ativ["_tentativas_usadas"] = st["tentativas_usadas"]
-                        ativ["_melhor_nota"] = st["melhor_nota"]
-                        ativ["_nota_liberada"] = st["nota_liberada"]
-                        ativ["_melhor_tentativa_id"] = st["melhor_tentativa_id"]
-                        ativ["_nota_final"] = st.get("melhor_nota_final")
-                        if not st["pode_tentar"]:
-                            ativ["_status"] = "realizada"
-                        elif st["tentativas_usadas"] > 0:
-                            ativ["_status"] = "tentar_novamente"
-                    except Exception as exc:
-                        log.warning("status_atividade_aluno falhou: %s", exc)
-                    if ativ["_status"] in ("disponivel", "tentar_novamente"):
-                        try:
-                            prog = get_pb().progresso_tentativa_atual(ativ["id"], aluno_id)
-                            if prog:
-                                ativ["_status"] = "em_andamento"
-                                ativ["_questoes_respondidas"] = prog.get("questoes_respondidas", 0)
-                        except Exception as exc:
-                            log.warning("progresso_tentativa_atual falhou: %s", exc)
+            # Atividades multidisciplinares vivem na aba dedicada, não na disciplina.
+            atividades = [a for a in atividades if not a.get("multidisciplinar")]
+            _enriquecer_atividades(atividades, aluno_id)
         else:
             atividades = []
 
@@ -446,6 +453,28 @@ def create_app(config: dict | None = None) -> Flask:
             logado=logado,
             aluno_nome=aluno_nome,
             todas_disciplinas=todas_disciplinas,
+            tem_multidisciplinar=tem_multidisciplinar,
+        )
+
+    @app.route("/turma/<turma_id>/multidisciplinar")
+    def portal_multidisciplinar(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        todas_disciplinas = get_pb().listar_disciplinas_da_turma(turma_id)
+        logado = bool(session.get("token"))
+        aluno_id = session.get("aluno_id", "")
+        atividades = get_pb().listar_atividades_multidisciplinares(turma_id) if logado else []
+        _enriquecer_atividades(atividades, aluno_id)
+        return render_template(
+            "turma/portal.html",
+            turma=turma,
+            disciplina={"id": "multidisciplinar", "nome": "Multidisciplinar"},
+            atividades=atividades,
+            materiais=[],
+            logado=logado,
+            aluno_nome=session.get("aluno_nome", ""),
+            todas_disciplinas=todas_disciplinas,
+            tem_multidisciplinar=True,
+            modo_multidisciplinar=True,
         )
 
     # ------------------------------------------------------------------
@@ -1080,6 +1109,7 @@ def create_app(config: dict | None = None) -> Flask:
                                    aluno_nome=session.get("aluno_nome", ""))
         data = _form_to_atividade(request.form)
         data["questoes"] = request.form.getlist("questoes")
+        data["multidisciplinar"] = True
         try:
             get_pb().criar_atividade(data)
         except Exception as exc:

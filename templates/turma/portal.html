@@ -25,7 +25,7 @@
   </div>
 
   <div class="nav-drawer-body">
-    {% if todas_disciplinas %}
+    {% if todas_disciplinas or tem_multidisciplinar %}
       <p class="nav-section-label">📚 Disciplinas</p>
       <ul class="nav-list">
         {% for disc in todas_disciplinas %}
@@ -37,6 +37,15 @@
             </a>
           </li>
         {% endfor %}
+        {% if tem_multidisciplinar %}
+          <li>
+            <a class="nav-link{% if disciplina.id == 'multidisciplinar' %} active{% endif %}"
+               href="/turma/{{ turma.id }}/multidisciplinar">
+              <span class="nav-link-icon">🧩</span>
+              Multidisciplinar
+            </a>
+          </li>
+        {% endif %}
       </ul>
     {% endif %}
 
@@ -111,7 +120,7 @@
 
       <nav class="tab-bar">
         <label for="tab-r-ativ" class="tab-label">Atividades</label>
-        <label for="tab-r-mat" class="tab-label">Materiais</label>
+        {% if not modo_multidisciplinar %}<label for="tab-r-mat" class="tab-label">Materiais</label>{% endif %}
       </nav>
 
       <!-- ── Aba Atividades ── -->
@@ -227,7 +236,7 @@
             {% endfor %}
           {% else %}
             <div class="card" style="text-align:center;color:var(--muted);margin-top:8px;">
-              <p>Nenhuma atividade disponível para esta disciplina.</p>
+              <p>{% if modo_multidisciplinar %}Nenhuma atividade multidisciplinar disponível.{% else %}Nenhuma atividade disponível para esta disciplina.{% endif %}</p>
             </div>
           {% endif %}
         </div>

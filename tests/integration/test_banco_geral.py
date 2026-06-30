@@ -96,3 +96,55 @@ def test_multidisciplinar_cria_atividade_com_questoes_de_varias_disciplinas(clie
     assert cap[0]["questoes"] == ["q1", "q2"]
     assert cap[0]["turma"] == "turma01"
     assert "/professor/turma/turma01" in resp.headers.get("Location", "")
+    assert cap[0]["multidisciplinar"] is True
+
+
+# ── Aba dedicada Multidisciplinar no portal ─────────────────────────────────────
+
+TURMA = {"id": "turma01", "nome": "5TACN1", "modalidade": "PROEJA"}
+ATIV_MULTI = {
+    "id": "atvM", "titulo": "Avaliação integrada", "questoes": ["q1", "q2"],
+    "ativa": True, "disciplina": "disc02", "multidisciplinar": True,
+    "disponivel_de": None, "disponivel_ate": None, "tempo_limite": 0,
+    "expand": {"disciplina": DISCIPLINAS[1]},
+}
+
+
+@rsps_lib.activate
+def test_portal_multidisciplinar_lista_atividades(client):
+    with client.session_transaction() as sess:
+        sess["token"] = "tok-aluno"
+        sess["aluno_id"] = "al1"
+        sess["aluno_nome"] = "Aluno"
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [ATIV_MULTI]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
+    resp = client.get("/turma/turma01/multidisciplinar")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Multidisciplinar" in html
+    assert "Avaliação integrada" in html
+
+
+@rsps_lib.activate
+def test_portal_disciplina_exclui_multidisciplinar(client):
+    """Atividade multidisciplinar não aparece na aba da disciplina."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok-aluno"
+        sess["aluno_id"] = "al1"
+        sess["aluno_nome"] = "Aluno"
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc02", json=DISCIPLINAS[1])
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turma_materiais/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/materiais/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [ATIV_MULTI]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
+    resp = client.get("/turma/turma01/disc02")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    # a multidisciplinar é filtrada da aba da disciplina → mensagem de vazio
+    assert "Nenhuma atividade disponível para esta disciplina." in html
+    # mas o link da aba dedicada aparece no menu
+    assert "/turma/turma01/multidisciplinar" in html
