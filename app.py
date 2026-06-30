@@ -409,6 +409,7 @@ def create_app(config: dict | None = None) -> Flask:
         tentativa_id = session.get("tentativa_id", "")
         try:
             pb.registrar_tentativa({
+                "atividade": ativ_id,
                 "questao": questao_id,
                 "tipo_questao": tipo,
                 "resposta_dada": str(resposta_raw),
