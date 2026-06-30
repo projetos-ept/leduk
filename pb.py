@@ -1,6 +1,9 @@
 """Cliente HTTP mínimo para a API do PocketBase."""
 import requests
 
+# Campos gerados pelo PocketBase que não devem ser reenviados ao clonar registros.
+_CAMPOS_PB = {"id", "created", "updated", "collectionId", "collectionName", "expand"}
+
 
 class PocketBaseClient:
     def __init__(self, base_url: str, token: str | None = None):
@@ -326,6 +329,77 @@ class PocketBaseClient:
             except Exception:
                 pass
         return result
+
+    def listar_questoes_disciplina(self, disciplina_id: str, filtros: dict | None = None) -> list:
+        """Lista todas as questões do banco de uma disciplina, com filtros opcionais.
+
+        filtros aceita as chaves 'tipo', 'assunto' e 'dificuldade' (valores vazios
+        são ignorados). Retorna os registros crus (sem expandir subitens).
+        """
+        filtro = f'disciplina="{disciplina_id}"'
+        for campo in ("tipo", "assunto", "dificuldade"):
+            val = (filtros or {}).get(campo)
+            if val:
+                filtro += f'&&{campo}="{val}"'
+        result = self._get(
+            "/api/collections/questoes/records",
+            params={"filter": filtro, "sort": "-created", "perPage": 200},
+        )
+        return result.get("items", [])
+
+    def clonar_questao(self, questao_id: str) -> dict:
+        """Duplica uma questão (e seus subitens) como um novo registro independente."""
+        orig = self.buscar_questao(questao_id)
+        ignorar = _CAMPOS_PB | {"alternativas", "itens_vf", "pares_associativos", "imagem"}
+        data = {k: v for k, v in orig.items() if k not in ignorar}
+        data["enunciado"] = f'{orig.get("enunciado", "")} (cópia)'
+        nova = self.criar_questao(data)
+        novo_id = nova["id"]
+        tipo = orig.get("tipo", "")
+        if tipo in ("mc4", "mc5"):
+            for a in orig.get("alternativas", []):
+                self.criar_alternativa({
+                    "questao": novo_id,
+                    "letra": a.get("letra", ""),
+                    "texto": a.get("texto", ""),
+                    "correta": a.get("correta", False),
+                    "feedback": a.get("feedback", ""),
+                })
+        elif tipo == "vf":
+            for it in orig.get("itens_vf", []):
+                self.criar_item_vf({
+                    "questao": novo_id,
+                    "afirmacao": it.get("afirmacao", ""),
+                    "correta": it.get("correta", False),
+                    "ordem": it.get("ordem", 0),
+                })
+        elif tipo == "associativa":
+            for p in orig.get("pares_associativos", []):
+                self.criar_par_associativo({
+                    "questao": novo_id,
+                    "coluna_a": p.get("coluna_a", ""),
+                    "coluna_b": p.get("coluna_b", ""),
+                    "ordem": p.get("ordem", 0),
+                })
+        return nova
+
+    def reclassificar_questao(self, questao_id: str, nova_disciplina_id: str = "",
+                              novo_assunto: str | None = None) -> dict:
+        """Move a questão para outra disciplina e/ou muda seu assunto."""
+        data: dict = {}
+        if nova_disciplina_id:
+            data["disciplina"] = nova_disciplina_id
+        if novo_assunto is not None:
+            data["assunto"] = novo_assunto
+        return self._patch(f"/api/collections/questoes/records/{questao_id}", data)
+
+    def contar_uso_questao(self, questao_id: str) -> int:
+        """Conta em quantas atividades essa questão aparece (atividades.questoes[])."""
+        result = self._get(
+            "/api/collections/atividades/records",
+            params={"filter": f'questoes~"{questao_id}"', "perPage": 1},
+        )
+        return result.get("totalItems", 0)
 
     def criar_questao(self, data: dict, imagem=None) -> dict:
         if imagem:

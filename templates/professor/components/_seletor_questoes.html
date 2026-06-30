@@ -1,0 +1,63 @@
+{# Seletor de questões do banco para adicionar a uma atividade.
+   Espera: ativ, questoes (disponíveis), assuntos, filtros #}
+<form method="get" class="banco-filtros">
+  <select name="tipo" class="banco-filtro-select" onchange="this.form.submit()">
+    <option value="">Todos os tipos</option>
+    {% for t, label in [('mc4','MC 4'),('mc5','MC 5'),('vf','V/F'),('aberta','Aberta'),('associativa','Associativa')] %}
+      <option value="{{ t }}" {% if filtros.tipo == t %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="assunto" class="banco-filtro-select" onchange="this.form.submit()">
+    <option value="">Todos os assuntos</option>
+    {% for a in assuntos %}
+      <option value="{{ a }}" {% if filtros.assunto == a %}selected{% endif %}>{{ a }}</option>
+    {% endfor %}
+  </select>
+  <select name="dificuldade" class="banco-filtro-select" onchange="this.form.submit()">
+    <option value="">Toda dificuldade</option>
+    {% for v, label in [('facil','Fácil'),('medio','Médio'),('dificil','Difícil')] %}
+      <option value="{{ v }}" {% if filtros.dificuldade == v %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% if filtros.tipo or filtros.assunto or filtros.dificuldade %}
+    <a href="/professor/atividade/{{ ativ.id }}/selecionar-questoes" class="btn-ghost btn-sm">Limpar filtros</a>
+  {% endif %}
+</form>
+
+{% if not questoes %}
+  <div class="qb-empty">
+    <p class="dash-empty-icon">📋</p>
+    <p class="qb-empty-msg">
+      {% if filtros.tipo or filtros.assunto or filtros.dificuldade %}
+        Nenhuma questão disponível corresponde aos filtros.
+      {% else %}
+        Não há outras questões no banco desta disciplina para adicionar.
+      {% endif %}
+    </p>
+    <a href="/professor/disciplina/{{ ativ.disciplina }}/questao/nova" class="btn-primary">+ Criar questão no banco</a>
+  </div>
+{% else %}
+  <form method="post" action="/professor/atividade/{{ ativ.id }}/adicionar-questoes">
+    <div class="qb-list">
+      {% for q in questoes %}
+        <label class="seletor-row">
+          <input type="checkbox" name="questoes" value="{{ q.id }}" class="seletor-check">
+          <div class="qb-card-body">
+            <div class="qb-card-meta">
+              <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
+              {% if q.assunto %}<span class="banco-assunto-badge">{{ q.assunto }}</span>{% endif %}
+              {% if q.peso and q.peso != 1 %}
+                <span class="qb-peso-badge">peso {{ q.peso | int if q.peso == q.peso | int else q.peso }}</span>
+              {% endif %}
+            </div>
+            <p class="qb-card-enunciado">{{ q.enunciado }}</p>
+          </div>
+        </label>
+      {% endfor %}
+    </div>
+    <div class="qb-footer">
+      <button type="submit" class="btn-primary">Adicionar selecionadas à atividade</button>
+      <a href="/professor/atividade/{{ ativ.id }}/questoes" class="btn-ghost">Cancelar</a>
+    </div>
+  </form>
+{% endif %}

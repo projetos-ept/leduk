@@ -75,6 +75,17 @@ def _criar_subitems_questao(pb_inst, questao_id: str, tipo: str, form, files) ->
             })
 
 
+def _questao_campos_comuns(form) -> dict:
+    """Campos editáveis comuns a criação e edição de questão (sem tipo/disciplina)."""
+    return {
+        "enunciado": form.get("enunciado", ""),
+        "peso": float(form.get("peso") or 1),
+        "dificuldade": form.get("dificuldade", "medio"),
+        "feedback_geral": form.get("feedback_geral", ""),
+        "assunto": form.get("assunto", ""),
+    }
+
+
 def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
     """Returns (nota_final, detalhamento) from session respostas and atividade record."""
     nota_final = calcular_nota_final(respostas, atividade)
@@ -787,52 +798,154 @@ def create_app(config: dict | None = None) -> Flask:
     def professor_questao_nova(ativ_id: str):
         ativ = get_pb().buscar_atividade(ativ_id)
         if request.method == "GET":
-            return render_template("professor/questao_form.html", ativ=ativ, questao=None,
-                                   aluno_nome=session.get("aluno_nome", ""))
+            return render_template(
+                "professor/questao_form.html", questao=None,
+                form_action=url_for("professor_questao_nova", ativ_id=ativ_id),
+                voltar_url=url_for("professor_questoes_atividade", ativ_id=ativ_id),
+                ativ_id=ativ_id, disciplina_id=ativ.get("disciplina", ""),
+                aluno_nome=session.get("aluno_nome", ""))
         tipo = request.form.get("tipo", "mc4")
         img = request.files.get("imagem")
         img_tuple = (img.filename, img.read(), img.content_type) if img and img.filename else None
         questao = get_pb().criar_questao({
-            "enunciado": request.form.get("enunciado", ""),
+            **_questao_campos_comuns(request.form),
             "tipo": tipo,
             "disciplina": ativ.get("disciplina", ""),
-            "peso": float(request.form.get("peso") or 1),
-            "dificuldade": request.form.get("dificuldade", "medio"),
-            "feedback_geral": request.form.get("feedback_geral", ""),
         }, img_tuple)
         _criar_subitems_questao(get_pb(), questao["id"], tipo, request.form, request.files)
         nova_lista = (ativ.get("questoes") or []) + [questao["id"]]
         get_pb().atualizar_atividade(ativ_id, {"questoes": nova_lista})
         return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
 
+    @app.route("/professor/disciplina/<disciplina_id>/questao/nova", methods=["GET", "POST"])
+    @requer_professor
+    def professor_questao_nova_banco(disciplina_id: str):
+        """Cria uma questão diretamente no banco da disciplina (sem vínculo a atividade)."""
+        if request.method == "GET":
+            return render_template(
+                "professor/questao_form.html", questao=None,
+                form_action=url_for("professor_questao_nova_banco", disciplina_id=disciplina_id),
+                voltar_url=url_for("professor_banco_questoes", disciplina_id=disciplina_id),
+                ativ_id="", disciplina_id=disciplina_id,
+                aluno_nome=session.get("aluno_nome", ""))
+        tipo = request.form.get("tipo", "mc4")
+        img = request.files.get("imagem")
+        img_tuple = (img.filename, img.read(), img.content_type) if img and img.filename else None
+        questao = get_pb().criar_questao({
+            **_questao_campos_comuns(request.form),
+            "tipo": tipo,
+            "disciplina": disciplina_id,
+        }, img_tuple)
+        _criar_subitems_questao(get_pb(), questao["id"], tipo, request.form, request.files)
+        return redirect(url_for("professor_banco_questoes", disciplina_id=disciplina_id))
+
     @app.route("/professor/questao/<questao_id>/editar", methods=["GET", "POST"])
     @requer_professor
     def professor_questao_editar(questao_id: str):
         questao = get_pb().buscar_questao(questao_id)
         ativ_id = request.args.get("ativ_id") or request.form.get("ativ_id", "")
+        disc_id = questao.get("disciplina", "")
+        if ativ_id:
+            voltar_url = url_for("professor_questoes_atividade", ativ_id=ativ_id)
+        else:
+            voltar_url = url_for("professor_banco_questoes", disciplina_id=disc_id)
         if request.method == "GET":
-            return render_template("professor/questao_form.html",
-                                   ativ={"id": ativ_id}, questao=questao,
-                                   aluno_nome=session.get("aluno_nome", ""))
+            return render_template(
+                "professor/questao_form.html", questao=questao,
+                form_action=url_for("professor_questao_editar", questao_id=questao_id),
+                voltar_url=voltar_url, ativ_id=ativ_id, disciplina_id=disc_id,
+                aluno_nome=session.get("aluno_nome", ""))
         img = request.files.get("imagem")
         img_tuple = (img.filename, img.read(), img.content_type) if img and img.filename else None
-        get_pb().atualizar_questao(questao_id, {
-            "enunciado": request.form.get("enunciado", ""),
-            "peso": float(request.form.get("peso") or 1),
-            "dificuldade": request.form.get("dificuldade", "medio"),
-            "feedback_geral": request.form.get("feedback_geral", ""),
-        }, img_tuple)
-        return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
+        get_pb().atualizar_questao(questao_id, _questao_campos_comuns(request.form), img_tuple)
+        return redirect(voltar_url)
+
+    @app.route("/professor/questao/<questao_id>/clonar", methods=["POST"])
+    @requer_professor
+    def professor_clonar_questao(questao_id: str):
+        ativ_id = request.form.get("ativ_id", "")
+        questao = get_pb().buscar_questao(questao_id)
+        disc_id = questao.get("disciplina", "")
+        get_pb().clonar_questao(questao_id)
+        if ativ_id:
+            return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
+        return redirect(url_for("professor_banco_questoes", disciplina_id=disc_id))
+
+    @app.route("/professor/questao/<questao_id>/reclassificar", methods=["POST"])
+    @requer_professor
+    def professor_reclassificar_questao(questao_id: str):
+        nova_disc = request.form.get("disciplina", "")
+        novo_assunto = request.form.get("assunto", "")
+        get_pb().reclassificar_questao(questao_id, nova_disc, novo_assunto)
+        destino = nova_disc or request.form.get("origem_disciplina", "")
+        return redirect(url_for("professor_banco_questoes", disciplina_id=destino))
 
     @app.route("/professor/questao/<questao_id>/excluir", methods=["POST"])
     @requer_professor
     def professor_questao_excluir(questao_id: str):
         ativ_id = request.form.get("ativ_id", "")
+        origem_disc = request.form.get("origem_disciplina", "")
         if ativ_id:
             ativ = get_pb().buscar_atividade(ativ_id)
             nova_lista = [q for q in (ativ.get("questoes") or []) if q != questao_id]
             get_pb().atualizar_atividade(ativ_id, {"questoes": nova_lista})
         get_pb().excluir_questao(questao_id)
+        if ativ_id:
+            return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
+        return redirect(url_for("professor_banco_questoes", disciplina_id=origem_disc))
+
+    # ── Banco de questões da disciplina ──
+
+    @app.route("/professor/disciplina/<disciplina_id>/banco-questoes")
+    @requer_professor
+    def professor_banco_questoes(disciplina_id: str):
+        disciplina = get_pb().buscar_disciplina(disciplina_id)
+        filtros = {c: request.args.get(c, "") for c in ("tipo", "assunto", "dificuldade")}
+        questoes = get_pb().listar_questoes_disciplina(disciplina_id, filtros)
+        for q in questoes:
+            try:
+                q["_uso"] = get_pb().contar_uso_questao(q["id"])
+            except Exception:
+                q["_uso"] = 0
+        # lista de assuntos para o filtro (a partir do banco completo, sem filtro)
+        if any(filtros.values()):
+            todas = get_pb().listar_questoes_disciplina(disciplina_id)
+        else:
+            todas = questoes
+        assuntos = sorted({q.get("assunto", "") for q in todas if q.get("assunto")})
+        disciplinas = get_pb().listar_disciplinas()
+        return render_template(
+            "professor/banco_questoes.html", disciplina=disciplina, questoes=questoes,
+            assuntos=assuntos, filtros=filtros, disciplinas=disciplinas,
+            aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/<ativ_id>/selecionar-questoes")
+    @requer_professor
+    def professor_selecionar_questoes(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        disc_id = ativ.get("disciplina", "")
+        filtros = {c: request.args.get(c, "") for c in ("tipo", "assunto", "dificuldade")}
+        questoes = get_pb().listar_questoes_disciplina(disc_id, filtros)
+        ja_incluidas = set(ativ.get("questoes") or [])
+        disponiveis = [q for q in questoes if q["id"] not in ja_incluidas]
+        if any(filtros.values()):
+            todas = get_pb().listar_questoes_disciplina(disc_id)
+        else:
+            todas = questoes
+        assuntos = sorted({q.get("assunto", "") for q in todas if q.get("assunto")})
+        return render_template(
+            "professor/selecionar_questoes.html", ativ=ativ, questoes=disponiveis,
+            assuntos=assuntos, filtros=filtros, aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/<ativ_id>/adicionar-questoes", methods=["POST"])
+    @requer_professor
+    def professor_adicionar_questoes(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        atual = list(ativ.get("questoes") or [])
+        for qid in request.form.getlist("questoes"):
+            if qid and qid not in atual:
+                atual.append(qid)
+        get_pb().atualizar_atividade(ativ_id, {"questoes": atual})
         return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
 
     # ------------------------------------------------------------------
