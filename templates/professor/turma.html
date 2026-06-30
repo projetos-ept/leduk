@@ -17,72 +17,132 @@
 </nav>
 
 <div class="shell" style="max-width:1000px;">
-  <div class="portal-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a href="/professor/dashboard">Dashboard</a>
+    <span>›</span>
+    <span>{{ turma.nome }}</span>
+  </div>
+
+  <!-- Page header -->
+  <div class="qb-header">
     <div>
-      <h1 class="portal-titulo">{{ turma.nome }}</h1>
-      <p class="portal-turma">Gerenciamento de atividades</p>
+      <h1 class="qb-titulo">{{ turma.nome }}</h1>
+      <p class="qb-subtitulo">Gerenciamento de atividades</p>
     </div>
-    <a href="/professor/atividade/nova?turma={{ turma.id }}"
-       class="btn-home" style="padding:10px 20px;font-size:.9rem;">+ Nova atividade</a>
+    <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-primary">+ Nova atividade</a>
   </div>
 
   {% if not atividades %}
-    <div class="card" style="text-align:center;color:var(--muted);padding:32px;margin-top:20px;">
-      <p>Nenhuma atividade cadastrada nesta turma.</p>
-      <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-home" style="margin-top:16px;display:inline-block;">Criar primeira atividade</a>
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📋</p>
+      <p class="qb-empty-msg">Nenhuma atividade cadastrada nesta turma.</p>
+      <a href="/professor/atividade/nova?turma={{ turma.id }}" class="btn-primary">Criar primeira atividade</a>
     </div>
   {% else %}
-    <div class="card" style="margin-top:20px;overflow-x:auto;">
-      <table class="prof-tabela">
-        <thead>
-          <tr>
-            <th>Título</th>
-            <th>Disciplina</th>
-            <th style="text-align:center;">Questões</th>
-            <th>Status</th>
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ativ in atividades %}
-            <tr id="ativ-row-{{ ativ.id }}">
-              <td style="font-weight:600;color:var(--texto);">{{ ativ.titulo }}</td>
-              <td style="color:var(--muted);font-size:.85rem;">{{ ativ._disc_nome or "—" }}</td>
-              <td style="text-align:center;color:var(--muted);font-size:.85rem;">
-                {{ (ativ.questoes or [])|length }}
-              </td>
-              <td>
-                {% include "components/_toggle_ativa.html" with context %}
-              </td>
-              <td>
-                <div class="prof-acoes" style="flex-wrap:wrap;gap:4px;">
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/editar" title="Editar configurações">Editar</a>
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/questoes" title="Banco de questões">Questões</a>
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas" title="Ver notas">Notas</a>
-                  <a class="prof-link" href="/professor/atividade/{{ ativ.id }}/notas-abertas" title="Corrigir abertas">Abertas</a>
-                  <button class="prof-link prof-link-icon"
-                          onclick="copiarLink(this, '{{ ativ.id }}')"
-                          title="Copiar link para alunos">🔗</button>
-                  <form method="post" action="/professor/atividade/{{ ativ.id }}/clonar"
-                        style="display:inline;">
-                    <button type="submit" class="prof-link" title="Duplicar atividade">Clonar</button>
-                  </form>
-                  <form method="post" action="/professor/atividade/{{ ativ.id }}/excluir"
-                        style="display:inline;"
-                        onsubmit="return confirm('Excluir a atividade « {{ ativ.titulo }} »? Esta ação não pode ser desfeita.');">
-                    <button type="submit" class="prof-link prof-link-danger" title="Excluir atividade">Excluir</button>
-                  </form>
-                </div>
-              </td>
+
+    <!-- Desktop table (hidden on mobile) -->
+    <div class="turma-desktop">
+      <div class="card" style="margin-top:4px;overflow-x:auto;">
+        <table class="prof-tabela">
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Disciplina</th>
+              <th style="text-align:center;">Questões</th>
+              <th>Status</th>
+              <th>Ações</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for ativ in atividades %}
+              {% set ativ_id = ativ.id %}
+              {% set ativa = ativ.ativa %}
+              <tr id="ativ-row-{{ ativ.id }}">
+                <td style="font-weight:600;color:var(--texto);">{{ ativ.titulo }}</td>
+                <td style="color:var(--muted);font-size:.85rem;">{{ ativ._disc_nome or "—" }}</td>
+                <td style="text-align:center;color:var(--muted);font-size:.85rem;">
+                  {{ (ativ.questoes or [])|length }}
+                </td>
+                <td>{% include "components/_toggle_ativa.html" with context %}</td>
+                <td>
+                  <div class="prof-acoes" style="flex-wrap:wrap;gap:4px;">
+                    <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/editar">Editar</a>
+                    <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/questoes">Questões</a>
+                    <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/notas">Notas</a>
+                    <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/notas-abertas">Abertas</a>
+                    <button class="btn-ghost btn-sm btn-icon-only"
+                            onclick="copiarLink(this, '{{ ativ.id }}')"
+                            title="Copiar link para alunos">🔗</button>
+                    <form method="post" action="/professor/atividade/{{ ativ.id }}/clonar" style="display:contents;">
+                      <button type="submit" class="btn-ghost btn-sm">Clonar</button>
+                    </form>
+                    <button type="button" class="btn-danger btn-sm"
+                            onclick="abrirModalExcluirAtiv('{{ ativ.id }}', '{{ ativ.titulo | replace("'", "\\'") }}')">
+                      Excluir
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
+
+    <!-- Mobile cards (hidden on desktop) -->
+    <div class="turma-mobile">
+      {% for ativ in atividades %}
+        {% set ativ_id = ativ.id %}
+        {% set ativa = ativ.ativa %}
+        <div class="ativ-mcard" id="ativ-mcard-{{ ativ.id }}">
+          <div class="ativ-mcard-head">
+            <div>
+              <p class="ativ-mcard-titulo">{{ ativ.titulo }}</p>
+              <p class="ativ-mcard-disc">{{ ativ._disc_nome or "—" }} · {{ (ativ.questoes or [])|length }} questão{% if (ativ.questoes or [])|length != 1 %}ões{% endif %}</p>
+            </div>
+            {% include "components/_toggle_ativa.html" with context %}
+          </div>
+          <div class="ativ-mcard-acoes">
+            <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/editar">Editar</a>
+            <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/questoes">Questões</a>
+            <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/notas">Notas</a>
+            <a class="btn-ghost btn-sm" href="/professor/atividade/{{ ativ.id }}/notas-abertas">Abertas</a>
+            <button class="btn-ghost btn-sm btn-icon-only"
+                    onclick="copiarLink(this, '{{ ativ.id }}')"
+                    title="Copiar link">🔗</button>
+            <form method="post" action="/professor/atividade/{{ ativ.id }}/clonar" style="display:contents;">
+              <button type="submit" class="btn-ghost btn-sm">Clonar</button>
+            </form>
+            <button type="button" class="btn-danger btn-sm"
+                    onclick="abrirModalExcluirAtiv('{{ ativ.id }}', '{{ ativ.titulo | replace("'", "\\'") }}')">
+              Excluir
+            </button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
   {% endif %}
 </div>
 
+<!-- Toast de cópia de link -->
 <div id="toast-link" class="toast-copy" aria-live="polite"></div>
+
+<!-- Modal de confirmação de exclusão -->
+<div id="modal-excluir-ativ" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-ativ-titulo" hidden>
+  <div class="modal-box">
+    <h2 class="modal-titulo" id="modal-ativ-titulo">Excluir atividade</h2>
+    <p class="modal-msg">Tem certeza que deseja excluir <strong id="modal-ativ-nome"></strong>? Esta ação não pode ser desfeita.</p>
+    <div class="modal-acoes">
+      <button type="button" class="btn-ghost" onclick="fecharModalAtiv()">Cancelar</button>
+      <form id="form-excluir-ativ" method="post" style="display:inline;">
+        <button type="submit" class="btn-danger">Excluir atividade</button>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script>
 function copiarLink(btn, ativId) {
@@ -94,6 +154,23 @@ function copiarLink(btn, ativId) {
     setTimeout(() => t.classList.remove('toast-visible'), 2000);
   });
 }
+
+function abrirModalExcluirAtiv(ativId, titulo) {
+  document.getElementById('form-excluir-ativ').action = '/professor/atividade/' + ativId + '/excluir';
+  document.getElementById('modal-ativ-nome').textContent = '« ' + titulo + ' »';
+  const modal = document.getElementById('modal-excluir-ativ');
+  modal.hidden = false;
+  modal.querySelector('.btn-ghost').focus();
+}
+function fecharModalAtiv() {
+  document.getElementById('modal-excluir-ativ').hidden = true;
+}
+document.getElementById('modal-excluir-ativ').addEventListener('click', function(e) {
+  if (e.target === this) fecharModalAtiv();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') fecharModalAtiv();
+});
 </script>
 </body>
 </html>

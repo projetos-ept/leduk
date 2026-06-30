@@ -17,25 +17,47 @@
 </nav>
 
 <div class="shell" style="max-width:960px;">
-  <h1 style="font-size:1.5rem;font-weight:800;color:var(--texto);margin-bottom:20px;">Painel do Professor</h1>
+
+  <!-- Page header -->
+  <div class="dash-page-header">
+    <div>
+      <h1 class="dash-page-title">Painel do Professor</h1>
+      {% if aluno_nome %}
+        <p class="dash-page-sub">Bem-vindo de volta, {{ aluno_nome }}</p>
+      {% endif %}
+    </div>
+  </div>
 
   {% if not turmas_data %}
-    <div class="card" style="text-align:center;color:var(--muted);padding:32px;">
-      <p>Nenhuma turma encontrada.</p>
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🏫</p>
+      <p class="qb-empty-msg">Nenhuma turma encontrada.</p>
     </div>
   {% else %}
     <div class="prof-cards">
       {% for td in turmas_data %}
         {% set turma = td.turma %}
-        <div class="prof-card">
-          <p class="prof-card-titulo">{{ turma.nome }}</p>
+        <div class="prof-card{% if td.pendentes_count > 0 %} prof-card--alert{% endif %}">
+
+          <!-- Card header -->
+          <div class="prof-card-head">
+            <p class="prof-card-titulo">{{ turma.nome }}</p>
+            {% if td.pendentes_count > 0 %}
+              <span class="prof-pending-badge">{{ td.pendentes_count }} pendente{% if td.pendentes_count != 1 %}s{% endif %}</span>
+            {% endif %}
+          </div>
+
+          <!-- Stats row -->
           <div class="prof-card-stats">
             <div class="prof-stat">
               <div class="prof-stat-num">{{ td.ativas_count }}</div>
               <div class="prof-stat-label">atividades ativas</div>
             </div>
             <div class="prof-stat">
-              <div class="prof-stat-num" style="color:{% if td.pendentes_count > 0 %}var(--aviso){% else %}var(--sucesso){% endif %}">{{ td.pendentes_count }}</div>
+              <div class="prof-stat-num"
+                   style="color:{% if td.pendentes_count > 0 %}var(--aviso){% else %}var(--sucesso){% endif %}">
+                {{ td.pendentes_count }}
+              </div>
               <div class="prof-stat-label">notas pendentes</div>
             </div>
             <div class="prof-stat">
@@ -43,8 +65,10 @@
               <div class="prof-stat-label">alunos</div>
             </div>
           </div>
-          <a class="prof-card-link" href="/professor/turma/{{ turma.id }}">Ver turma →</a>
 
+          <a class="btn-primary btn-sm" href="/professor/turma/{{ turma.id }}" style="align-self:flex-start;">Ver turma →</a>
+
+          <!-- Heatmap -->
           {% if td.alunos %}
             <div style="overflow-x:auto;margin-top:16px;">
               <table class="mapa-calor">
