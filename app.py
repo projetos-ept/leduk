@@ -121,6 +121,10 @@ def create_app(config: dict | None = None) -> Flask:
     pb = PocketBaseClient(pb_url)
     app.extensions["pb"] = pb
 
+    def get_pb() -> PocketBaseClient:
+        """Retorna um PocketBaseClient com o token JWT da sessão atual."""
+        return PocketBaseClient(pb_url, token=session.get("token"))
+
     @app.template_filter("youtube_id")
     def _youtube_id_filter(url: str) -> str:
         m = re.search(
@@ -165,7 +169,7 @@ def create_app(config: dict | None = None) -> Flask:
         email = request.form.get("email", "").strip()
         senha = request.form.get("senha", "")
         try:
-            dados = pb.login_aluno(email, senha)
+            dados = get_pb().login_aluno(email, senha)
             session["token"] = dados["token"]
             session["aluno_id"] = dados["record"]["id"]
             session["aluno_nome"] = dados["record"].get("name", email)
@@ -193,11 +197,11 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/")
     @requer_login
     def index():
-        turmas = pb.listar_turmas()
+        turmas = get_pb().listar_turmas()
         ultimo_acesso = session.get("ultimo_acesso", "")
         estrutura: dict[str, list] = {}
         for t in turmas:
-            atividades = pb.listar_atividades_por_turma(t["id"])
+            atividades = get_pb().listar_atividades_por_turma(t["id"])
             discs: dict[str, dict] = {}
             for a in atividades:
                 disc = (a.get("expand") or {}).get("disciplina")
@@ -210,7 +214,7 @@ def create_app(config: dict | None = None) -> Flask:
             if ultimo_acesso:
                 for disc in discs.values():
                     try:
-                        disc["novas_count"] = pb.contar_novas_atividades(t["id"], disc["id"], ultimo_acesso)
+                        disc["novas_count"] = get_pb().contar_novas_atividades(t["id"], disc["id"], ultimo_acesso)
                     except Exception:
                         disc["novas_count"] = 0
             estrutura[t["id"]] = list(discs.values())
@@ -222,21 +226,21 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.route("/turma/<turma_id>/<disciplina_id>")
     def portal_turma(turma_id: str, disciplina_id: str):
-        turma = pb.buscar_turma(turma_id)
-        disciplina = pb.buscar_disciplina(disciplina_id)
-        materiais = pb.listar_materiais(turma_id, disciplina_id)
+        turma = get_pb().buscar_turma(turma_id)
+        disciplina = get_pb().buscar_disciplina(disciplina_id)
+        materiais = get_pb().listar_materiais(turma_id, disciplina_id)
 
         # Pre-compute PocketBase file URL for uploaded files
         for m in materiais:
             if m.get("tipo") == "arquivo" and m.get("arquivo"):
-                m["_arquivo_url"] = f"{pb.base_url}/api/files/materiais/{m['id']}/{m['arquivo']}"
+                m["_arquivo_url"] = f"{pb_url}/api/files/materiais/{m['id']}/{m['arquivo']}"
 
-        todas_disciplinas = pb.listar_disciplinas_da_turma(turma_id)
+        todas_disciplinas = get_pb().listar_disciplinas_da_turma(turma_id)
 
         logado = bool(session.get("token"))
         aluno_id = session.get("aluno_id", "")
         if logado:
-            atividades = pb.listar_atividades_por_disciplina(turma_id, disciplina_id)
+            atividades = get_pb().listar_atividades_por_disciplina(turma_id, disciplina_id)
             for ativ in atividades:
                 disponivel, motivo = _atividade_disponivel(ativ)
                 ativ["_status"] = "disponivel" if disponivel else motivo
@@ -266,7 +270,7 @@ def create_app(config: dict | None = None) -> Flask:
                 ativ["_questoes_respondidas"] = 0
                 if aluno_id and ativ["_status"] == "disponivel":
                     try:
-                        st = pb.status_atividade_aluno(ativ["id"], aluno_id, max_tent)
+                        st = get_pb().status_atividade_aluno(ativ["id"], aluno_id, max_tent)
                         ativ["_tentativas_usadas"] = st["tentativas_usadas"]
                         ativ["_melhor_nota"] = st["melhor_nota"]
                         ativ["_nota_liberada"] = st["nota_liberada"]
@@ -280,7 +284,7 @@ def create_app(config: dict | None = None) -> Flask:
                         log.warning("status_atividade_aluno falhou: %s", exc)
                     if ativ["_status"] in ("disponivel", "tentar_novamente"):
                         try:
-                            prog = pb.progresso_tentativa_atual(ativ["id"], aluno_id)
+                            prog = get_pb().progresso_tentativa_atual(ativ["id"], aluno_id)
                             if prog:
                                 ativ["_status"] = "em_andamento"
                                 ativ["_questoes_respondidas"] = prog.get("questoes_respondidas", 0)
@@ -307,7 +311,7 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/atividade/<ativ_id>")
     @requer_login
     def atividade(ativ_id: str):
-        ativ = pb.buscar_atividade(ativ_id)
+        ativ = get_pb().buscar_atividade(ativ_id)
 
         disponivel, motivo = _atividade_disponivel(ativ)
         if not disponivel:
@@ -318,16 +322,16 @@ def create_app(config: dict | None = None) -> Flask:
         max_tentativas = int(ativ.get("max_tentativas", 0) or 0)
 
         if max_tentativas > 0 and aluno_id:
-            status = pb.status_atividade_aluno(ativ_id, aluno_id, max_tentativas)
+            status = get_pb().status_atividade_aluno(ativ_id, aluno_id, max_tentativas)
             if not status["pode_tentar"]:
                 return render_template("auth/atividade_indisponivel.html", atividade=ativ, motivo="esgotada")
 
         tentativas_usadas = 0
         if aluno_id:
-            tentativas_usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
+            tentativas_usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
 
         try:
-            tent = pb.criar_tentativa(ativ_id, aluno_id, aluno_nome, tentativas_usadas + 1)
+            tent = get_pb().criar_tentativa(ativ_id, aluno_id, aluno_nome, tentativas_usadas + 1)
             session["tentativa_id"] = tent["id"]
         except Exception as exc:
             log.warning("criar_tentativa falhou: %s", exc)
@@ -365,7 +369,7 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/htmx/questao/<questao_id>")
     @requer_login
     def htmx_questao(questao_id: str):
-        questao = pb.buscar_questao(questao_id)
+        questao = get_pb().buscar_questao(questao_id)
         total = session.get("total", 0)
         num = total - len(session.get("fila", []))
         return _render_questao(questao, num, total, session.get("ativ_id", ""))
@@ -380,7 +384,7 @@ def create_app(config: dict | None = None) -> Flask:
         if tipo not in ("mc4", "mc5", "vf", "associativa", "aberta"):
             return "", 400
 
-        questao = pb.buscar_questao(questao_id)
+        questao = get_pb().buscar_questao(questao_id)
 
         if tipo in ("mc4", "mc5"):
             resposta_raw = request.form.get("resposta", "")
@@ -419,7 +423,7 @@ def create_app(config: dict | None = None) -> Flask:
 
         tentativa_id = session.get("tentativa_id", "")
         try:
-            pb.registrar_tentativa({
+            get_pb().registrar_tentativa({
                 "atividade": ativ_id,
                 "questao": questao_id,
                 "tipo_questao": tipo,
@@ -437,7 +441,7 @@ def create_app(config: dict | None = None) -> Flask:
 
         if tentativa_id:
             try:
-                pb.atualizar_progresso(tentativa_id, len(respostas_sessao))
+                get_pb().atualizar_progresso(tentativa_id, len(respostas_sessao))
             except Exception as exc:
                 log.warning("atualizar_progresso falhou: %s", exc)
 
@@ -459,7 +463,7 @@ def create_app(config: dict | None = None) -> Flask:
             tentativa_id = session.get("tentativa_id", "")
             if tentativa_id and not session.get("tentativa_concluida", False):
                 try:
-                    pb.concluir_tentativa(tentativa_id, score_raw, score_max, nota_automatica)
+                    get_pb().concluir_tentativa(tentativa_id, score_raw, score_max, nota_automatica)
                     session["tentativa_concluida"] = True
                     session.modified = True
                 except Exception as exc:
@@ -468,20 +472,20 @@ def create_app(config: dict | None = None) -> Flask:
             aluno_id = session.get("aluno_id", "")
             tentativas_restantes = 0
             if max_tent > 0 and aluno_id:
-                usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
+                usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
                 tentativas_restantes = max(0, max_tent - usadas)
             exibir_feedback = False
             nota_final = None
             valor_total = None
             detalhamento: list = []
             try:
-                ativ_data = pb.buscar_atividade(ativ_id)
+                ativ_data = get_pb().buscar_atividade(ativ_id)
                 exibir_feedback = bool(ativ_data.get("exibir_feedback_pos", True))
                 valor_total = ativ_data.get("valor_total") or None
                 nota_final, detalhamento = _build_detalhamento(respostas, ativ_data)
                 if nota_final is not None and tentativa_id:
                     try:
-                        pb.patch_tentativa_nota_final(tentativa_id, nota_final)
+                        get_pb().patch_tentativa_nota_final(tentativa_id, nota_final)
                     except Exception as exc:
                         log.warning("patch_tentativa_nota_final falhou: %s", exc)
             except Exception as exc:
@@ -505,7 +509,7 @@ def create_app(config: dict | None = None) -> Flask:
         session.modified = True
 
         num = total - len(fila)
-        questao = pb.buscar_questao(proxima_id)
+        questao = get_pb().buscar_questao(proxima_id)
         return _render_questao(questao, num, total, ativ_id)
 
     @app.route("/htmx/resultado/<ativ_id>")
@@ -518,7 +522,7 @@ def create_app(config: dict | None = None) -> Flask:
         tentativa_id = session.get("tentativa_id", "")
         if tentativa_id and not session.get("tentativa_concluida", False):
             try:
-                pb.concluir_tentativa(tentativa_id, score_raw, score_max, nota_automatica)
+                get_pb().concluir_tentativa(tentativa_id, score_raw, score_max, nota_automatica)
                 session["tentativa_concluida"] = True
                 session.modified = True
             except Exception as exc:
@@ -527,20 +531,20 @@ def create_app(config: dict | None = None) -> Flask:
         aluno_id = session.get("aluno_id", "")
         tentativas_restantes = 0
         if max_tent > 0 and aluno_id:
-            usadas = len(pb.listar_tentativas_aluno(ativ_id, aluno_id))
+            usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
             tentativas_restantes = max(0, max_tent - usadas)
         exibir_feedback = False
         nota_final = None
         valor_total = None
         detalhamento: list = []
         try:
-            ativ_data = pb.buscar_atividade(ativ_id)
+            ativ_data = get_pb().buscar_atividade(ativ_id)
             exibir_feedback = bool(ativ_data.get("exibir_feedback_pos", True))
             valor_total = ativ_data.get("valor_total") or None
             nota_final, detalhamento = _build_detalhamento(respostas, ativ_data)
             if nota_final is not None and tentativa_id:
                 try:
-                    pb.patch_tentativa_nota_final(tentativa_id, nota_final)
+                    get_pb().patch_tentativa_nota_final(tentativa_id, nota_final)
                 except Exception as exc:
                     log.warning("patch_tentativa_nota_final falhou: %s", exc)
         except Exception as exc:
@@ -564,15 +568,15 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/professor/dashboard")
     @requer_professor
     def professor_dashboard():
-        turmas = pb.listar_turmas()
+        turmas = get_pb().listar_turmas()
         turmas_data = []
         for turma in turmas:
-            atividades = pb.listar_todas_atividades_turma(turma["id"])
+            atividades = get_pb().listar_todas_atividades_turma(turma["id"])
             ativas_count = sum(1 for a in atividades if a.get("ativa"))
             pendentes = 0
             mapa: dict[str, dict] = {}
             for ativ in atividades:
-                tentativas = pb.listar_tentativas_atividade(ativ["id"])
+                tentativas = get_pb().listar_tentativas_atividade(ativ["id"])
                 pendentes += sum(1 for t in tentativas if not t.get("nota_liberada"))
                 best: dict[str, dict] = {}
                 for t in tentativas:
@@ -599,9 +603,9 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/professor/turma/<turma_id>")
     @requer_professor
     def professor_turma(turma_id: str):
-        turma = pb.buscar_turma(turma_id)
-        atividades = pb.listar_todas_atividades_turma(turma_id)
-        disciplinas = pb.listar_disciplinas()
+        turma = get_pb().buscar_turma(turma_id)
+        atividades = get_pb().listar_todas_atividades_turma(turma_id)
+        disciplinas = get_pb().listar_disciplinas()
         for ativ in atividades:
             disc = (ativ.get("expand") or {}).get("disciplina") or {}
             ativ["_disc_nome"] = disc.get("nome", "")
@@ -611,8 +615,8 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/professor/atividade/nova", methods=["GET", "POST"])
     @requer_professor
     def professor_atividade_nova():
-        turmas = pb.listar_turmas()
-        disciplinas = pb.listar_disciplinas()
+        turmas = get_pb().listar_turmas()
+        disciplinas = get_pb().listar_disciplinas()
         if request.method == "GET":
             return render_template("professor/atividade_form.html", atividade=None,
                                    turmas=turmas, disciplinas=disciplinas,
@@ -620,7 +624,7 @@ def create_app(config: dict | None = None) -> Flask:
                                    aluno_nome=session.get("aluno_nome", ""))
         data = _form_to_atividade(request.form)
         try:
-            pb.criar_atividade(data)
+            get_pb().criar_atividade(data)
         except Exception as exc:
             log.warning("criar_atividade falhou: %s", exc)
             return render_template("professor/atividade_form.html", atividade=None,
@@ -638,9 +642,9 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/professor/atividade/<ativ_id>/editar", methods=["GET", "POST"])
     @requer_professor
     def professor_atividade_editar(ativ_id: str):
-        turmas = pb.listar_turmas()
-        disciplinas = pb.listar_disciplinas()
-        ativ = pb.buscar_atividade(ativ_id)
+        turmas = get_pb().listar_turmas()
+        disciplinas = get_pb().listar_disciplinas()
+        ativ = get_pb().buscar_atividade(ativ_id)
         if request.method == "GET":
             return render_template("professor/atividade_form.html", atividade=ativ,
                                    turmas=turmas, disciplinas=disciplinas,
@@ -648,7 +652,7 @@ def create_app(config: dict | None = None) -> Flask:
                                    aluno_nome=session.get("aluno_nome", ""))
         data = _form_to_atividade(request.form)
         try:
-            pb.atualizar_atividade(ativ_id, data)
+            get_pb().atualizar_atividade(ativ_id, data)
         except Exception as exc:
             log.warning("atualizar_atividade falhou: %s", exc)
             return render_template("professor/atividade_form.html", atividade=ativ,
@@ -666,16 +670,16 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/professor/atividade/<ativ_id>/toggle-ativa", methods=["POST"])
     @requer_professor
     def professor_toggle_ativa(ativ_id: str):
-        ativ = pb.buscar_atividade(ativ_id)
+        ativ = get_pb().buscar_atividade(ativ_id)
         nova = not ativ.get("ativa", False)
-        pb.atualizar_atividade(ativ_id, {"ativa": nova})
+        get_pb().atualizar_atividade(ativ_id, {"ativa": nova})
         return render_template("components/_toggle_ativa.html", ativ_id=ativ_id, ativa=nova)
 
     @app.route("/professor/atividade/<ativ_id>/notas")
     @requer_professor
     def professor_notas(ativ_id: str):
-        ativ = pb.buscar_atividade(ativ_id)
-        tentativas = pb.listar_tentativas_atividade(ativ_id)
+        ativ = get_pb().buscar_atividade(ativ_id)
+        tentativas = get_pb().listar_tentativas_atividade(ativ_id)
         return render_template("professor/notas.html", atividade=ativ, tentativas=tentativas,
                                aluno_nome=session.get("aluno_nome", ""))
 
@@ -685,7 +689,7 @@ def create_app(config: dict | None = None) -> Flask:
         ids = request.form.getlist("tentativa_ids")
         for tid in ids:
             try:
-                pb.liberar_nota(tid)
+                get_pb().liberar_nota(tid)
             except Exception as exc:
                 log.warning("liberar_nota falhou para %s: %s", tid, exc)
         return redirect(url_for("professor_notas", ativ_id=ativ_id))
@@ -702,28 +706,28 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_login
     def status_atividade(ativ_id: str):
         aluno_id = session.get("aluno_id", "")
-        ativ = pb.buscar_atividade(ativ_id)
+        ativ = get_pb().buscar_atividade(ativ_id)
         max_tent = int(ativ.get("max_tentativas", 0) or 0)
-        return pb.status_atividade_aluno(ativ_id, aluno_id, max_tent)
+        return get_pb().status_atividade_aluno(ativ_id, aluno_id, max_tent)
 
     @app.route("/professor/atividade/<ativ_id>/liberar-nota/<tentativa_id>", methods=["POST"])
     @requer_login
     def liberar_nota_rota(ativ_id: str, tentativa_id: str):
-        pb.liberar_nota(tentativa_id)
+        get_pb().liberar_nota(tentativa_id)
         return {"ok": True}
 
     @app.route("/professor/atividade/<ativ_id>/notas-abertas")
     @requer_login
     def professor_notas_abertas(ativ_id: str):
-        ativ = pb.buscar_atividade(ativ_id)
-        tentativas_raw = pb.listar_tentativas_para_avaliar(ativ_id)
+        ativ = get_pb().buscar_atividade(ativ_id)
+        tentativas_raw = get_pb().listar_tentativas_para_avaliar(ativ_id)
         tentativas_detalhes = []
         for tent in tentativas_raw:
-            respostas = pb.listar_respostas_tentativa(tent["id"])
+            respostas = get_pb().listar_respostas_tentativa(tent["id"])
             abertas = [r for r in respostas if r.get("tipo_questao") == "aberta"]
             for r in abertas:
                 try:
-                    q = pb.buscar_questao(r.get("questao", ""))
+                    q = get_pb().buscar_questao(r.get("questao", ""))
                     r["_questao"] = q
                     r["_peso"] = float(q.get("peso") or 1)
                 except Exception:
@@ -741,7 +745,7 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_login
     def professor_avaliar_aberta(tentativa_id: str):
         ativ_id = request.form.get("ativ_id", "")
-        respostas = pb.listar_respostas_tentativa(tentativa_id)
+        respostas = get_pb().listar_respostas_tentativa(tentativa_id)
         for r in respostas:
             if r.get("tipo_questao") != "aberta":
                 continue
@@ -751,32 +755,32 @@ def create_app(config: dict | None = None) -> Flask:
             if nota_key not in request.form:
                 continue
             try:
-                questao = pb.buscar_questao(r.get("questao", ""))
+                questao = get_pb().buscar_questao(r.get("questao", ""))
                 peso = float(questao.get("peso") or 1)
                 nota_val = min(max(float(request.form[nota_key] or 0), 0.0), peso)
                 comentario = request.form.get(coment_key, "")
-                pb.avaliar_questao_aberta(record_id, nota_val, peso, comentario)
+                get_pb().avaliar_questao_aberta(record_id, nota_val, peso, comentario)
             except Exception as exc:
                 log.warning("avaliar_questao_aberta falhou: %s", exc)
 
         try:
-            ativ = pb.buscar_atividade(ativ_id)
-            respostas_atualizadas = pb.listar_respostas_tentativa(tentativa_id)
+            ativ = get_pb().buscar_atividade(ativ_id)
+            respostas_atualizadas = get_pb().listar_respostas_tentativa(tentativa_id)
             respostas_com_peso = []
             for r in respostas_atualizadas:
                 try:
-                    q = pb.buscar_questao(r.get("questao", ""))
+                    q = get_pb().buscar_questao(r.get("questao", ""))
                     peso = float(q.get("peso") or 1)
                 except Exception:
                     peso = 1.0
                 respostas_com_peso.append({**r, "_peso": peso})
             nota_final = calcular_nota_final(respostas_com_peso, ativ)
             if nota_final is not None:
-                pb.patch_tentativa_nota_final(tentativa_id, nota_final)
+                get_pb().patch_tentativa_nota_final(tentativa_id, nota_final)
         except Exception as exc:
             log.warning("recalcular nota_final falhou: %s", exc)
 
-        pb.liberar_nota(tentativa_id)
+        get_pb().liberar_nota(tentativa_id)
         return redirect(url_for("professor_notas_abertas", ativ_id=ativ_id))
 
     # ------------------------------------------------------------------
@@ -786,14 +790,14 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_login
     def historico_aluno():
         aluno_id = session.get("aluno_id", "")
-        tentativas = pb.listar_historico_aluno(aluno_id)
+        tentativas = get_pb().listar_historico_aluno(aluno_id)
 
         ativ_cache: dict[str, dict] = {}
         for t in tentativas:
             ativ_id = t.get("disciplina", "")
             if ativ_id and ativ_id not in ativ_cache:
                 try:
-                    ativ_cache[ativ_id] = pb.buscar_atividade_expandido(ativ_id)
+                    ativ_cache[ativ_id] = get_pb().buscar_atividade_expandido(ativ_id)
                 except Exception:
                     ativ_cache[ativ_id] = {"id": ativ_id, "titulo": "Atividade", "expand": {}}
 
@@ -826,7 +830,7 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_login
     def revisao_atividade(ativ_id: str, tentativa_id: str):
         aluno_id = session.get("aluno_id", "")
-        ativ = pb.buscar_atividade(ativ_id)
+        ativ = get_pb().buscar_atividade(ativ_id)
 
         if not ativ.get("exibir_feedback_pos", True):
             return render_template(
@@ -837,20 +841,20 @@ def create_app(config: dict | None = None) -> Flask:
             ), 403
 
         try:
-            tentativa = pb.buscar_tentativa(tentativa_id)
+            tentativa = get_pb().buscar_tentativa(tentativa_id)
         except Exception:
             return redirect(url_for("index"))
 
         if tentativa.get("aluno_id") and tentativa.get("aluno_id") != aluno_id:
             return redirect(url_for("index"))
 
-        respostas_list = pb.listar_respostas_tentativa(tentativa_id)
+        respostas_list = get_pb().listar_respostas_tentativa(tentativa_id)
         respostas_por_questao = {r["questao"]: r for r in respostas_list if r.get("questao")}
 
         questoes_revisao = []
         for qid in ativ.get("questoes", []):
             try:
-                q = pb.buscar_questao(qid)
+                q = get_pb().buscar_questao(qid)
             except Exception:
                 continue
             questoes_revisao.append({
