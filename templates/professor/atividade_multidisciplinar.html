@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova atividade multidisciplinar — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:720px;">
+  <div class="breadcrumb">
+    <a href="/professor/banco-questoes">Banco geral</a><span>›</span><span>Atividade multidisciplinar</span>
+  </div>
+
+  <div class="portal-header"><h1 class="portal-titulo">Nova atividade multidisciplinar</h1></div>
+
+  {% if not ids %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🗂️</p>
+      <p class="qb-empty-msg">Nenhuma questão selecionada.</p>
+      <a href="/professor/banco-questoes" class="btn-primary">← Voltar ao banco geral</a>
+    </div>
+  {% else %}
+    <!-- Resumo das questões selecionadas -->
+    <div class="card" style="margin-top:8px;">
+      <p class="campo-label" style="margin-bottom:8px;">{{ ids|length }} questões selecionadas (de várias disciplinas)</p>
+      <div class="qb-list">
+        {% for q in questoes %}
+          <div class="qb-card" style="padding:10px 14px;">
+            <div class="qb-card-body">
+              <div class="qb-card-meta">
+                <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
+                <span class="banco-assunto-badge">{{ q._disc_nome }}</span>
+              </div>
+              <p class="qb-card-enunciado">{{ q.enunciado }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <form method="post" action="/professor/atividade/multidisciplinar" class="card" style="margin-top:16px;display:flex;flex-direction:column;gap:18px;">
+      {% for qid in ids %}<input type="hidden" name="questoes" value="{{ qid }}">{% endfor %}
+
+      <div>
+        <label class="campo-label">Título *</label>
+        <input type="text" name="titulo" required placeholder="Ex: Avaliação integrada — LIS + Hematologia"
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+
+      <div>
+        <label class="campo-label">Descrição</label>
+        <textarea name="descricao" rows="2" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;resize:vertical;font-family:inherit;"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Turma *</label>
+          <select name="turma" required style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            <option value="">Selecione…</option>
+            {% for t in turmas %}<option value="{{ t.id }}">{{ t.nome }}{% if t.modalidade %} · {{ t.modalidade }}{% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="campo-label">Disciplina principal *</label>
+          <select name="disciplina" required style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            {% for d in disciplinas %}<option value="{{ d.id }}" {% if d.id == disciplina_sugerida %}selected{% endif %}>{{ d.nome }}</option>{% endfor %}
+          </select>
+          <p style="font-size:.73rem;color:var(--muted);margin:4px 0 0;">Onde a atividade aparece no portal do aluno.</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Valor total</label>
+          <input type="number" name="valor_total" step="0.1" min="0" placeholder="10"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Máx. tentativas</label>
+          <input type="number" name="max_tentativas" min="0" value="0"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Tempo limite (min)</label>
+          <input type="number" name="tempo_limite" min="0" value="0"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;"><input type="checkbox" name="nota_automatica" checked> Nota automática</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;"><input type="checkbox" name="exibir_feedback_pos" checked> Exibir feedback após responder</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;"><input type="checkbox" name="embaralhar"> Embaralhar questões</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;"><input type="checkbox" name="ativa"> Ativar imediatamente</label>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">Criar atividade</button>
+        <a href="/professor/banco-questoes" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+</body>
+</html>

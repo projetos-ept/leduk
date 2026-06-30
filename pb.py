@@ -362,6 +362,20 @@ class PocketBaseClient:
                 pass
         return result
 
+    def listar_questoes(self, filtros: dict | None = None) -> list:
+        """Lista questões de todas as disciplinas (banco geral), com filtros
+        opcionais por disciplina, tipo e assunto."""
+        parts = []
+        for campo in ("disciplina", "tipo", "assunto"):
+            val = (filtros or {}).get(campo)
+            if val:
+                parts.append(f'{campo}="{val}"')
+        params: dict = {"sort": "-created", "perPage": 200}
+        if parts:
+            params["filter"] = "&&".join(parts)
+        result = self._get("/api/collections/questoes/records", params=params)
+        return result.get("items", [])
+
     def listar_questoes_disciplina(self, disciplina_id: str, filtros: dict | None = None) -> list:
         """Lista todas as questões do banco de uma disciplina, com filtros opcionais.
 
