@@ -150,7 +150,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 155 testes, todos passando.
+**Resultado esperado:** 157 testes, todos passando.
 
 ---
 
@@ -387,6 +387,11 @@ ou **data URI base64** `data:image/png;base64,...` — em ambos os casos o conte
 é baixado/decodificado e enviado como arquivo ao PocketBase (multipart). A
 importação é *best-effort*: questões válidas são criadas e as inválidas são
 reportadas individualmente (tipo desconhecido, enunciado vazio, MC sem gabarito).
+
+O fluxo é em dois passos: **Pré-visualizar** (dry-run, sem gravar nada) mostra um
+resumo — quantas serão criadas, contagem por tipo e o status de cada questão
+(válida ou o motivo do problema) — e só então **Confirmar importação** grava de
+fato. Dá para ajustar o JSON e pré-visualizar de novo antes de confirmar.
 
 ### Diagrama de relacionamentos
 

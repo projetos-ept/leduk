@@ -2082,3 +2082,9 @@ a.material-header:hover {
   background: var(--fundo); border: 1px solid var(--borda); border-radius: 4px;
   padding: 1px 5px; font-size: .8rem;
 }
+
+.import-resumo { margin-bottom: 14px; }
+.import-resumo-nums { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.import-resumo-tipos { display: flex; flex-wrap: wrap; gap: 6px; }
+.import-ok { font-size: .75rem; font-weight: 700; color: #007a5a; }
+.import-erro { font-size: .75rem; font-weight: 700; color: var(--erro); }

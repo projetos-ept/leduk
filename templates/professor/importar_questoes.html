@@ -17,7 +17,9 @@
   {% endif %}
 </nav>
 
-<div class="shell" style="max-width:760px;">
+{% set tipo_label = {'mc4':'MC 4','mc5':'MC 5','vf':'V/F','aberta':'Aberta','associativa':'Associativa'} %}
+
+<div class="shell" style="max-width:780px;">
   <div class="breadcrumb">
     <a href="/professor/dashboard">Dashboard</a><span>›</span>
     <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes">{{ disciplina.nome }}</a><span>›</span>
@@ -31,6 +33,7 @@
     </div>
   </div>
 
+  {# ── Estado: resultado da importação ── #}
   {% if criadas is defined %}
     <div class="{% if erros %}alerta-bloqueio{% else %}import-sucesso{% endif %}">
       <strong>{{ criadas }} de {{ total }} questão(ões) importada(s) com sucesso.</strong>
@@ -43,6 +46,62 @@
       <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes" class="btn-primary">Ver banco de questões</a>
       <a href="/professor/disciplina/{{ disciplina.id }}/importar-questoes" class="btn-ghost">Importar mais</a>
     </div>
+
+  {# ── Estado: pré-visualização (dry-run) ── #}
+  {% elif resumo is defined %}
+    <div class="import-resumo">
+      <div class="import-resumo-nums">
+        <div class="qb-stat-card qb-stat-card--accent"><span class="qb-stat-num">{{ resumo.validas }}</span><span class="qb-stat-label">serão criadas</span></div>
+        {% if resumo.invalidas %}<div class="qb-stat-card"><span class="qb-stat-num" style="color:var(--erro);">{{ resumo.invalidas }}</span><span class="qb-stat-label">com problema</span></div>{% endif %}
+        <div class="qb-stat-card"><span class="qb-stat-num">{{ resumo.total }}</span><span class="qb-stat-label">no JSON</span></div>
+      </div>
+      <div class="import-resumo-tipos">
+        {% for tipo, n in resumo.por_tipo.items() %}
+          <span class="quest-tipo-badge quest-tipo-{{ tipo }}">{{ tipo_label.get(tipo, tipo) }}: {{ n }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="qb-list" style="margin-top:8px;">
+      {% for it in itens %}
+        <div class="qb-card" style="padding:10px 14px;{% if not it.ok %}border-color:#e0b3b0;{% endif %}">
+          <div class="qb-card-num" style="{% if not it.ok %}background:var(--erro);{% endif %}">{{ it.num }}</div>
+          <div class="qb-card-body">
+            <div class="qb-card-meta">
+              {% if it.tipo %}<span class="quest-tipo-badge quest-tipo-{{ it.tipo }}">{{ tipo_label.get(it.tipo, it.tipo) }}</span>{% endif %}
+              {% if it.assunto %}<span class="banco-assunto-badge">{{ it.assunto }}</span>{% endif %}
+              {% if it.subitens %}<span class="qb-peso-badge">{{ it.subitens }} itens</span>{% endif %}
+              {% if it.tem_imagem %}<span class="qb-img-indicator" title="Tem imagem">🖼️</span>{% endif %}
+              {% if it.ok %}<span class="import-ok">✓ válida</span>{% else %}<span class="import-erro">✗ {{ it.erro }}</span>{% endif %}
+            </div>
+            <p class="qb-card-enunciado">{{ it.enunciado or '(sem enunciado)' }}</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="multi-barra">
+      <span class="multi-contagem">
+        {% if resumo.validas %}{{ resumo.validas }} questão(ões) serão importadas{% else %}Nenhuma questão válida para importar{% endif %}
+        {% if resumo.invalidas %} · {{ resumo.invalidas }} ignorada(s){% endif %}
+      </span>
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="acao" value="importar">
+        <input type="hidden" name="json_text" value="{{ json_text }}">
+        <button type="submit" class="btn-primary" {% if not resumo.validas %}disabled{% endif %}>Confirmar importação →</button>
+      </form>
+    </div>
+
+    <details class="import-docs" style="margin-top:14px;">
+      <summary>✏️ Ajustar o JSON</summary>
+      <form method="post" enctype="multipart/form-data" style="margin-top:12px;">
+        <textarea name="json_text" rows="12"
+                  style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-family:monospace;font-size:.82rem;resize:vertical;">{{ json_text }}</textarea>
+        <div style="margin-top:10px;"><button type="submit" class="btn-ghost">Pré-visualizar novamente</button></div>
+      </form>
+    </details>
+
+  {# ── Estado: formulário inicial ── #}
   {% else %}
     {% if erro %}<div class="alerta-bloqueio"><strong>{{ erro }}</strong></div>{% endif %}
 
@@ -63,7 +122,7 @@
       </div>
 
       <div style="display:flex;gap:12px;">
-        <button type="submit" class="btn-home" style="flex:1;padding:12px;">Importar questões</button>
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">Pré-visualizar</button>
         <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes"
            style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
       </div>

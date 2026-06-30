@@ -71,7 +71,7 @@ def test_importar_todos_os_tipos_via_colar(client):
         {"tipo": "aberta", "enunciado": "Disserte."},
     ]}
     resp = client.post("/professor/disciplina/disc01/importar-questoes",
-                       data={"json_text": json.dumps(payload)})
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
     assert resp.status_code == 200
     html = resp.data.decode()
     assert "4 de 4" in html
@@ -91,7 +91,8 @@ def test_importar_via_arquivo_json(client):
     rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/alternativas/records", json={"id": "a1"})
     payload = json.dumps([{"tipo": "mc4", "enunciado": "Via arquivo?",
                            "alternativas": [{"letra": "A", "texto": "ok", "correta": True}]}])
-    data = {"json_file": (io.BytesIO(payload.encode("utf-8")), "questoes.json")}
+    data = {"acao": "importar",
+            "json_file": (io.BytesIO(payload.encode("utf-8")), "questoes.json")}
     resp = client.post("/professor/disciplina/disc01/importar-questoes",
                        data=data, content_type="multipart/form-data")
     assert resp.status_code == 200
@@ -114,10 +115,43 @@ def test_importar_imagem_base64_faz_upload_multipart(client):
                           callback=cap, content_type="application/json")
     payload = [{"tipo": "aberta", "enunciado": "Com imagem", "imagem": PNG_B64}]
     resp = client.post("/professor/disciplina/disc01/importar-questoes",
-                       data={"json_text": json.dumps(payload)})
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
     assert resp.status_code == 200
     assert "multipart/form-data" in captured.get("ctype", "")
     assert captured.get("has_file")
+
+
+@rsps_lib.activate
+def test_previsualizar_mostra_resumo_sem_gravar(client):
+    _sess_prof(client)
+    _mock_disc()
+    # Nenhum POST a questoes/records deve ocorrer no dry-run; se ocorrer, responses
+    # levanta erro por URL não registrada — garantindo que nada foi gravado.
+    payload = [
+        {"tipo": "mc4", "enunciado": "Q1", "alternativas": [{"letra": "A", "texto": "x", "correta": True}]},
+        {"tipo": "vf", "enunciado": "Q2", "itens_vf": [{"afirmacao": "a", "correta": True}]},
+        {"tipo": "mc4", "enunciado": "ruim", "alternativas": [{"letra": "A", "texto": "x", "correta": False}]},
+    ]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "previsualizar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "2" in html and "serão criadas" in html      # 2 válidas
+    assert "com problema" in html                         # 1 inválida
+    assert "Confirmar importação" in html                 # botão de confirmação
+    assert "sem alternativa correta" in html              # motivo do problema
+
+
+@rsps_lib.activate
+def test_previsualizar_e_default_sem_acao(client):
+    """Sem 'acao', o POST cai na pré-visualização (não importa)."""
+    _sess_prof(client)
+    _mock_disc()
+    payload = [{"tipo": "aberta", "enunciado": "Disserte"}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert "Confirmar importação" in resp.data.decode()
 
 
 @rsps_lib.activate
@@ -143,7 +177,7 @@ def test_importar_questao_invalida_reportada(client):
         {"tipo": "mc4", "enunciado": "sem gabarito", "alternativas": [{"letra": "A", "texto": "a", "correta": False}]},
     ]
     resp = client.post("/professor/disciplina/disc01/importar-questoes",
-                       data={"json_text": json.dumps(payload)})
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
     assert resp.status_code == 200
     html = resp.data.decode()
     assert "1 de 3" in html

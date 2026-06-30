@@ -152,6 +152,48 @@ def _imagem_spec_to_tuple(spec):
     return None
 
 
+def _analisar_questoes(questoes: list) -> tuple[dict, list]:
+    """Dry-run: valida a lista sem gravar nada. Retorna (resumo, itens) para a
+    pré-visualização. Usa as mesmas regras de _importar_questoes."""
+    tipos_validos = ("mc4", "mc5", "vf", "aberta", "associativa")
+    itens = []
+    por_tipo: dict[str, int] = {}
+    validas = 0
+    for i, q in enumerate(questoes, 1):
+        item = {"num": i, "tipo": None, "enunciado": "", "assunto": "",
+                "ok": True, "erro": "", "subitens": 0, "tem_imagem": False}
+        if not isinstance(q, dict):
+            item.update(ok=False, erro="formato inválido (esperado objeto)")
+            itens.append(item)
+            continue
+        tipo = q.get("tipo")
+        enunciado = (q.get("enunciado") or "").strip()
+        item["tipo"] = tipo
+        item["enunciado"] = enunciado
+        item["assunto"] = q.get("assunto") or ""
+        item["tem_imagem"] = bool(q.get("imagem"))
+        if tipo not in tipos_validos:
+            item.update(ok=False, erro=f"tipo inválido ({tipo!r})")
+        elif not enunciado:
+            item.update(ok=False, erro="enunciado vazio")
+        elif tipo in ("mc4", "mc5"):
+            alts = q.get("alternativas") or []
+            item["subitens"] = len(alts)
+            if not any(isinstance(a, dict) and a.get("correta") for a in alts):
+                item.update(ok=False, erro="múltipla escolha sem alternativa correta")
+        elif tipo == "vf":
+            item["subitens"] = len(q.get("itens_vf") or q.get("itens") or [])
+        elif tipo == "associativa":
+            item["subitens"] = len(q.get("pares") or q.get("pares_associativos") or [])
+        if item["ok"]:
+            validas += 1
+            por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+        itens.append(item)
+    resumo = {"total": len(questoes), "validas": validas,
+              "invalidas": len(questoes) - validas, "por_tipo": por_tipo}
+    return resumo, itens
+
+
 def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int, list]:
     """Importa uma lista de questões no banco da disciplina. Best-effort: importa
     as válidas e coleta mensagens de erro das demais. Retorna (criadas, erros)."""
@@ -1093,9 +1135,16 @@ def create_app(config: dict | None = None) -> Flask:
             return render_template("professor/importar_questoes.html", disciplina=disciplina,
                                    erro='Esperado uma lista de questões ou um objeto {"questoes": [...]}.',
                                    json_text=raw, aluno_nome=session.get("aluno_nome", ""))
-        criadas, erros = _importar_questoes(get_pb(), disciplina_id, questoes)
+        acao = request.form.get("acao", "previsualizar")
+        if acao == "importar":
+            criadas, erros = _importar_questoes(get_pb(), disciplina_id, questoes)
+            return render_template("professor/importar_questoes.html", disciplina=disciplina,
+                                   criadas=criadas, erros=erros, total=len(questoes),
+                                   aluno_nome=session.get("aluno_nome", ""))
+        # Pré-visualização (dry-run, sem gravar)
+        resumo, itens = _analisar_questoes(questoes)
         return render_template("professor/importar_questoes.html", disciplina=disciplina,
-                               criadas=criadas, erros=erros, total=len(questoes),
+                               resumo=resumo, itens=itens, json_text=raw,
                                aluno_nome=session.get("aluno_nome", ""))
 
     @app.route("/professor/questao/<questao_id>/editar", methods=["GET", "POST"])
