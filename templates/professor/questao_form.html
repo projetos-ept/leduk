@@ -17,7 +17,7 @@
 
 <div class="shell" style="max-width:720px;">
   <div style="font-size:.8rem;color:var(--muted);margin-bottom:8px;">
-    <a href="/professor/atividade/{{ ativ.id }}/questoes" style="color:var(--muted);">← Voltar para questões</a>
+    <a href="{{ voltar_url }}" style="color:var(--muted);">← Voltar</a>
   </div>
 
   <div class="portal-header">
@@ -27,10 +27,10 @@
   <div class="card" style="margin-top:16px;">
     <form method="post"
           enctype="multipart/form-data"
-          action="{% if questao %}/professor/questao/{{ questao.id }}/editar{% else %}/professor/atividade/{{ ativ.id }}/questoes/nova{% endif %}"
+          action="{{ form_action }}"
           style="display:flex;flex-direction:column;gap:18px;">
 
-      {% if questao %}<input type="hidden" name="ativ_id" value="{{ ativ.id }}">{% endif %}
+      {% if ativ_id %}<input type="hidden" name="ativ_id" value="{{ ativ_id }}">{% endif %}
 
       <!-- Tipo (apenas na criação) -->
       {% if not questao %}
@@ -92,6 +92,16 @@
             {% endfor %}
           </select>
         </div>
+      </div>
+
+      <!-- Assunto (organização do banco) -->
+      <div>
+        <label class="campo-label">Assunto / tópico</label>
+        <input type="text" name="assunto" list="lista-assuntos"
+               value="{{ questao.assunto if questao else '' }}"
+               placeholder="Ex: Fases do LIS, Imunoglobulinas..."
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        <p style="font-size:.75rem;color:var(--muted);margin:4px 0 0;">Usado para filtrar e organizar a questão dentro do banco da disciplina.</p>
       </div>
 
       <!-- Feedback geral -->
@@ -224,7 +234,7 @@
         <button type="submit" class="btn-home" style="flex:1;padding:12px;">
           {% if questao %}Salvar alterações{% else %}Criar questão{% endif %}
         </button>
-        <a href="/professor/atividade/{{ ativ.id }}/questoes"
+        <a href="{{ voltar_url }}"
            style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">
           Cancelar
         </a>

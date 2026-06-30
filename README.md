@@ -127,7 +127,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 99 testes, todos passando.
+**Resultado esperado:** 110 testes, todos passando.
 
 ---
 
@@ -166,10 +166,16 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/atividade/<id>/excluir` | Excluir atividade (com confirmação) |
 | POST | `/professor/atividade/<id>/clonar` | Clonar atividade (cópia inativa) |
 | POST | `/professor/atividade/<id>/toggle-ativa` | Ativar/desativar (HTMX) |
-| GET | `/professor/atividade/<id>/questoes` | Banco de questões da atividade |
+| GET | `/professor/atividade/<id>/questoes` | Questões da atividade |
 | GET/POST | `/professor/atividade/<id>/questoes/nova` | Criar questão (todos os tipos + imagem) |
-| GET/POST | `/professor/questao/<id>/editar` | Editar enunciado/peso/imagem de questão |
-| POST | `/professor/questao/<id>/excluir` | Excluir questão e remover da atividade |
+| GET | `/professor/atividade/<id>/selecionar-questoes` | Selecionar questões do banco para adicionar |
+| POST | `/professor/atividade/<id>/adicionar-questoes` | Adicionar questões selecionadas (sem duplicar) |
+| GET/POST | `/professor/questao/<id>/editar` | Editar enunciado/peso/assunto/imagem de questão |
+| POST | `/professor/questao/<id>/clonar` | Clonar questão (registro independente) |
+| POST | `/professor/questao/<id>/reclassificar` | Mover questão para outra disciplina/assunto |
+| POST | `/professor/questao/<id>/excluir` | Excluir questão (e remover da atividade) |
+| GET | `/professor/disciplina/<id>/banco-questoes` | Banco reutilizável da disciplina (filtros + uso) |
+| GET/POST | `/professor/disciplina/<id>/questao/nova` | Criar questão direto no banco da disciplina |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
 | POST | `/professor/atividade/<id>/liberar-notas` | Liberar notas selecionadas |
 | GET | `/professor/atividade/<id>/notas-abertas` | Corrigir questões abertas |
@@ -459,6 +465,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 5 — Portal do professor | Concluída | Dashboard + gestão de atividades + correção + liberação de notas |
 | 6 — Pontuação por peso | Concluída | valor_total, peso por questão, nota_final, mapa de calor |
 | 7 — Banco de questões | Concluída | CRUD completo mc4/mc5/vf/aberta/associativa + upload de imagem |
+| 8 — Banco reutilizável | Concluída | Questões compartilhadas por disciplina: campo `assunto`, filtros, clonar, reclassificar, seletor para reuso entre atividades |
 
 ### Funcionalidades futuras consideradas
 

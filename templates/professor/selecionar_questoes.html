@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adicionar do banco — {{ ativ.titulo }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if session_role in ("professor", "admin") %}
+    <a href="/professor/dashboard" class="topbar-prof">Painel do Professor</a>
+  {% endif %}
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:900px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ ativ.turma }}">Turma</a>
+    <span>›</span>
+    <a href="/professor/atividade/{{ ativ.id }}/questoes">{{ ativ.titulo }}</a>
+    <span>›</span>
+    <span>Adicionar do banco</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Adicionar do banco de questões</h1>
+      <p class="qb-subtitulo">Selecione questões já existentes para incluir nesta atividade.</p>
+    </div>
+  </div>
+
+  {% include "professor/components/_seletor_questoes.html" %}
+</div>
+</body>
+</html>

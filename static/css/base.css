@@ -1940,3 +1940,47 @@ a.material-header:hover {
   .qb-header .btn-primary,
   .dash-page-header .btn-primary { width: 100%; justify-content: center; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Banco de questões da disciplina                                      */
+/* ------------------------------------------------------------------ */
+
+.banco-filtros {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 18px;
+}
+.banco-filtro-select {
+  padding: 8px 12px; border: 1px solid var(--borda); border-radius: 8px;
+  font-size: .85rem; background: var(--card); color: var(--texto); cursor: pointer;
+}
+
+.banco-total { font-size: .8rem; color: var(--muted); margin-bottom: 10px; }
+
+.banco-assunto-badge {
+  font-size: .72rem; font-weight: 600;
+  background: #ede9fe; color: #6d28d9;
+  border-radius: 4px; padding: 2px 8px;
+}
+.banco-dif-badge {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  font-family: monospace; background: var(--fundo); color: var(--muted);
+  border: 1px solid var(--borda); border-radius: 4px; padding: 2px 6px;
+}
+
+/* Seletor de questões (checkbox cards) */
+.seletor-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: 14px; padding: 14px 16px; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.seletor-row:hover { border-color: var(--primaria); }
+.seletor-row:has(.seletor-check:checked) {
+  border-color: var(--primaria); box-shadow: 0 0 0 2px rgba(91,141,238,.18);
+}
+.seletor-check { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
+
+@media (max-width: 700px) {
+  .banco-filtros { flex-direction: column; align-items: stretch; }
+  .banco-filtro-select { width: 100%; }
+}
