@@ -77,6 +77,17 @@ def _atividade_disponivel(ativ: dict) -> tuple[bool, str]:
 
 
 
+def _to_pb_date(value: str | None) -> str | None:
+    """Converte 'YYYY-MM-DDTHH:MM' (datetime-local) para o formato ISO do PocketBase."""
+    if not value:
+        return None
+    try:
+        dt = datetime.strptime(value, "%Y-%m-%dT%H:%M")
+        return dt.strftime("%Y-%m-%d %H:%M:%S.000Z")
+    except ValueError:
+        return None
+
+
 def _form_to_atividade(form) -> dict:
     vt = (form.get("valor_total") or "").strip()
     return {
@@ -87,8 +98,8 @@ def _form_to_atividade(form) -> dict:
         "valor_total": float(vt) if vt else None,
         "max_tentativas": int(form.get("max_tentativas") or 0),
         "tempo_limite": int(form.get("tempo_limite") or 0),
-        "disponivel_de": form.get("disponivel_de") or None,
-        "disponivel_ate": form.get("disponivel_ate") or None,
+        "disponivel_de": _to_pb_date(form.get("disponivel_de")),
+        "disponivel_ate": _to_pb_date(form.get("disponivel_ate")),
         "nota_automatica": "nota_automatica" in form,
         "exibir_feedback_pos": "exibir_feedback_pos" in form,
         "embaralhar": "embaralhar" in form,
