@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disciplinas de {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:760px;">
+  <div class="breadcrumb">
+    <a href="/professor/turmas">Turmas</a><span>›</span>
+    <a href="/professor/turma/{{ turma.id }}">{{ turma.nome }}</a><span>›</span><span>Disciplinas</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Disciplinas da turma</h1>
+      <p class="qb-subtitulo">{{ turma.nome }}</p>
+    </div>
+  </div>
+
+  <!-- Vincular nova -->
+  {% if disponiveis %}
+    <form method="post" action="/professor/turma/{{ turma.id }}/disciplinas/vincular" class="turma-banco-bar">
+      <select name="disciplina" required class="banco-filtro-select" style="flex:1;min-width:160px;">
+        <option value="">Selecione uma disciplina…</option>
+        {% for d in disponiveis %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+      </select>
+      <input type="text" name="professor" placeholder="Professor (opcional)" class="banco-filtro-select" style="flex:1;min-width:120px;">
+      <input type="text" name="semestre" placeholder="Semestre (opcional)" class="banco-filtro-select" style="width:130px;">
+      <button type="submit" class="btn-primary btn-sm">Vincular</button>
+    </form>
+  {% endif %}
+
+  {% if not vinculos %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📖</p>
+      <p class="qb-empty-msg">Nenhuma disciplina vinculada a esta turma ainda.</p>
+    </div>
+  {% else %}
+    <div class="qb-list">
+      {% for v in vinculos %}
+        {% set disc = (v.expand.disciplina if v.expand else None) %}
+        <div class="qb-card">
+          <div class="qb-card-num" style="background:{{ disc.cor_tema if disc and disc.cor_tema else 'var(--primaria)' }};">{{ disc.icone if disc and disc.icone else '📖' }}</div>
+          <div class="qb-card-body">
+            <p class="qb-card-enunciado">{{ disc.nome if disc else v.disciplina }}</p>
+            <p class="qb-card-info">
+              {% if v.professor %}Prof. {{ v.professor }}{% endif %}
+              {% if v.semestre %} · {{ v.semestre }}{% endif %}
+            </p>
+          </div>
+          <div class="qb-card-acoes">
+            {% if disc %}<a class="btn-ghost btn-sm" href="/professor/disciplina/{{ disc.id }}/banco-questoes">Questões</a>{% endif %}
+            <form method="post" action="/professor/turma/{{ turma.id }}/disciplinas/desvincular/{{ v.id }}" style="display:contents;">
+              <button type="submit" class="btn-danger btn-sm">Desvincular</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

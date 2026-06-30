@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if turma %}Editar{% else %}Nova{% endif %} turma — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:600px;">
+  <div class="breadcrumb">
+    <a href="/professor/turmas">Turmas</a><span>›</span><span>{% if turma %}Editar{% else %}Nova{% endif %}</span>
+  </div>
+
+  <div class="portal-header"><h1 class="portal-titulo">{% if turma %}Editar turma{% else %}Nova turma{% endif %}</h1></div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="post"
+          action="{% if turma %}/professor/turma/{{ turma.id }}/editar{% else %}/professor/turma/nova{% endif %}"
+          style="display:flex;flex-direction:column;gap:18px;">
+      <div>
+        <label class="campo-label">Nome *</label>
+        <input type="text" name="nome" required value="{{ turma.nome if turma else '' }}"
+               placeholder="Ex: 5TACN1"
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Modalidade</label>
+          <select name="modalidade" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            {% for m in ['EMI','PROEJA','FIC','EJA'] %}
+              <option value="{{ m }}" {% if turma and turma.modalidade == m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="campo-label">Ano</label>
+          <input type="text" name="ano" value="{{ turma.ano if turma else '' }}" placeholder="2025"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
+        <input type="checkbox" name="ativa" {% if not turma or turma.ativa %}checked{% endif %}> Turma ativa
+      </label>
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">{% if turma %}Salvar{% else %}Criar turma{% endif %}</button>
+        <a href="/professor/turmas" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

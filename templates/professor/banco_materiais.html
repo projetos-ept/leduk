@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banco de materiais — {{ disciplina.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+{% set tipo_emoji = {'video':'🎬','pdf':'📄','link':'🔗','arquivo':'📎'} %}
+
+<div class="shell" style="max-width:900px;">
+  <div class="breadcrumb">
+    <a href="/professor/dashboard">Dashboard</a><span>›</span>
+    <span>{{ disciplina.nome }}</span><span>›</span><span>Banco de materiais</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Banco de materiais</h1>
+      <p class="qb-subtitulo">{{ disciplina.nome }}</p>
+    </div>
+    <a href="/professor/material/novo?disciplina={{ disciplina.id }}" class="btn-primary">+ Novo material</a>
+  </div>
+
+  <form method="get" class="banco-filtros">
+    <select name="tipo" class="banco-filtro-select" onchange="this.form.submit()">
+      <option value="">Todos os tipos</option>
+      {% for t, label in [('video','Vídeo'),('pdf','PDF'),('link','Link'),('arquivo','Arquivo')] %}
+        <option value="{{ t }}" {% if filtros.tipo == t %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="assunto" class="banco-filtro-select" onchange="this.form.submit()">
+      <option value="">Todos os assuntos</option>
+      {% for a in assuntos %}<option value="{{ a }}" {% if filtros.assunto == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+    {% if filtros.tipo or filtros.assunto %}
+      <a href="/professor/disciplina/{{ disciplina.id }}/banco-materiais" class="btn-ghost btn-sm">Limpar filtros</a>
+    {% endif %}
+  </form>
+
+  {% if not materiais %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🎬</p>
+      <p class="qb-empty-msg">
+        {% if filtros.tipo or filtros.assunto %}Nenhum material corresponde aos filtros.{% else %}O banco de materiais desta disciplina está vazio.{% endif %}
+      </p>
+      <a href="/professor/material/novo?disciplina={{ disciplina.id }}" class="btn-primary">+ Criar primeiro material</a>
+    </div>
+  {% else %}
+    <p class="banco-total">{{ materiais|length }} material(is) no banco</p>
+    <div class="qb-list">
+      {% for m in materiais %}
+        <div class="qb-card">
+          <div class="qb-card-num">{{ tipo_emoji.get(m.tipo, '📦') }}</div>
+          <div class="qb-card-body">
+            <div class="qb-card-meta">
+              <span class="quest-tipo-badge quest-tipo-vf">{{ m.tipo | upper }}</span>
+              {% if m.assunto %}<span class="banco-assunto-badge">{{ m.assunto }}</span>{% endif %}
+            </div>
+            <p class="qb-card-enunciado">{{ m.titulo }}</p>
+            <p class="qb-card-info">
+              {% if m._uso and m._uso > 0 %}✓ Usado em {{ m._uso }} turma{{ 's' if m._uso != 1 else '' }}{% else %}Não usado em nenhuma turma{% endif %}
+            </p>
+          </div>
+          <div class="qb-card-acoes">
+            <a class="btn-ghost btn-sm" href="/professor/material/{{ m.id }}/editar">Editar</a>
+            <form method="post" action="/professor/material/{{ m.id }}/clonar" style="display:contents;">
+              <button type="submit" class="btn-ghost btn-sm">Clonar</button>
+            </form>
+            <button type="button" class="btn-ghost btn-sm"
+                    onclick="abrirReclass('{{ m.id }}', '{{ m.assunto | replace("'", "\\'") }}', '{{ m.disciplina }}')">Reclassificar</button>
+            <button type="button" class="btn-danger btn-sm"
+                    onclick="abrirExcluir('{{ m.id }}', '{{ m.titulo | replace("'", "\\'") }}', {{ m._uso or 0 }})">Excluir</button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- Modal Reclassificar -->
+<div id="modal-reclass" class="modal-overlay" role="dialog" aria-modal="true" hidden>
+  <div class="modal-box">
+    <h2 class="modal-titulo">Reclassificar material</h2>
+    <p class="modal-msg">Mova o material para outra disciplina ou ajuste o assunto. Os vínculos com turmas são preservados.</p>
+    <form id="form-reclass" method="post">
+      <input type="hidden" name="origem_disciplina" value="{{ disciplina.id }}">
+      <label class="campo-label">Disciplina</label>
+      <select name="disciplina" id="reclass-disc" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;margin-bottom:14px;">
+        {% for d in disciplinas %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+      </select>
+      <label class="campo-label">Assunto</label>
+      <input type="text" name="assunto" id="reclass-assunto" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;margin-bottom:20px;">
+      <div class="modal-acoes">
+        <button type="button" class="btn-ghost" onclick="fecharReclass()">Cancelar</button>
+        <button type="submit" class="btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Excluir -->
+<div id="modal-excluir" class="modal-overlay" role="dialog" aria-modal="true" hidden>
+  <div class="modal-box">
+    <h2 class="modal-titulo">Excluir material</h2>
+    <p class="modal-msg" id="excluir-msg"></p>
+    <div class="modal-acoes">
+      <button type="button" class="btn-ghost" onclick="fecharExcluir()">Cancelar</button>
+      <form id="form-excluir" method="post" style="display:inline;">
+        <input type="hidden" name="origem_disciplina" value="{{ disciplina.id }}">
+        <button type="submit" class="btn-danger">Excluir material</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function abrirReclass(id, assunto, discId) {
+  const f = document.getElementById('form-reclass');
+  f.action = '/professor/material/' + id + '/reclassificar';
+  document.getElementById('reclass-assunto').value = assunto;
+  document.getElementById('reclass-disc').value = discId;
+  const m = document.getElementById('modal-reclass'); m.hidden = false; m.querySelector('.btn-ghost').focus();
+}
+function fecharReclass() { document.getElementById('modal-reclass').hidden = true; }
+function abrirExcluir(id, titulo, uso) {
+  document.getElementById('form-excluir').action = '/professor/material/' + id + '/excluir';
+  document.getElementById('excluir-msg').textContent = uso > 0
+    ? 'Este material está em uso em ' + uso + ' turma' + (uso > 1 ? 's' : '') + '. Ele será removido dessas turmas e excluído em definitivo. Excluir mesmo assim?'
+    : 'Excluir « ' + titulo + ' » do banco? Esta ação não pode ser desfeita.';
+  const m = document.getElementById('modal-excluir'); m.hidden = false; m.querySelector('.btn-ghost').focus();
+}
+function fecharExcluir() { document.getElementById('modal-excluir').hidden = true; }
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.hidden = true; }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay').forEach(o => o.hidden = true); });
+</script>
+</body>
+</html>

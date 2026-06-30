@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Materiais de {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+{% set tipo_emoji = {'video':'🎬','pdf':'📄','link':'🔗','arquivo':'📎'} %}
+
+<div class="shell" style="max-width:820px;">
+  <div class="breadcrumb">
+    <a href="/professor/turmas">Turmas</a><span>›</span>
+    <a href="/professor/turma/{{ turma.id }}">{{ turma.nome }}</a><span>›</span><span>Materiais</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Materiais da turma</h1>
+      <p class="qb-subtitulo">{{ turma.nome }}</p>
+    </div>
+    <a href="/professor/turma/{{ turma.id }}/materiais/selecionar" class="btn-primary">📋 Adicionar do banco</a>
+  </div>
+
+  {% if not vinculos %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🎬</p>
+      <p class="qb-empty-msg">Nenhum material vinculado a esta turma ainda.</p>
+      <a href="/professor/turma/{{ turma.id }}/materiais/selecionar" class="btn-primary">📋 Adicionar do banco</a>
+    </div>
+  {% else %}
+    <div class="qb-list">
+      {% for v in vinculos %}
+        {% set m = (v.expand.material if v.expand else None) %}
+        <div class="qb-card">
+          <div class="qb-card-num">{{ tipo_emoji.get(m.tipo, '📦') if m else '📦' }}</div>
+          <div class="qb-card-body">
+            <div class="qb-card-meta">
+              {% if m %}<span class="quest-tipo-badge quest-tipo-vf">{{ m.tipo | upper }}</span>{% endif %}
+              {% if m and m.assunto %}<span class="banco-assunto-badge">{{ m.assunto }}</span>{% endif %}
+            </div>
+            <p class="qb-card-enunciado">{{ m.titulo if m else v.material }}</p>
+          </div>
+          <div class="qb-card-acoes">
+            {% if m %}<a class="btn-ghost btn-sm" href="/professor/material/{{ m.id }}/editar">Editar</a>{% endif %}
+            <form method="post" action="/professor/turma/{{ turma.id }}/materiais/remover/{{ v.id }}" style="display:contents;">
+              <button type="submit" class="btn-danger btn-sm">Remover</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="qb-card-info" style="margin-top:12px;">Remover aqui desvincula o material desta turma — ele continua no banco da disciplina.</p>
+  {% endif %}
+</div>
+</body>
+</html>

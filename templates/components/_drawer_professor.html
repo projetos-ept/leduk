@@ -20,6 +20,16 @@
           <span class="nav-link-icon">📊</span> Dashboard
         </a>
       </li>
+      <li>
+        <a class="nav-link" href="/professor/turmas">
+          <span class="nav-link-icon">🏫</span> Gerenciar Turmas
+        </a>
+      </li>
+      <li>
+        <a class="nav-link" href="/professor/disciplinas">
+          <span class="nav-link-icon">📖</span> Gerenciar Disciplinas
+        </a>
+      </li>
     </ul>
 
     {% if professor_nav %}
@@ -36,9 +46,14 @@
                 {% for disc in item.disciplinas %}
                   <li class="nav-subitem">
                     <span class="nav-subitem-nome">{{ disc.nome }}</span>
-                    <a class="nav-bank-link"
-                       href="/professor/disciplina/{{ disc.id }}/banco-questoes"
-                       title="Banco de questões de {{ disc.nome }}">📋</a>
+                    <span class="nav-subitem-acoes">
+                      <a class="nav-bank-link"
+                         href="/professor/disciplina/{{ disc.id }}/banco-questoes"
+                         title="Banco de questões de {{ disc.nome }}">📋</a>
+                      <a class="nav-bank-link"
+                         href="/professor/disciplina/{{ disc.id }}/banco-materiais"
+                         title="Banco de materiais de {{ disc.nome }}">🎬</a>
+                    </span>
                   </li>
                 {% endfor %}
               </ul>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if disciplina %}Editar{% else %}Nova{% endif %} disciplina — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:600px;">
+  <div class="breadcrumb">
+    <a href="/professor/disciplinas">Disciplinas</a><span>›</span><span>{% if disciplina %}Editar{% else %}Nova{% endif %}</span>
+  </div>
+
+  <div class="portal-header"><h1 class="portal-titulo">{% if disciplina %}Editar disciplina{% else %}Nova disciplina{% endif %}</h1></div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="post"
+          action="{% if disciplina %}/professor/disciplina/{{ disciplina.id }}/editar{% else %}/professor/disciplina/nova{% endif %}"
+          style="display:flex;flex-direction:column;gap:18px;">
+      <div>
+        <label class="campo-label">Nome *</label>
+        <input type="text" name="nome" required value="{{ disciplina.nome if disciplina else '' }}"
+               placeholder="Ex: Informática Aplicada ao Trabalho em Saúde"
+               style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Código</label>
+          <input type="text" name="codigo" value="{{ disciplina.codigo if disciplina else '' }}" placeholder="LIS"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Ícone (emoji)</label>
+          <input type="text" name="icone" value="{{ disciplina.icone if disciplina else '' }}" placeholder="🧬" maxlength="4"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+      <div>
+        <label class="campo-label">Cor do tema</label>
+        <input type="color" name="cor_tema" value="{{ disciplina.cor_tema if disciplina and disciplina.cor_tema else '#5b8dee' }}"
+               style="width:64px;height:36px;border:1px solid var(--borda);border-radius:8px;cursor:pointer;">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
+        <input type="checkbox" name="ativa" {% if not disciplina or disciplina.ativa %}checked{% endif %}> Disciplina ativa
+      </label>
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">{% if disciplina %}Salvar{% else %}Criar disciplina{% endif %}</button>
+        <a href="/professor/disciplinas" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -103,6 +103,38 @@ class PocketBaseClient:
         return result.get("items", [])
 
     def listar_materiais(self, turma_id: str, disciplina_id: str) -> list:
+        """Materiais de uma turma+disciplina, exibidos no portal do aluno.
+
+        Modelo novo: lê via pivô `turma_materiais` (expand `material`) e filtra
+        pela disciplina. Retrocompatível: se a collection pivô ainda não existir
+        ou não houver vínculos para a turma, cai no filtro legado
+        `materiais.turma` — assim o portal nunca quebra antes/depois da migração.
+        """
+        try:
+            result = self._get(
+                "/api/collections/turma_materiais/records",
+                params={
+                    "filter": f'turma="{turma_id}"&&ativo=true',
+                    "expand": "material",
+                    "sort": "ordem",
+                },
+            )
+        except Exception:
+            # Collection pivô ausente (pré-migração) ou falha de rede → fallback legado.
+            result = None
+
+        if result is not None:
+            # Pivô existe: confia no resultado (mesmo vazio) para não exibir dados
+            # legados defasados após a migração.
+            materiais = []
+            for vinc in result.get("items", []):
+                mat = (vinc.get("expand") or {}).get("material")
+                if mat and mat.get("disciplina") == disciplina_id and mat.get("ativo", True):
+                    mat["_vinculo_id"] = vinc["id"]
+                    materiais.append(mat)
+            return materiais
+
+        # Fallback legado (modelo antigo: materiais.turma direto)
         result = self._get(
             "/api/collections/materiais/records",
             params={
@@ -452,3 +484,175 @@ class PocketBaseClient:
 
     def excluir_par_associativo(self, par_id: str) -> None:
         self._delete(f"/api/collections/pares_associativos/records/{par_id}")
+
+    # --- Turmas (gestão) ---
+
+    def criar_turma(self, data: dict) -> dict:
+        return self._post("/api/collections/turmas/records", data)
+
+    def atualizar_turma(self, turma_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/turmas/records/{turma_id}", data)
+
+    def excluir_turma(self, turma_id: str) -> None:
+        self._delete(f"/api/collections/turmas/records/{turma_id}")
+
+    def contar_vinculos_turma(self, turma_id: str) -> dict:
+        """Conta vínculos que impedem a exclusão segura de uma turma."""
+        def _total(collection: str, filtro: str) -> int:
+            try:
+                r = self._get(f"/api/collections/{collection}/records",
+                              params={"filter": filtro, "perPage": 1})
+                return r.get("totalItems", 0)
+            except Exception:
+                return 0
+        return {
+            "turma_disciplina": _total("turma_disciplina", f'turma="{turma_id}"'),
+            "atividades": _total("atividades", f'turma="{turma_id}"'),
+            "tentativas": _total("tentativas", f'turma="{turma_id}"'),
+        }
+
+    # --- Disciplinas (gestão) ---
+
+    def criar_disciplina(self, data: dict) -> dict:
+        return self._post("/api/collections/disciplinas/records", data)
+
+    def atualizar_disciplina(self, disciplina_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/disciplinas/records/{disciplina_id}", data)
+
+    def excluir_disciplina(self, disciplina_id: str) -> None:
+        self._delete(f"/api/collections/disciplinas/records/{disciplina_id}")
+
+    def contar_vinculos_disciplina(self, disciplina_id: str) -> dict:
+        def _total(collection: str, filtro: str) -> int:
+            try:
+                r = self._get(f"/api/collections/{collection}/records",
+                              params={"filter": filtro, "perPage": 1})
+                return r.get("totalItems", 0)
+            except Exception:
+                return 0
+        return {
+            "turma_disciplina": _total("turma_disciplina", f'disciplina="{disciplina_id}"'),
+            "questoes": _total("questoes", f'disciplina="{disciplina_id}"'),
+            "materiais": _total("materiais", f'disciplina="{disciplina_id}"'),
+        }
+
+    # --- Vínculo turma ↔ disciplina (pivô turma_disciplina) ---
+
+    def listar_turma_disciplinas(self, turma_id: str) -> list:
+        result = self._get(
+            "/api/collections/turma_disciplina/records",
+            params={"filter": f'turma="{turma_id}"', "expand": "disciplina", "sort": "created"},
+        )
+        return result.get("items", [])
+
+    def vincular_disciplina(self, turma_id: str, disciplina_id: str,
+                            professor: str = "", semestre: str = "") -> dict:
+        data: dict = {"turma": turma_id, "disciplina": disciplina_id}
+        if professor:
+            data["professor"] = professor
+        if semestre:
+            data["semestre"] = semestre
+        return self._post("/api/collections/turma_disciplina/records", data)
+
+    def desvincular_disciplina(self, vinculo_id: str) -> None:
+        self._delete(f"/api/collections/turma_disciplina/records/{vinculo_id}")
+
+    # --- Banco de materiais (por disciplina) ---
+
+    def buscar_material(self, material_id: str) -> dict:
+        return self._get(f"/api/collections/materiais/records/{material_id}")
+
+    def listar_materiais_disciplina(self, disciplina_id: str, filtros: dict | None = None) -> list:
+        filtro = f'disciplina="{disciplina_id}"'
+        for campo in ("tipo", "assunto"):
+            val = (filtros or {}).get(campo)
+            if val:
+                filtro += f'&&{campo}="{val}"'
+        result = self._get(
+            "/api/collections/materiais/records",
+            params={"filter": filtro, "sort": "-created", "perPage": 200},
+        )
+        return result.get("items", [])
+
+    def criar_material(self, data: dict, arquivo=None) -> dict:
+        if arquivo:
+            return self._post_multipart("/api/collections/materiais/records", data, {"arquivo": arquivo})
+        return self._post("/api/collections/materiais/records", data)
+
+    def atualizar_material(self, material_id: str, data: dict, arquivo=None) -> dict:
+        if arquivo:
+            return self._patch_multipart(f"/api/collections/materiais/records/{material_id}",
+                                         data, {"arquivo": arquivo})
+        return self._patch(f"/api/collections/materiais/records/{material_id}", data)
+
+    def excluir_material(self, material_id: str) -> None:
+        self._delete(f"/api/collections/materiais/records/{material_id}")
+
+    def clonar_material(self, material_id: str) -> dict:
+        orig = self.buscar_material(material_id)
+        ignorar = _CAMPOS_PB | {"arquivo", "turma"}
+        data = {k: v for k, v in orig.items() if k not in ignorar}
+        data["titulo"] = f'{orig.get("titulo", "")} (cópia)'
+        return self.criar_material(data)
+
+    def reclassificar_material(self, material_id: str, nova_disciplina_id: str = "",
+                               novo_assunto: str | None = None) -> dict:
+        data: dict = {}
+        if nova_disciplina_id:
+            data["disciplina"] = nova_disciplina_id
+        if novo_assunto is not None:
+            data["assunto"] = novo_assunto
+        return self._patch(f"/api/collections/materiais/records/{material_id}", data)
+
+    def contar_uso_material(self, material_id: str) -> int:
+        """Conta em quantas turmas o material é usado (via turma_materiais)."""
+        try:
+            r = self._get("/api/collections/turma_materiais/records",
+                          params={"filter": f'material="{material_id}"', "perPage": 1})
+            return r.get("totalItems", 0)
+        except Exception:
+            return 0
+
+    def remover_material_de_todas_turmas(self, material_id: str) -> int:
+        """Apaga os vínculos turma_materiais do material (cascade manual)."""
+        try:
+            r = self._get("/api/collections/turma_materiais/records",
+                          params={"filter": f'material="{material_id}"', "perPage": 200})
+        except Exception:
+            return 0
+        removidos = 0
+        for vinc in r.get("items", []):
+            try:
+                self._delete(f"/api/collections/turma_materiais/records/{vinc['id']}")
+                removidos += 1
+            except Exception:
+                pass
+        return removidos
+
+    # --- Vínculo turma ↔ material (pivô turma_materiais) ---
+
+    def listar_turma_materiais(self, turma_id: str) -> list:
+        result = self._get(
+            "/api/collections/turma_materiais/records",
+            params={"filter": f'turma="{turma_id}"', "expand": "material", "sort": "ordem"},
+        )
+        return result.get("items", [])
+
+    def adicionar_material_turma(self, turma_id: str, material_id: str, ordem: int = 0) -> dict:
+        return self._post("/api/collections/turma_materiais/records", {
+            "turma": turma_id,
+            "material": material_id,
+            "ordem": ordem,
+            "ativo": True,
+        })
+
+    def material_ja_na_turma(self, turma_id: str, material_id: str) -> bool:
+        try:
+            r = self._get("/api/collections/turma_materiais/records",
+                          params={"filter": f'turma="{turma_id}"&&material="{material_id}"', "perPage": 1})
+            return r.get("totalItems", 0) > 0
+        except Exception:
+            return False
+
+    def remover_material_turma(self, vinculo_id: str) -> None:
+        self._delete(f"/api/collections/turma_materiais/records/{vinculo_id}")
