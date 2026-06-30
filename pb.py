@@ -680,3 +680,77 @@ class PocketBaseClient:
 
     def remover_material_turma(self, vinculo_id: str) -> None:
         self._delete(f"/api/collections/turma_materiais/records/{vinculo_id}")
+
+    # --- Boletim ---
+
+    def buscar_boletim_turma(self, turma_id: str) -> dict | None:
+        result = self._get(
+            "/api/collections/boletins/records",
+            params={"filter": f'turma="{turma_id}"', "perPage": 1},
+        )
+        items = result.get("items", [])
+        return items[0] if items else None
+
+    def criar_boletim(self, data: dict) -> dict:
+        return self._post("/api/collections/boletins/records", data)
+
+    def atualizar_boletim(self, boletim_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/boletins/records/{boletim_id}", data)
+
+    def listar_unidades_boletim(self, boletim_id: str) -> list:
+        result = self._get(
+            "/api/collections/unidades/records",
+            params={"filter": f'boletim="{boletim_id}"', "sort": "disciplina,numero", "perPage": 200},
+        )
+        return result.get("items", [])
+
+    def criar_unidade(self, data: dict) -> dict:
+        return self._post("/api/collections/unidades/records", data)
+
+    def atualizar_unidade(self, unidade_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/unidades/records/{unidade_id}", data)
+
+    def excluir_unidade(self, unidade_id: str) -> None:
+        self._delete(f"/api/collections/unidades/records/{unidade_id}")
+
+    def listar_rec_finais(self, boletim_id: str) -> list:
+        result = self._get(
+            "/api/collections/recuperacao_final/records",
+            params={"filter": f'boletim="{boletim_id}"', "perPage": 200},
+        )
+        return result.get("items", [])
+
+    def salvar_rec_final(self, data: dict) -> dict:
+        """Cria ou atualiza a recuperação final de uma disciplina no boletim."""
+        existentes = self._get(
+            "/api/collections/recuperacao_final/records",
+            params={"filter": f'boletim="{data["boletim"]}"&&disciplina="{data["disciplina"]}"', "perPage": 1},
+        ).get("items", [])
+        if existentes:
+            return self._patch(f"/api/collections/recuperacao_final/records/{existentes[0]['id']}", data)
+        return self._post("/api/collections/recuperacao_final/records", data)
+
+    def listar_tentativas_turma(self, turma_id: str) -> list:
+        """Todas as tentativas concluídas da turma (para cálculo em lote do boletim).
+
+        tentativas referenciam `atividade` (não `turma`), então agregamos por
+        atividade da turma. Retorna os registros-pai concluídos.
+        """
+        atividades = self.listar_todas_atividades_turma(turma_id)
+        todas: list = []
+        for a in atividades:
+            try:
+                todas.extend(self.listar_tentativas_atividade(a["id"]))
+            except Exception:
+                pass
+        return todas
+
+    def listar_tentativas_atividades(self, ativ_ids: list) -> list:
+        """Tentativas concluídas de uma lista específica de atividades."""
+        todas: list = []
+        for aid in ativ_ids:
+            try:
+                todas.extend(self.listar_tentativas_atividade(aid))
+            except Exception:
+                pass
+        return todas

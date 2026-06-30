@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boletim — {{ turma.nome if turma else '' }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:680px;">
+  {% if modo_professor %}
+    <div class="breadcrumb">
+      <a href="/professor/turma/{{ turma.id }}/boletim/notas">Boletim</a><span>›</span><span>{{ aluno_nome_boletim }}</span>
+    </div>
+  {% endif %}
+
+  <div class="portal-header">
+    <h1 class="portal-titulo">{% if modo_professor %}Boletim de {{ aluno_nome_boletim }}{% else %}Meu Boletim{% endif %}</h1>
+    <p class="portal-turma">{{ turma.nome if turma else '' }}{% if boletim and boletim.ano %} · {{ boletim.ano }}{% endif %}</p>
+  </div>
+
+  {% if indisponivel %}
+    <div class="qb-empty" style="margin-top:16px;">
+      <p class="dash-empty-icon">🔒</p>
+      <p class="qb-empty-msg">Boletim não disponível ainda.</p>
+    </div>
+  {% else %}
+    {% set aprov = boletim.media_aprovacao or 5.0 %}
+    {% for disc_id, dd in resultado.items() %}
+      <div class="card" style="margin-top:16px;">
+        <h2 style="font-size:1.05rem;font-weight:700;margin-bottom:12px;">{{ dd.disciplina.nome }}</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:.92rem;">
+          <tbody>
+            {% for linha in dd.unidades %}
+              <tr style="border-bottom:1px solid var(--borda);">
+                <td style="padding:8px 4px;">{{ linha.titulo }}</td>
+                <td style="padding:8px 4px;text-align:right;">
+                  {% if linha.realizada %}<strong>{{ '%.1f'|format(linha.nota_final) }}</strong>{% else %}<span style="color:var(--muted);">—</span>{% endif %}
+                  {% if linha.rec is not none and linha.rec > linha.nota %}<span style="color:var(--muted);font-size:.78rem;"> (rec {{ '%.1f'|format(linha.rec) }})</span>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            {% if dd.rec_final is not none %}
+              <tr style="border-bottom:1px solid var(--borda);">
+                <td style="padding:8px 4px;color:var(--muted);">Recuperação final</td>
+                <td style="padding:8px 4px;text-align:right;color:var(--muted);">{{ '%.1f'|format(dd.rec_final) }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style="padding:10px 4px;font-weight:700;">Média</td>
+              <td style="padding:10px 4px;text-align:right;font-weight:800;font-size:1.1rem;color:{% if dd.media_final >= aprov %}var(--sucesso){% else %}var(--erro){% endif %};">{{ '%.1f'|format(dd.media_final) }}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px;font-weight:700;">Situação</td>
+              <td style="padding:4px;text-align:right;">
+                {% if dd.situacao == 'aprovado' %}<span class="nota-badge nota-verde">✅ Aprovado</span>
+                {% elif dd.situacao == 'recuperacao' %}<span class="nota-badge nota-amarelo">🔁 Em recuperação</span>
+                {% else %}<span class="nota-badge nota-vermelho">❌ Reprovado</span>{% endif %}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    {% else %}
+      <div class="qb-empty" style="margin-top:16px;">
+        <p class="dash-empty-icon">📊</p>
+        <p class="qb-empty-msg">O boletim ainda não tem unidades lançadas.</p>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+</body>
+</html>

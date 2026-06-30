@@ -12,6 +12,7 @@ from functools import wraps
 import requests
 from flask import Flask, make_response, redirect, render_template, request, session, url_for
 
+from boletim import calcular_boletim_aluno, calcular_boletim_turma
 from pb import PocketBaseClient
 from questao import (
     calcular_nota_final,
@@ -117,6 +118,31 @@ def _material_campos_comuns(form) -> dict:
         "descricao": form.get("descricao", "").strip(),
         "url": form.get("url", "").strip(),
         "assunto": form.get("assunto", "").strip(),
+    }
+
+
+def _form_to_boletim(form, turma_id: str) -> dict:
+    ma = (form.get("media_aprovacao") or "").strip()
+    ano = (form.get("ano") or "").strip()
+    return {
+        "turma": turma_id,
+        "media_aprovacao": float(ma) if ma else 5.0,
+        "ativo": "ativo" in form,
+        "liberado": "liberado" in form,
+        "ano": int(ano) if ano.isdigit() else None,
+    }
+
+
+def _form_to_unidade(form, boletim_id: str) -> dict:
+    rec_manual = (form.get("rec_nota_manual") or "").strip()
+    return {
+        "boletim": boletim_id,
+        "disciplina": form.get("disciplina", ""),
+        "numero": int(form.get("numero") or 1),
+        "titulo": form.get("titulo", "").strip(),
+        "atividades": form.getlist("atividades"),
+        "rec_atividade": form.get("rec_atividade", ""),
+        "rec_nota_manual": float(rec_manual) if rec_manual else None,
     }
 
 
@@ -584,6 +610,11 @@ def create_app(config: dict | None = None) -> Flask:
 
         todas_disciplinas = get_pb().listar_disciplinas_da_turma(turma_id)
         tem_multidisciplinar = bool(get_pb().listar_atividades_multidisciplinares(turma_id))
+        try:
+            _bol = get_pb().buscar_boletim_turma(turma_id)
+            boletim_ativo = bool(_bol and _bol.get("ativo"))
+        except Exception:
+            boletim_ativo = False  # collection 'boletins' ausente (pré-migração) ou rede
 
         logado = bool(session.get("token"))
         aluno_id = session.get("aluno_id", "")
@@ -606,6 +637,7 @@ def create_app(config: dict | None = None) -> Flask:
             aluno_nome=aluno_nome,
             todas_disciplinas=todas_disciplinas,
             tem_multidisciplinar=tem_multidisciplinar,
+            boletim_ativo=boletim_ativo,
         )
 
     @app.route("/turma/<turma_id>/multidisciplinar")
@@ -1564,6 +1596,180 @@ def create_app(config: dict | None = None) -> Flask:
     def professor_remover_material_turma(turma_id: str, vinculo_id: str):
         get_pb().remover_material_turma(vinculo_id)
         return redirect(url_for("professor_turma_materiais", turma_id=turma_id))
+
+    # ── Boletim ──
+
+    def _dados_boletim(turma_id: str) -> dict | None:
+        """Carrega o boletim da turma e calcula o resultado de todos os alunos."""
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if not boletim:
+            return None
+        unidades = get_pb().listar_unidades_boletim(boletim["id"])
+        rec_finais = get_pb().listar_rec_finais(boletim["id"])
+        atividades = get_pb().listar_todas_atividades_turma(turma_id)
+        atividades_map = {a["id"]: {"valor_total": a.get("valor_total")} for a in atividades}
+        todos_tentativas: list = []
+        for a in atividades:
+            try:
+                todos_tentativas.extend(get_pb().listar_tentativas_atividade(a["id"]))
+            except Exception:
+                pass
+        alunos_map: dict[str, dict] = {}
+        for t in todos_tentativas:
+            alid = t.get("aluno_id")
+            if alid and alid not in alunos_map:
+                alunos_map[alid] = {"aluno_id": alid, "nome": t.get("aluno_nome", alid)}
+        alunos = sorted(alunos_map.values(), key=lambda a: a["nome"])
+        disc_ids = {u.get("disciplina") for u in unidades}
+        disciplinas = [d for d in get_pb().listar_disciplinas() if d["id"] in disc_ids]
+        resultado = calcular_boletim_turma(boletim, unidades, rec_finais, todos_tentativas,
+                                           alunos, disciplinas, atividades_map)
+        return {"boletim": boletim, "unidades": unidades, "rec_finais": rec_finais,
+                "disciplinas": disciplinas, "alunos": alunos, "resultado": resultado,
+                "atividades": atividades}
+
+    @app.route("/professor/turma/<turma_id>/boletim", methods=["GET", "POST"])
+    @requer_professor
+    def professor_boletim_config(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if request.method == "GET":
+            return render_template("professor/boletim/configurar.html", turma=turma,
+                                   boletim=boletim, aluno_nome=session.get("aluno_nome", ""))
+        data = _form_to_boletim(request.form, turma_id)
+        if boletim:
+            get_pb().atualizar_boletim(boletim["id"], data)
+        else:
+            get_pb().criar_boletim(data)
+        return redirect(url_for("professor_boletim_unidades", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/ativar", methods=["POST"])
+    @requer_professor
+    def professor_boletim_ativar(turma_id: str):
+        b = get_pb().buscar_boletim_turma(turma_id)
+        if b:
+            get_pb().atualizar_boletim(b["id"], {"ativo": not b.get("ativo")})
+        return redirect(url_for("professor_boletim_config", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/liberar", methods=["POST"])
+    @requer_professor
+    def professor_boletim_liberar(turma_id: str):
+        b = get_pb().buscar_boletim_turma(turma_id)
+        if b:
+            get_pb().atualizar_boletim(b["id"], {"liberado": not b.get("liberado")})
+        return redirect(url_for("professor_boletim_config", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/unidades")
+    @requer_professor
+    def professor_boletim_unidades(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if not boletim:
+            return redirect(url_for("professor_boletim_config", turma_id=turma_id))
+        unidades = get_pb().listar_unidades_boletim(boletim["id"])
+        rec_finais = get_pb().listar_rec_finais(boletim["id"])
+        atividades = get_pb().listar_todas_atividades_turma(turma_id)
+        disc_ids = {(a.get("expand") or {}).get("disciplina", {}).get("id") for a in atividades}
+        disciplinas = [d for d in get_pb().listar_disciplinas() if d["id"] in disc_ids]
+        return render_template("professor/boletim/unidades.html", turma=turma, boletim=boletim,
+                               unidades=unidades, rec_finais=rec_finais, atividades=atividades,
+                               disciplinas=disciplinas, aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>/boletim/unidade/nova", methods=["POST"])
+    @requer_professor
+    def professor_boletim_unidade_nova(turma_id: str):
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if boletim:
+            get_pb().criar_unidade(_form_to_unidade(request.form, boletim["id"]))
+        return redirect(url_for("professor_boletim_unidades", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/unidade/<uid>/editar", methods=["POST"])
+    @requer_professor
+    def professor_boletim_unidade_editar(turma_id: str, uid: str):
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if boletim:
+            get_pb().atualizar_unidade(uid, _form_to_unidade(request.form, boletim["id"]))
+        return redirect(url_for("professor_boletim_unidades", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/unidade/<uid>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_boletim_unidade_excluir(turma_id: str, uid: str):
+        get_pb().excluir_unidade(uid)
+        return redirect(url_for("professor_boletim_unidades", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/rec-final", methods=["POST"])
+    @requer_professor
+    def professor_boletim_rec_final(turma_id: str):
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if boletim:
+            rec_manual = (request.form.get("rec_nota_manual") or "").strip()
+            get_pb().salvar_rec_final({
+                "boletim": boletim["id"],
+                "disciplina": request.form.get("disciplina", ""),
+                "rec_atividade": request.form.get("rec_atividade", ""),
+                "rec_nota_manual": float(rec_manual) if rec_manual else None,
+            })
+        return redirect(url_for("professor_boletim_unidades", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/boletim/notas")
+    @requer_professor
+    def professor_boletim_notas(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        dados = _dados_boletim(turma_id)
+        if not dados:
+            return redirect(url_for("professor_boletim_config", turma_id=turma_id))
+        # nº de unidades por disciplina (para o cabeçalho do mapa de calor)
+        unidades_por_disc: dict[str, list] = {}
+        for u in sorted(dados["unidades"], key=lambda x: x.get("numero", 0)):
+            unidades_por_disc.setdefault(u.get("disciplina"), []).append(u)
+        return render_template("professor/boletim/notas.html", turma=turma, modo="notas",
+                               unidades_por_disc=unidades_por_disc, aluno_nome=session.get("aluno_nome", ""),
+                               **dados)
+
+    @app.route("/professor/turma/<turma_id>/boletim/relatorio")
+    @requer_professor
+    def professor_boletim_relatorio(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        dados = _dados_boletim(turma_id)
+        if not dados:
+            return redirect(url_for("professor_boletim_config", turma_id=turma_id))
+        return render_template("professor/boletim/relatorio.html", turma=turma,
+                               aluno_nome=session.get("aluno_nome", ""), **dados)
+
+    @app.route("/professor/aluno/<aluno_id>/boletim/<turma_id>")
+    @requer_professor
+    def professor_boletim_aluno(aluno_id: str, turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        dados = _dados_boletim(turma_id)
+        if not dados:
+            return redirect(url_for("professor_boletim_config", turma_id=turma_id))
+        res = dados["resultado"].get(aluno_id)
+        if res is None:
+            res = calcular_boletim_aluno(dados["boletim"], dados["unidades"],
+                                         dados["rec_finais"], {}, dados["disciplinas"])
+        nome = next((a["nome"] for a in dados["alunos"] if a["aluno_id"] == aluno_id), aluno_id)
+        return render_template("aluno/boletim.html", turma=turma, boletim=dados["boletim"],
+                               resultado=res, aluno_nome_boletim=nome, modo_professor=True,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/aluno/boletim/<turma_id>")
+    @requer_login
+    def aluno_boletim(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        boletim = get_pb().buscar_boletim_turma(turma_id)
+        if not boletim or not boletim.get("liberado"):
+            return render_template("aluno/boletim.html", turma=turma, boletim=boletim,
+                                   indisponivel=True,
+                                   aluno_nome=session.get("aluno_nome", "")), 403
+        dados = _dados_boletim(turma_id)
+        aluno_id = session.get("aluno_id", "")
+        res = dados["resultado"].get(aluno_id)
+        if res is None:
+            res = calcular_boletim_aluno(dados["boletim"], dados["unidades"],
+                                         dados["rec_finais"], {}, dados["disciplinas"])
+        return render_template("aluno/boletim.html", turma=turma, boletim=boletim,
+                               resultado=res, aluno_nome_boletim=session.get("aluno_nome", ""),
+                               aluno_nome=session.get("aluno_nome", ""))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)

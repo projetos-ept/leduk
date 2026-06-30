@@ -10,6 +10,7 @@ Plataforma de atividades educacionais interativas self-hosted, construída sobre
 leduk/
 ├── app.py                  ← aplicação Flask (factory create_app)
 ├── questao.py              ← lógica de validação e cálculo de score/nota
+├── boletim.py              ← cálculo de boletim por unidade/disciplina + recuperação
 ├── pb.py                   ← cliente HTTP para o PocketBase
 ├── gunicorn.conf.py        ← bind, workers, wsgi_app = "app:create_app()"
 ├── deploy.sh               ← pull → pip install → restart → health check
@@ -22,7 +23,8 @@ leduk/
 │   ├── migrate_tentativas.py    ← migração: adiciona campo atividade ao schema
 │   ├── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
 │   ├── migrate_materiais.py     ← migração: assunto + collection turma_materiais + backfill
-│   └── add_multidisciplinar_atividades.py ← migração: campo multidisciplinar em atividades
+│   ├── add_multidisciplinar_atividades.py ← migração: campo multidisciplinar em atividades
+│   └── migrate_boletim.py       ← migração: collections boletins/unidades/recuperacao_final
 │
 ├── templates/
 │   ├── index.html
@@ -81,7 +83,8 @@ leduk/
     ├── unit/
     │   ├── test_questao.py
     │   ├── test_score.py
-    │   └── test_peso.py
+    │   ├── test_peso.py
+    │   └── test_boletim.py       ← cálculo do boletim + bordas de recuperação
     └── integration/
         ├── test_auth.py
         ├── test_rotas_atividade.py
@@ -98,7 +101,8 @@ leduk/
         ├── test_gestao_escola.py     ← turmas/disciplinas/vínculos + banco de materiais
         ├── test_banco_geral.py       ← banco geral + atividade multidisciplinar
         ├── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
-        └── test_questao_form.py      ← seções condicionais do form + navegação banco
+        ├── test_questao_form.py      ← seções condicionais do form + navegação banco
+        └── test_boletim_rotas.py     ← rotas do boletim (config, toggles, notas, acesso)
 ```
 
 ---
@@ -153,7 +157,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 163 testes, todos passando.
+**Resultado esperado:** 193 testes, todos passando.
 
 ---
 
@@ -224,6 +228,20 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | GET | `/professor/turma/<id>/materiais` | Materiais vinculados à turma |
 | GET | `/professor/turma/<id>/materiais/selecionar` | Selecionar materiais do banco |
 | POST | `/professor/turma/<id>/materiais/adicionar` · `/remover/<vinc_id>` | Vincular/desvincular (sem duplicar) |
+| GET/POST | `/professor/turma/<id>/boletim` | Configurar boletim (média de aprovação, ativo, liberado, ano) |
+| POST | `/professor/turma/<id>/boletim/ativar` · `/liberar` | Toggles de ativo / liberado |
+| GET | `/professor/turma/<id>/boletim/unidades` | Gerenciar unidades (atividades, recuperação) |
+| POST | `/professor/turma/<id>/boletim/unidade/nova` · `/<uid>/editar` · `/<uid>/excluir` | CRUD de unidades |
+| POST | `/professor/turma/<id>/boletim/rec-final` | Salvar recuperação final por disciplina |
+| GET | `/professor/turma/<id>/boletim/notas` | Mapa de calor aluno × unidade × disciplina |
+| GET | `/professor/turma/<id>/boletim/relatorio` | Relatório de médias finais e situação |
+| GET | `/professor/aluno/<aluno_id>/boletim/<turma_id>` | Boletim individual (visão do professor) |
+
+### Aluno — boletim
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/aluno/boletim/<turma_id>` | Boletim do aluno logado (403 se não liberado) |
 
 ### Relatórios
 
@@ -401,6 +419,35 @@ O fluxo é em dois passos: **Pré-visualizar** (dry-run, sem gravar nada) mostra
 resumo — quantas serão criadas, contagem por tipo e o status de cada questão
 (válida ou o motivo do problema) — e só então **Confirmar importação** grava de
 fato. Dá para ajustar o JSON e pré-visualizar de novo antes de confirmar.
+
+### Boletim (collections `boletins`, `unidades`, `recuperacao_final`)
+
+Cada turma tem **um** boletim (`media_aprovacao`, `ativo`, `liberado`, `ano`).
+O boletim tem **N unidades por disciplina** (`numero`, `titulo`, `atividades[]`,
+`rec_atividade`, `rec_nota_manual`) e **uma recuperação final por disciplina**.
+
+Cálculo (módulo puro `boletim.py`, sem rede — totalmente testado em
+`tests/unit/test_boletim.py`):
+
+```
+nota_unidade   = (Σ pontos do aluno / Σ valor_total) × 10   # melhor tentativa; não realizada = 0
+rec (unidade)  = max(rec_atividade, rec_nota_manual)        # só substitui se for maior; vazia → mantém
+media          = média simples das notas de unidade (após rec)
+rec_final      = mesma lógica, por disciplina
+media_final    = max(media, rec_final)
+situação: aprovado (≥ média) · recuperação (< média e rec final pendente) · reprovado
+```
+
+Migração (idempotente, cria as 3 collections resolvendo IDs em runtime):
+
+```bash
+PB_URL=... PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... python scripts/migrate_boletim.py
+```
+
+O boletim do aluno só aparece quando `liberado=true` (senão a rota responde 403);
+o card "📊 Ver meu boletim" só surge no portal quando `ativo=true`. A leitura no
+portal é resiliente: se a collection `boletins` ainda não existir (pré-migração),
+o portal funciona normalmente sem o card.
 
 ### Diagrama de relacionamentos
 
@@ -582,6 +629,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] Campo `assunto` existe em `questoes` e `materiais` (migração)
 - [ ] Collection `turma_materiais` criada e com backfill rodado (`scripts/migrate_materiais.py`)
 - [ ] Campo `multidisciplinar` (bool) existe em `atividades` (`scripts/add_multidisciplinar_atividades.py`)
+- [ ] Collections `boletins`, `unidades`, `recuperacao_final` criadas (`scripts/migrate_boletim.py`)
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`
@@ -605,6 +653,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 10 — Gestão escolar completa | Concluída | CRUD de turmas/disciplinas (com bloqueio de exclusão), vínculo turma↔disciplina, banco de materiais reutilizável por disciplina (`turma_materiais`) |
 | 11 — Banco geral e multidisciplinar | Concluída | Banco geral de questões (filtros cross-disciplina), montagem de atividade multidisciplinar e aba dedicada "Multidisciplinar" no portal do aluno |
 | 12 — Importação JSON | Concluída | Importar questões via JSON (colar ou arquivo .json), com imagens por URL ou base64; arquivo de exemplo cobrindo todos os tipos |
+| 13 — Boletim | Concluída | Boletim por turma: unidades por disciplina, recuperação de unidade e final, mapa de calor, relatório, situação (aprovado/recuperação/reprovado) e visão liberável ao aluno |
 
 ### Funcionalidades futuras consideradas
 
