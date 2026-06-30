@@ -315,3 +315,41 @@ def test_criar_atividade_com_datas_formato_pb(client):
     assert captured, "POST para PocketBase não foi feito"
     assert captured[0]["disponivel_de"] == "2026-06-29 08:00:00.000Z"
     assert captured[0]["disponivel_ate"] == "2026-07-31 23:59:00.000Z"
+
+
+# ── Token JWT nas chamadas autenticadas ───────────────────────────────────────
+
+@rsps_lib.activate
+def test_criar_atividade_envia_token_authorization(client):
+    """Criar atividade envia o JWT da sessão no header Authorization."""
+    with client.session_transaction() as sess:
+        sess["token"] = "jwt-do-professor-xyz"
+        sess["role"] = "professor"
+
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
+                 json={"items": TURMAS_LISTA})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records",
+                 json={"items": DISCIPLINAS})
+
+    captured_headers = []
+
+    def capture(req):
+        captured_headers.append(dict(req.headers))
+        return (200, {}, json.dumps({"id": "ativ_new"}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/atividades/records",
+                          callback=capture, content_type="application/json")
+
+    client.post("/professor/atividade/nova", data={
+        "titulo": "Prova Hematologia",
+        "turma": "turma01",
+        "disciplina": "disc01",
+        "max_tentativas": "1",
+        "tempo_limite": "0",
+    })
+
+    assert captured_headers, "POST para PocketBase não foi feito"
+    auth = captured_headers[0].get("Authorization", "")
+    assert auth == "jwt-do-professor-xyz", (
+        f"Token não enviado ou errado no header Authorization: {auth!r}"
+    )
