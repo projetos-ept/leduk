@@ -105,3 +105,39 @@ def test_responder_tipo_invalido(client):
         data={"tipo": "desconhecido", "questao_id": "xxx"},
     )
     assert resp.status_code == 400
+
+
+@rsps_lib.activate
+def test_questao_mc_embaralha_alternativas(client, questao_mc4):
+    """Alternativas são exibidas em ordem diferente da original (embaralhada)
+    e o set de letras permanece completo."""
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/questoes/records/q001mc4",
+        json=questao_mc4,
+    )
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/alternativas/records",
+        json={"items": questao_mc4["alternativas"]},
+    )
+    with client.session_transaction() as sess:
+        sess["tentativa_id"] = "tent-shuffle-test"
+        sess["total"] = 1
+        sess["fila"] = []
+        sess["ativ_id"] = "ativ01"
+
+    resp = client.get("/htmx/questao/q001mc4")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+
+    # todas as letras aparecem na resposta
+    for letra in ("A", "B", "C", "D"):
+        assert f'value="{letra}"' in html
+
+    # a ordem de exibição deve diferir da original [A,B,C,D] com este seed
+    import re
+    letras_exibidas = re.findall(r'value="([A-E])"', html)
+    assert sorted(letras_exibidas) == ["A", "B", "C", "D"]
+    # com seed "tent-shuffle-testq001mc4" a ordem não é A,B,C,D
+    assert letras_exibidas != ["A", "B", "C", "D"]

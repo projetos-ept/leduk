@@ -4,6 +4,7 @@ import json
 import logging
 import mimetypes
 import os
+import random
 import re
 import secrets
 import string
@@ -459,6 +460,10 @@ def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None,
 
 def _render_questao(questao: dict, num: int, total: int, ativ_id: str):
     template = _TEMPLATE_MAP.get(questao.get("tipo", ""), "components/_questao_mc.html")
+    if questao.get("tipo") in ("mc4", "mc5") and questao.get("alternativas"):
+        seed = session.get("tentativa_id", "") + questao.get("id", "")
+        rng = random.Random(seed)
+        questao = dict(questao, alternativas=rng.sample(questao["alternativas"], len(questao["alternativas"])))
     return render_template(template, questao=questao, num=num, total=total, ativ_id=ativ_id)
 
 
