@@ -517,6 +517,7 @@ def _form_to_atividade(form) -> dict:
         "nota_automatica": "nota_automatica" in form,
         "exibir_feedback_pos": "exibir_feedback_pos" in form,
         "embaralhar": "embaralhar" in form,
+        "modo_prova": "modo_prova" in form,
         "ativa": "ativa" in form,
     }
 
@@ -841,6 +842,7 @@ def create_app(config: dict | None = None) -> Flask:
             session["tentativa_id"] = ""
 
         session["nota_automatica"] = bool(ativ.get("nota_automatica", False))
+        session["modo_prova"] = bool(ativ.get("modo_prova", False))
         session["max_tentativas"] = max_tentativas
         session["tentativa_concluida"] = False
 
@@ -949,7 +951,8 @@ def create_app(config: dict | None = None) -> Flask:
                 log.warning("atualizar_progresso falhou: %s", exc)
 
         return render_template(
-            "components/_feedback.html", resultado=resultado, questao=questao, ativ_id=ativ_id
+            "components/_feedback.html", resultado=resultado, questao=questao, ativ_id=ativ_id,
+            modo_prova=session.get("modo_prova", False),
         )
 
     @app.route("/htmx/proxima/<ativ_id>")
@@ -993,6 +996,7 @@ def create_app(config: dict | None = None) -> Flask:
                         log.warning("patch_tentativa_nota_final falhou: %s", exc)
             except Exception as exc:
                 log.warning("buscar_atividade no placar falhou: %s", exc)
+            modo_prova = session.get("modo_prova", False)
             return render_template(
                 "components/_placar.html",
                 score_raw=score_raw,
@@ -1005,6 +1009,7 @@ def create_app(config: dict | None = None) -> Flask:
                 nota_final=nota_final,
                 valor_total=valor_total,
                 detalhamento=detalhamento,
+                modo_prova=modo_prova,
             )
 
         proxima_id = fila.pop(0)
@@ -1052,6 +1057,7 @@ def create_app(config: dict | None = None) -> Flask:
                     log.warning("patch_tentativa_nota_final falhou: %s", exc)
         except Exception as exc:
             log.warning("buscar_atividade no resultado falhou: %s", exc)
+        modo_prova = session.get("modo_prova", False)
         return render_template(
             "components/_placar.html",
             score_raw=score_raw,
@@ -1064,6 +1070,7 @@ def create_app(config: dict | None = None) -> Flask:
             nota_final=nota_final,
             valor_total=valor_total,
             detalhamento=detalhamento,
+            modo_prova=modo_prova,
         )
 
     # ── Professor portal ──

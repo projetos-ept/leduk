@@ -217,3 +217,44 @@ def test_editar_questao_get_retorna_200(client):
     resp = client.get("/professor/questao/q001/editar?ativ_id=ativ01")
     assert resp.status_code == 200
     assert "Qual é a função dos eritrócitos?" in resp.data.decode()
+
+
+# ── Modo prova: _form_to_atividade ───────────────────────────────────────────
+
+def _mock_editar_ativ():
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ATIVIDADE)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records", json={"items": [TURMA]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records",
+                 json={"items": DISCIPLINAS})
+
+
+@rsps_lib.activate
+def test_form_atividade_modo_prova_gravado_como_true(client):
+    """Checkbox modo_prova presente no POST → campo gravado como True."""
+    _sess_prof(client)
+    _mock_editar_ativ()
+    captured = {}
+    def cap(r):
+        captured.update(json.loads(r.body))
+        return (200, {}, json.dumps({"id": "ativ01"}))
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/ativ01",
+                          callback=cap, content_type="application/json")
+    client.post("/professor/atividade/ativ01/editar",
+                data={"titulo": "Prova", "turma": "turma01", "modo_prova": "on"})
+    assert captured.get("modo_prova") is True
+
+
+@rsps_lib.activate
+def test_form_atividade_modo_prova_ausente_e_false(client):
+    """Checkbox modo_prova ausente no POST → campo gravado como False."""
+    _sess_prof(client)
+    _mock_editar_ativ()
+    captured = {}
+    def cap(r):
+        captured.update(json.loads(r.body))
+        return (200, {}, json.dumps({"id": "ativ01"}))
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/ativ01",
+                          callback=cap, content_type="application/json")
+    client.post("/professor/atividade/ativ01/editar",
+                data={"titulo": "Prova", "turma": "turma01"})
+    assert captured.get("modo_prova") is False

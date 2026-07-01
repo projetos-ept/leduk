@@ -120,6 +120,10 @@
           Embaralhar questões
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;">
+          <input type="checkbox" name="modo_prova" {% if atividade and atividade.modo_prova %}checked{% endif %}>
+          🔒 Modo prova (sem feedback durante nem gabarito após)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer;">
           <input type="checkbox" name="ativa" {% if atividade and atividade.ativa %}checked{% endif %}>
           Ativa
         </label>

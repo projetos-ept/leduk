@@ -1,3 +1,9 @@
+{% if modo_prova %}
+<div hx-get="/htmx/proxima/{{ ativ_id }}"
+     hx-trigger="load"
+     hx-target="#questao-area"
+     hx-swap="innerHTML"></div>
+{% else %}
 {% set correta = resultado.correta %}
 <div class="feedback-card {{ 'correta' if correta else 'errada' }}">
 
@@ -31,3 +37,4 @@
   </button>
 
 </div>
+{% endif %}
