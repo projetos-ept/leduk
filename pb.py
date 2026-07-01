@@ -438,7 +438,7 @@ class PocketBaseClient:
                 self.criar_item_vf({
                     "questao": novo_id,
                     "afirmacao": it.get("afirmacao", ""),
-                    "correta": it.get("correta", False),
+                    "gabarito": it.get("gabarito", False),
                     "ordem": it.get("ordem", 0),
                 })
         elif tipo == "associativa":

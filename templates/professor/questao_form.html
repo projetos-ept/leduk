@@ -119,14 +119,14 @@
         <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
           <label class="campo-label" style="margin:0;">Alternativa correta:</label>
           <div style="display:flex;gap:8px;" id="radio-correta">
-            {% set correta_atual = '' %}
+            {% set ns = namespace(correta_atual='') %}
             {% if questao and questao.tipo in ('mc4','mc5') %}
-              {% for a in questao.alternativas %}{% if a.correta %}{% set correta_atual = a.letra %}{% endif %}{% endfor %}
+              {% for a in questao.alternativas %}{% if a.correta %}{% set ns.correta_atual = a.letra %}{% endif %}{% endfor %}
             {% endif %}
             {% for letra in ['A','B','C','D','E'] %}
               <label class="{% if letra == 'E' %}alt-mc5-only{% endif %}" style="display:flex;align-items:center;gap:3px;font-size:.9rem;cursor:pointer;">
                 <input type="radio" name="correta" value="{{ letra }}"
-                       {% if correta_atual == letra or (not correta_atual and letra == 'A') %}checked{% endif %}>
+                       {% if ns.correta_atual == letra or (not ns.correta_atual and letra == 'A') %}checked{% endif %}>
                 {{ letra }}
               </label>
             {% endfor %}
@@ -174,10 +174,10 @@
                        placeholder="Afirmação..."
                        style="flex:1;padding:7px 10px;border:1px solid var(--borda);border-radius:6px;font-size:.88rem;">
                 <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;">
-                  <input type="radio" name="vf_ok_{{ loop.index }}" value="V" {% if item.correta %}checked{% endif %}> V
+                  <input type="radio" name="vf_ok_{{ loop.index }}" value="V" {% if item.gabarito %}checked{% endif %}> V
                 </label>
                 <label style="display:flex;align-items:center;gap:4px;font-size:.88rem;cursor:pointer;">
-                  <input type="radio" name="vf_ok_{{ loop.index }}" value="F" {% if not item.correta %}checked{% endif %}> F
+                  <input type="radio" name="vf_ok_{{ loop.index }}" value="F" {% if not item.gabarito %}checked{% endif %}> F
                 </label>
                 <button type="button" class="btn-remove-row" onclick="removerLinha(this)">✕</button>
               </div>

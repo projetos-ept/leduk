@@ -19,7 +19,7 @@ Q_MC5 = {"id": "qMC5", "tipo": "mc5", "enunciado": "Questão MC5?", "disciplina"
          "alternativas": [{"id": "a1", "letra": "A", "texto": "x", "correta": True}]}
 Q_VF = {"id": "qVF", "tipo": "vf", "enunciado": "Questão VF?", "disciplina": "disc01",
         "peso": 1, "dificuldade": "medio",
-        "itens_vf": [{"id": "i1", "afirmacao": "a", "correta": True, "ordem": 1}]}
+        "itens_vf": [{"id": "i1", "afirmacao": "a", "gabarito": True, "ordem": 1}]}
 Q_BANCO = {"id": "q1", "tipo": "mc4", "enunciado": "No banco?", "disciplina": "disc02",
            "assunto": "X", "peso": 1}
 
