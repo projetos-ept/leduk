@@ -37,11 +37,19 @@
     <a href="/professor/disciplina/{{ ativ.disciplina }}/questao/nova" class="btn-primary">+ Criar questão no banco</a>
   </div>
 {% else %}
-  <form method="post" action="/professor/atividade/{{ ativ.id }}/adicionar-questoes">
+  <form method="post" action="/professor/atividade/{{ ativ.id }}/adicionar-questoes" id="form-seletor">
+    <div class="multi-barra" style="margin-bottom:10px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.9rem;font-weight:600;">
+        <input type="checkbox" id="sel-todas" style="width:18px;height:18px;cursor:pointer;"
+               onchange="seletorToggleTodas(this)">
+        Selecionar todas (<span id="sel-contagem">0</span> de {{ questoes|length }})
+      </label>
+    </div>
     <div class="qb-list">
       {% for q in questoes %}
         <label class="seletor-row">
-          <input type="checkbox" name="questoes" value="{{ q.id }}" class="seletor-check">
+          <input type="checkbox" name="questoes" value="{{ q.id }}" class="seletor-check"
+                 onchange="seletorAtualizarContagem()">
           <div class="qb-card-body">
             <div class="qb-card-meta">
               <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
@@ -56,8 +64,22 @@
       {% endfor %}
     </div>
     <div class="qb-footer">
-      <button type="submit" class="btn-primary">Adicionar selecionadas à atividade</button>
+      <button type="submit" class="btn-primary" id="btn-adicionar">Adicionar selecionadas à atividade</button>
       <a href="/professor/atividade/{{ ativ.id }}/questoes" class="btn-ghost">Cancelar</a>
     </div>
   </form>
+  <script>
+    function seletorAtualizarContagem() {
+      var checks = document.querySelectorAll('.seletor-check');
+      var marcadas = document.querySelectorAll('.seletor-check:checked').length;
+      document.getElementById('sel-contagem').textContent = marcadas;
+      var selTodas = document.getElementById('sel-todas');
+      selTodas.checked = marcadas === checks.length;
+      selTodas.indeterminate = marcadas > 0 && marcadas < checks.length;
+    }
+    function seletorToggleTodas(cb) {
+      document.querySelectorAll('.seletor-check').forEach(function(c) { c.checked = cb.checked; });
+      seletorAtualizarContagem();
+    }
+  </script>
 {% endif %}
