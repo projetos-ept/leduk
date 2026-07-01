@@ -89,6 +89,11 @@ def criar_turma_materiais(token: str) -> None:
     payload = {
         "name": "turma_materiais",
         "type": "base",
+        "listRule": "",
+        "viewRule": "",
+        "createRule": '@request.auth.id != ""',
+        "updateRule": '@request.auth.id != ""',
+        "deleteRule": '@request.auth.id != ""',
         "schema": [
             {"name": "turma", "type": "relation", "required": True,
              "options": {"collectionId": turmas["id"], "maxSelect": 1, "cascadeDelete": True}},
