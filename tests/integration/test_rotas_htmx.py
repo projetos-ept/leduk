@@ -141,3 +141,80 @@ def test_questao_mc_embaralha_alternativas(client, questao_mc4):
     assert sorted(letras_exibidas) == ["A", "B", "C", "D"]
     # com seed "tent-shuffle-testq001mc4" a ordem não é A,B,C,D
     assert letras_exibidas != ["A", "B", "C", "D"]
+
+
+# ── Modo prova ────────────────────────────────────────────────────────────────
+
+@rsps_lib.activate
+def test_modo_prova_feedback_auto_avanca_sem_mostrar_texto(client, questao_mc4):
+    """Em modo_prova o feedback não exibe texto — só o bloco hx-trigger=load."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q001mc4", json=questao_mc4)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": questao_mc4["alternativas"]})
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = True
+        sess["ativ_id"] = "ativ01"
+        sess["respostas"] = []
+        sess["total"] = 1
+        sess["fila"] = []
+    resp = client.post("/htmx/responder",
+                       data={"tipo": "mc4", "questao_id": "q001mc4", "resposta": "A"})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert 'hx-trigger="load"' in html
+    assert "Resposta correta" not in html
+    assert "Resposta incorreta" not in html
+
+
+@rsps_lib.activate
+def test_modo_prova_false_exibe_feedback_normal(client, questao_mc4):
+    """Sem modo_prova o feedback textual é exibido normalmente."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q001mc4", json=questao_mc4)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": questao_mc4["alternativas"]})
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = False
+        sess["ativ_id"] = "ativ01"
+        sess["respostas"] = []
+        sess["total"] = 1
+        sess["fila"] = []
+    resp = client.post("/htmx/responder",
+                       data={"tipo": "mc4", "questao_id": "q001mc4", "resposta": "A"})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert 'hx-trigger="load"' not in html
+    assert "Resposta correta" in html or "Resposta incorreta" in html
+
+
+@rsps_lib.activate
+def test_modo_prova_placar_sem_botao_gabarito(client):
+    """Em modo_prova o placar não exibe o link 'Ver gabarito'."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={"id": "ativ01", "exibir_feedback_pos": True, "nota_automatica": False})
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = True
+        sess["respostas"] = []
+        sess["tentativa_id"] = "tent01"
+        sess["nota_automatica"] = False
+        sess["tentativa_concluida"] = True
+        sess["max_tentativas"] = 0
+    resp = client.get("/htmx/resultado/ativ01")
+    assert resp.status_code == 200
+    assert "Ver gabarito" not in resp.data.decode()
+
+
+@rsps_lib.activate
+def test_modo_prova_false_placar_exibe_botao_gabarito(client):
+    """Sem modo_prova e com exibir_feedback_pos o link 'Ver gabarito' aparece."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={"id": "ativ01", "exibir_feedback_pos": True, "nota_automatica": False})
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = False
+        sess["respostas"] = []
+        sess["tentativa_id"] = "tent01"
+        sess["nota_automatica"] = False
+        sess["tentativa_concluida"] = True
+        sess["max_tentativas"] = 0
+    resp = client.get("/htmx/resultado/ativ01")
+    assert resp.status_code == 200
+    assert "Ver gabarito" in resp.data.decode()

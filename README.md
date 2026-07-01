@@ -176,7 +176,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 237 testes, todos passando.
+**Resultado esperado:** 243 testes, todos passando.
 
 ---
 

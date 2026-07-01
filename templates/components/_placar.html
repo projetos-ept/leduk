@@ -79,7 +79,7 @@
     </p>
   {% endif %}
 
-  {% if exibir_feedback is defined and exibir_feedback and tentativa_id is defined and tentativa_id %}
+  {% if not modo_prova and exibir_feedback is defined and exibir_feedback and tentativa_id is defined and tentativa_id %}
     <a class="btn-gabarito" href="/aluno/atividade/{{ ativ_id }}/revisao/{{ tentativa_id }}">
       Ver gabarito e feedback →
     </a>
