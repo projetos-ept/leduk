@@ -331,3 +331,12 @@ Para o dashboard (sem botão de ação no header):
 - **Sans para conteúdo**: enunciados, títulos, nomes de turma — `var(--sans)`.
 - **Ações destrutivas sempre visuais**: Excluir nunca se parece com Editar. Use `.btn-danger`, nunca `.btn-ghost` ou `.prof-link`.
 - **Confirmação antes de destruir**: sempre modal (não `confirm()`), com foco automático no botão "Cancelar".
+
+---
+
+## 8. Convenções de backend (schema PocketBase)
+
+Este documento cobre identidade *visual*. Para convenções de schema/migração
+(ex: campos `bool` nunca `required: True`, regras de acesso no payload de
+criação, ordem de dependências entre collections), ver `LESSONS-LEARNED.md`
+e a seção "Collections PocketBase" do `README.md`.
