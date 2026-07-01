@@ -168,3 +168,32 @@ ainda pode ocorrer (rede, outra relation não prevista). A rota de exclusão
 individual e a de exclusão em massa **nunca devem deixar uma exceção não
 tratada propagar** (isso derruba a requisição com 500) — capturar, logar, e
 redirecionar com uma mensagem legível (`_erro_http`) em vez de crashar.
+
+---
+
+## 9. Importação de JSON deve tolerar campos ausentes/renomeados de geradores externos
+
+**Sintoma real (2026-07):** JSON de questões gerado por uma ferramenta externa
+(NotebookLM) tinha `alternativas` sem o campo `letra` (só `texto`/`correta`) e
+`itens_vf` usando `texto` em vez de `afirmacao` — o PocketBase rejeitava a
+criação por campo obrigatório ausente, e a importação falhava questão por
+questão mesmo com os dados essenciais presentes.
+
+**Regra:** campos que são deriváveis pela posição no array (`letra` em
+alternativas: A, B, C...; `ordem` em itens_vf) devem ser **gerados
+automaticamente quando ausentes**, nunca exigidos do JSON de entrada. Campos
+com nomes alternativos plausíveis vindos de geradores externos (`texto` para
+`afirmacao`) devem ser aceitos como alias. Essa normalização (`_normalizar_alternativas`,
+`_normalizar_itens_vf` em `app.py`) deve rodar **antes** de qualquer validação
+e criação, e idêntica tanto no dry-run (`_analisar_questoes`) quanto na
+importação real (`_importar_questoes`), para a pré-visualização não mentir
+sobre o que vai ser gravado. As funções sempre copiam o dict antes de alterar
+(nunca mutam a lista original) e só preenchem o que está ausente — um `letra`
+ou `ordem` já explícito no JSON nunca é sobrescrito.
+
+**Cuidado com a direção do alias:** ao aceitar um nome alternativo (ex:
+`gabarito` como alias de `correta`), a normalização deve sempre convergir
+**para o nome real do campo no PocketBase** (`correta`, conforme
+`pb.criar_item_vf`) — nunca o inverso. Renomear o campo correto para o alias
+por engano reintroduziria o mesmo erro de "campo obrigatório ausente" que a
+normalização deveria resolver.

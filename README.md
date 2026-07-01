@@ -176,7 +176,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 230 testes, todos passando.
+**Resultado esperado:** 236 testes, todos passando.
 
 ---
 
@@ -443,6 +443,15 @@ em [`static/exemplos/questoes_exemplo.json`](static/exemplos/questoes_exemplo.js
 Campos por questão: `tipo` (mc4/mc5/vf/aberta/associativa), `enunciado`, `peso`,
 `dificuldade`, `assunto`, `feedback_geral`, `imagem`; e por tipo:
 `alternativas[]` (mc4/mc5), `itens_vf[]` (vf), `pares[]` (associativa).
+
+**Normalização de campos (JSON gerado por ferramentas externas, ex: NotebookLM):**
+`letra` em cada alternativa é opcional — se ausente, é gerada automaticamente
+pela posição (A, B, C, D, E), sem nunca sobrescrever uma letra já informada.
+Em `itens_vf`, `texto` é aceito como alias de `afirmacao`, `gabarito` como
+alias de `correta` (sempre normalizado *para* `correta` — nunca o inverso,
+já que `correta` é o nome real do campo no PocketBase), e `ordem` é gerada
+pela posição quando ausente. Essa normalização roda tanto na pré-visualização
+quanto na importação real, para manter os dois passos consistentes.
 
 O campo `imagem` (na questão e em cada alternativa) aceita **URL** `https://...`
 ou **data URI base64** `data:image/png;base64,...` — em ambos os casos o conteúdo
