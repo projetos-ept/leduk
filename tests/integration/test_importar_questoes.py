@@ -183,3 +183,138 @@ def test_importar_questao_invalida_reportada(client):
     assert "1 de 3" in html
     assert "tipo inválido" in html
     assert "sem alternativa correta" in html
+
+
+# ── Deduplicação contra o banco existente ───────────────────────────────────────
+
+QUESTAO_EXISTENTE = {"id": "qOLD", "tipo": "mc4", "enunciado": "  Qual é   a capital do Brasil?  ",
+                     "disciplina": "disc01", "peso": 1}
+
+
+@rsps_lib.activate
+def test_importar_pula_questao_duplicada_do_banco(client):
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records",
+                 json={"items": [QUESTAO_EXISTENTE]})
+    criadas_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/questoes/records",
+                          callback=lambda r: (criadas_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "qNEW"})))[1],
+                          content_type="application/json")
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/alternativas/records", json={"id": "a1"})
+    payload = [
+        # mesmo enunciado (variação de espaços/maiúsculas) e mesmo tipo → duplicata
+        {"tipo": "mc4", "enunciado": "qual é a capital do brasil?",
+         "alternativas": [{"letra": "A", "texto": "Brasília", "correta": True}]},
+        # questão nova → deve ser criada normalmente
+        {"tipo": "mc4", "enunciado": "Nova questão inédita",
+         "alternativas": [{"letra": "A", "texto": "x", "correta": True}]},
+    ]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert len(criadas_cap) == 1, "só a questão nova deveria ter sido criada"
+    assert criadas_cap[0]["enunciado"] == "Nova questão inédita"
+    assert "1 de 2" in html
+    assert "pulada" in html.lower()
+    assert "idêntica a uma já existente no banco" in html.lower()
+
+
+@rsps_lib.activate
+def test_importar_detecta_duplicata_dentro_do_proprio_lote(client):
+    """A mesma questão repetida duas vezes no JSON: só a primeira ocorrência é criada."""
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    criadas_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/questoes/records",
+                          callback=lambda r: (criadas_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "qX"})))[1],
+                          content_type="application/json")
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/alternativas/records", json={"id": "a1"})
+    payload = [
+        {"tipo": "mc4", "enunciado": "Repetida", "alternativas": [{"letra": "A", "texto": "x", "correta": True}]},
+        {"tipo": "mc4", "enunciado": "Repetida", "alternativas": [{"letra": "A", "texto": "x", "correta": True}]},
+    ]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert len(criadas_cap) == 1
+    assert "1 de 2" in resp.data.decode()
+
+
+@rsps_lib.activate
+def test_previsualizar_marca_duplicata_do_banco(client):
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records",
+                 json={"items": [QUESTAO_EXISTENTE]})
+    payload = [{"tipo": "mc4", "enunciado": "qual é a capital do brasil?",
+               "alternativas": [{"letra": "A", "texto": "Brasília", "correta": True}]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "previsualizar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "já existem" in html.lower() or "já existe no banco" in html.lower()
+    assert "0" in html  # nenhuma será criada
+
+
+# ── Rollback: não deixar questão órfã quando o subitem falha ───────────────────
+
+@rsps_lib.activate
+def test_rollback_remove_questao_quando_alternativa_falha(client):
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/questoes/records", json={"id": "qORFA"})
+    # alternativa falha com 403 (simulando erro de permissão)
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/alternativas/records",
+                 status=403, json={"code": 403, "message": "Only admins can create this record."})
+    excluidas = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/qORFA",
+                          callback=lambda r: (excluidas.append("qORFA"), (204, {}, ""))[1])
+    payload = [{"tipo": "mc4", "enunciado": "Vai falhar",
+               "alternativas": [{"letra": "A", "texto": "x", "correta": True}]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "0 de 1" in html
+    assert excluidas == ["qORFA"], "a questão órfã deveria ter sido removida (rollback)"
+    assert "permissão negada" in html.lower() or "403" in html
+    assert "questão removida" in html.lower()
+
+
+# ── Excluir em massa ─────────────────────────────────────────────────────────────
+
+@rsps_lib.activate
+def test_excluir_em_massa_remove_todas_as_selecionadas(client):
+    _sess_prof(client)
+    removidas_vinculo = []
+    excluidas = []
+    for qid in ("q1", "q2", "q3"):
+        rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                     json={"items": []})
+        rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/{qid}",
+                              callback=(lambda qid: lambda r: (excluidas.append(qid), (204, {}, "")))(qid))
+    resp = client.post("/professor/disciplina/disc01/questoes/excluir-em-massa",
+                       data={"questoes": ["q1", "q2", "q3"]})
+    assert resp.status_code in (200, 302)
+    assert set(excluidas) == {"q1", "q2", "q3"}
+
+
+@rsps_lib.activate
+def test_excluir_em_massa_continua_apos_falha_individual(client):
+    """Se uma exclusão falhar, as demais ainda devem ser processadas."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/qBOA",
+                 status=403, json={"message": "sem permissão"})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    excluidas = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/qOK",
+                          callback=lambda r: (excluidas.append("qOK"), (204, {}, ""))[1])
+    resp = client.post("/professor/disciplina/disc01/questoes/excluir-em-massa",
+                       data={"questoes": ["qBOA", "qOK"]})
+    assert resp.status_code in (200, 302)
+    assert excluidas == ["qOK"], "a segunda exclusão deveria prosseguir mesmo após a primeira falhar"
