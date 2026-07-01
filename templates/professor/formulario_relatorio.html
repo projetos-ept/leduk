@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatório de cadastro — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:900px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}/alunos">Alunos</a><span>›</span><span>Cadastros pelo formulário</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Cadastros pelo formulário</h1>
+      <p class="qb-subtitulo">{{ turma.nome }} · {{ matriculas|length }} aluno(s) via link público.</p>
+    </div>
+    {% if matriculas %}
+      <a href="/professor/turma/{{ turma.id }}/formulario/relatorio.csv" class="btn-primary">⬇ Exportar CSV</a>
+    {% endif %}
+  </div>
+
+  {% if not matriculas %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📝</p>
+      <p class="qb-empty-msg">Nenhum aluno se cadastrou pelo formulário ainda.</p>
+    </div>
+  {% else %}
+    <div class="card" style="overflow-x:auto;">
+      <table class="prof-tabela">
+        <thead><tr><th>Nome</th><th>Email</th><th>Matrícula</th><th>WhatsApp</th><th>Cadastro</th></tr></thead>
+        <tbody>
+          {% for m in matriculas %}
+            {% set al = (m.expand.aluno if m.expand else None) %}
+            <tr>
+              <td style="font-weight:600;">{{ al.name if al else m.aluno }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ al.email if al else '—' }}</td>
+              <td style="font-size:.85rem;">{{ al.matricula if al and al.matricula else '—' }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ m.whatsapp or '—' }}</td>
+              <td style="color:var(--muted);font-size:.8rem;">{{ m.created[:10] if m.created else '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

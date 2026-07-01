@@ -1,0 +1,10 @@
+{# Célula de matrícula editável inline via HTMX. Requer: aluno_id, matricula. #}
+<span id="mat-{{ aluno_id }}" class="matricula-cell">
+  <form hx-post="/professor/aluno/{{ aluno_id }}/matricula"
+        hx-target="#mat-{{ aluno_id }}" hx-swap="outerHTML"
+        style="display:flex;gap:4px;align-items:center;">
+    <input type="text" name="matricula" value="{{ matricula or '' }}" placeholder="—"
+           style="width:92px;padding:3px 6px;border:1px solid var(--borda);border-radius:5px;font-size:.8rem;">
+    <button type="submit" class="btn-ghost btn-sm" style="padding:3px 7px;" title="Salvar matrícula">✓</button>
+  </form>
+</span>

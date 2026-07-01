@@ -46,6 +46,11 @@
         <input type="text" name="whatsapp" value="{{ dados.whatsapp if dados else '' }}" placeholder="(71) 99999-9999"
                style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
       </div>
+      <div>
+        <label class="campo-label">Matrícula (opcional — pode ser preenchida depois)</label>
+        <input type="text" name="matricula" value="{{ dados.matricula if dados else '' }}"
+               style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
+      </div>
       <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
         <input type="checkbox" name="enviar_email" checked> Enviar email com dados de acesso
       </label>

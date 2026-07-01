@@ -1864,7 +1864,12 @@ def create_app(config: dict | None = None) -> Flask:
             matriculas = get_pb().listar_alunos_turma(turma_id)
         except Exception:
             matriculas = []  # collection 'matriculas' ausente (pré-migração)
+        try:
+            formulario = get_pb().buscar_formulario_turma(turma_id)
+        except Exception:
+            formulario = None
         return render_template("professor/alunos.html", turma=turma, matriculas=matriculas,
+                               formulario=formulario, portal_url=_portal_url(),
                                aluno_nome=session.get("aluno_nome", ""))
 
     @app.route("/professor/turma/<turma_id>/alunos/novo", methods=["GET", "POST"])
@@ -1878,20 +1883,23 @@ def create_app(config: dict | None = None) -> Flask:
         email = request.form.get("email", "").strip()
         senha = request.form.get("senha", "").strip()
         whatsapp = request.form.get("whatsapp", "").strip()
+        matricula = request.form.get("matricula", "").strip()
         enviar = "enviar_email" in request.form
         if not (nome and email and senha):
             return render_template("professor/aluno_form.html", turma=turma,
                                    erro="Nome, email e senha são obrigatórios.",
-                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp},
+                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp,
+                                          "matricula": matricula},
                                    aluno_nome=session.get("aluno_nome", "")), 422
         try:
-            user = get_pb().criar_user_aluno(nome, email, senha)
+            user = get_pb().criar_user_aluno(nome, email, senha, matricula)
             get_pb().criar_matricula(user["id"], turma_id, origem="manual", whatsapp=whatsapp)
         except Exception as exc:
             log.warning("criar_user_aluno falhou: %s", exc)
             return render_template("professor/aluno_form.html", turma=turma,
                                    erro="Não foi possível criar o aluno (email já usado?).",
-                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp},
+                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp,
+                                          "matricula": matricula},
                                    aluno_nome=session.get("aluno_nome", "")), 422
         if enviar:
             try:
@@ -1899,6 +1907,123 @@ def create_app(config: dict | None = None) -> Flask:
             except Exception as exc:
                 log.warning("email_boas_vindas falhou: %s", exc)
         return redirect(url_for("professor_alunos", turma_id=turma_id))
+
+    @app.route("/professor/aluno/<aluno_id>/matricula", methods=["POST"])
+    @requer_professor
+    def professor_aluno_matricula(aluno_id: str):
+        matricula = request.form.get("matricula", "").strip()
+        try:
+            get_pb().atualizar_user(aluno_id, {"matricula": matricula})
+        except Exception as exc:
+            log.warning("atualizar matricula falhou: %s", exc)
+        return render_template("professor/components/_matricula_cell.html",
+                               aluno_id=aluno_id, matricula=matricula)
+
+    # ── Formulário público de cadastro (professor) ──
+
+    @app.route("/professor/turma/<turma_id>/formulario/criar", methods=["POST"])
+    @requer_professor
+    def professor_formulario_criar(turma_id: str):
+        if not get_pb().buscar_formulario_turma(turma_id):
+            token = secrets.token_urlsafe(32)
+            get_pb().criar_formulario_cadastro(turma_id, token)
+        return redirect(url_for("professor_alunos", turma_id=turma_id))
+
+    @app.route("/professor/turma/<turma_id>/formulario/toggle", methods=["POST"])
+    @requer_professor
+    def professor_formulario_toggle(turma_id: str):
+        form = get_pb().buscar_formulario_turma(turma_id)
+        if form:
+            form = get_pb().toggle_formulario(form["id"], not form.get("ativo"))
+        return render_template("professor/components/_formulario_box.html",
+                               turma_id=turma_id, formulario=form, portal_url=_portal_url())
+
+    @app.route("/professor/turma/<turma_id>/formulario/relatorio")
+    @requer_professor
+    def professor_formulario_relatorio(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        try:
+            matriculas = [m for m in get_pb().listar_alunos_turma(turma_id)
+                          if m.get("origem") == "formulario"]
+        except Exception:
+            matriculas = []
+        return render_template("professor/formulario_relatorio.html", turma=turma,
+                               matriculas=matriculas, aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>/formulario/relatorio.csv")
+    @requer_professor
+    def professor_formulario_relatorio_csv(turma_id: str):
+        try:
+            matriculas = [m for m in get_pb().listar_alunos_turma(turma_id)
+                          if m.get("origem") == "formulario"]
+        except Exception:
+            matriculas = []
+        linhas = ["nome,email,matricula,whatsapp,cadastrado_em"]
+        for m in matriculas:
+            al = (m.get("expand") or {}).get("aluno") or {}
+            campos = [al.get("name", ""), al.get("email", ""), al.get("matricula", ""),
+                      m.get("whatsapp", ""), m.get("created", "")]
+            linhas.append(",".join('"' + str(c).replace('"', '""') + '"' for c in campos))
+        csv = "\n".join(linhas)
+        r = make_response(csv)
+        r.headers["Content-Type"] = "text/csv; charset=utf-8"
+        r.headers["Content-Disposition"] = f'attachment; filename="cadastros_{turma_id}.csv"'
+        return r
+
+    # ── Cadastro público via link de convite ──
+
+    @app.route("/cadastro/<token>", methods=["GET", "POST"])
+    def cadastro_publico(token: str):
+        form = get_pb().buscar_formulario_por_token(token)
+        if not form:
+            return render_template("cadastro/inativo.html", nao_encontrado=True), 404
+        if not form.get("ativo"):
+            return render_template("cadastro/inativo.html")
+        turma = (form.get("expand") or {}).get("turma") or get_pb().buscar_turma(form.get("turma", ""))
+        if request.method == "GET":
+            return render_template("cadastro/formulario.html", token=token, turma=turma)
+
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip()
+        senha = request.form.get("senha", "")
+        confirmar = request.form.get("senha_confirmar", "")
+        whatsapp = request.form.get("whatsapp", "").strip()
+
+        def _erro(msg):
+            return render_template("cadastro/formulario.html", token=token, turma=turma,
+                                   erro=msg, dados={"nome": nome, "email": email, "whatsapp": whatsapp})
+
+        if not (nome and email and senha):
+            return _erro("Preencha nome, email e senha."), 422
+        if len(senha) < 6:
+            return _erro("A senha deve ter pelo menos 6 caracteres."), 422
+        if senha != confirmar:
+            return _erro("As senhas não coincidem."), 422
+        try:
+            user = get_pb().criar_user_aluno(nome, email, senha)
+        except Exception:
+            return _erro("Este email já possui uma conta."), 422
+        try:
+            get_pb().criar_matricula(user["id"], form.get("turma", ""),
+                                     origem="formulario", whatsapp=whatsapp)
+        except Exception as exc:
+            log.warning("criar_matricula (formulario) falhou: %s", exc)
+        # login automático
+        try:
+            dados = get_pb().login_aluno(email, senha)
+            session["token"] = dados["token"]
+            session["aluno_id"] = dados["record"]["id"]
+            session["aluno_nome"] = dados["record"].get("name", nome)
+            session["role"] = dados["record"].get("role", "aluno")
+            session["ultimo_acesso"] = datetime.now(timezone.utc).isoformat()
+        except Exception as exc:
+            log.warning("login automático pós-cadastro falhou: %s", exc)
+        # email best-effort
+        try:
+            email_boas_vindas(email, nome, senha, turma.get("nome", "") if turma else "", _portal_url())
+        except Exception as exc:
+            log.warning("email_boas_vindas (formulario) falhou: %s", exc)
+        return redirect(url_for("index"))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)

@@ -762,15 +762,19 @@ class PocketBaseClient:
     def buscar_user(self, user_id: str) -> dict:
         return self._get(f"/api/collections/users/records/{user_id}")
 
-    def criar_user_aluno(self, nome: str, email: str, senha: str) -> dict:
+    def criar_user_aluno(self, nome: str, email: str, senha: str, matricula: str = "") -> dict:
         return self._post("/api/collections/users/records", {
             "name": nome,
             "email": email,
             "password": senha,
             "passwordConfirm": senha,
             "role": "aluno",
+            "matricula": matricula,
             "emailVisibility": True,
         })
+
+    def atualizar_user(self, user_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/users/records/{user_id}", data)
 
     def redefinir_senha_aluno(self, aluno_id: str, nova_senha: str) -> dict:
         return self._patch(f"/api/collections/users/records/{aluno_id}", {
@@ -831,3 +835,32 @@ class PocketBaseClient:
 
     def invalidar_token_senha(self, token_id: str) -> dict:
         return self._patch(f"/api/collections/tokens_senha/records/{token_id}", {"usado": True})
+
+    # --- Formulário público de cadastro ---
+
+    def criar_formulario_cadastro(self, turma_id: str, token: str) -> dict:
+        return self._post("/api/collections/formularios_cadastro/records", {
+            "turma": turma_id,
+            "token": token,
+            "ativo": True,
+        })
+
+    def buscar_formulario_por_token(self, token: str) -> dict | None:
+        result = self._get(
+            "/api/collections/formularios_cadastro/records",
+            params={"filter": f'token="{token}"', "expand": "turma", "perPage": 1},
+        )
+        items = result.get("items", [])
+        return items[0] if items else None
+
+    def buscar_formulario_turma(self, turma_id: str) -> dict | None:
+        result = self._get(
+            "/api/collections/formularios_cadastro/records",
+            params={"filter": f'turma="{turma_id}"', "perPage": 1},
+        )
+        items = result.get("items", [])
+        return items[0] if items else None
+
+    def toggle_formulario(self, formulario_id: str, ativo: bool) -> dict:
+        return self._patch(f"/api/collections/formularios_cadastro/records/{formulario_id}",
+                           {"ativo": ativo})

@@ -31,6 +31,9 @@
     <a href="/professor/turma/{{ turma.id }}/alunos/novo" class="btn-primary">+ Novo aluno</a>
   </div>
 
+  {% set turma_id = turma.id %}
+  {% include "professor/components/_formulario_box.html" %}
+
   {% if not matriculas %}
     <div class="qb-empty">
       <p class="dash-empty-icon">👥</p>
@@ -41,13 +44,17 @@
     <div class="turma-desktop">
       <div class="card" style="overflow-x:auto;">
         <table class="prof-tabela">
-          <thead><tr><th>Nome</th><th>Email</th><th>WhatsApp</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Email</th><th>Matrícula</th><th>WhatsApp</th><th>Ações</th></tr></thead>
           <tbody>
             {% for m in matriculas %}
               {% set al = (m.expand.aluno if m.expand else None) %}
               <tr>
                 <td style="font-weight:600;">{{ al.name if al else m.aluno }}</td>
                 <td style="color:var(--muted);font-size:.85rem;">{{ al.email if al else '—' }}</td>
+                <td>
+                  {% if al %}{% set aluno_id = al.id %}{% set matricula = al.matricula %}
+                    {% include "professor/components/_matricula_cell.html" %}{% else %}—{% endif %}
+                </td>
                 <td style="color:var(--muted);font-size:.85rem;">{{ m.whatsapp or '—' }}</td>
                 <td>
                   {% if al %}
@@ -82,5 +89,17 @@
     </div>
   {% endif %}
 </div>
+
+<div id="toast-link" class="toast-copy" aria-live="polite"></div>
+<script>
+function copiarLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    const t = document.getElementById('toast-link');
+    t.textContent = 'Link copiado!';
+    t.classList.add('toast-visible');
+    setTimeout(() => t.classList.remove('toast-visible'), 2000);
+  });
+}
+</script>
 </body>
 </html>
