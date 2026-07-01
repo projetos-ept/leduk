@@ -500,6 +500,34 @@ class PocketBaseClient:
     def excluir_questao(self, questao_id: str) -> None:
         self._delete(f"/api/collections/questoes/records/{questao_id}")
 
+    def apagar_subitens_questao(self, questao_id: str) -> int:
+        """Apaga alternativas/itens_vf/pares_associativos vinculados à questão.
+
+        Necessário antes de excluir_questao: o PocketBase recusa (400) apagar
+        um registro ainda referenciado por uma relation obrigatória em outra
+        collection quando cascadeDelete não está habilitado nela — as
+        collections de subitem (seedadas fora dos scripts deste repo) caem
+        nesse caso. Verifica as três collections de subitem independente do
+        campo `tipo` da questão, para ser robusto contra dados legados ou
+        reclassificados de forma inconsistente.
+        """
+        removidos = 0
+        for colecao in ("alternativas", "itens_vf", "pares_associativos"):
+            try:
+                result = self._get(
+                    f"/api/collections/{colecao}/records",
+                    params={"filter": f'questao="{questao_id}"', "perPage": 200},
+                )
+            except Exception:
+                continue
+            for item in result.get("items", []):
+                try:
+                    self._delete(f"/api/collections/{colecao}/records/{item['id']}")
+                    removidos += 1
+                except Exception:
+                    pass
+        return removidos
+
     # --- Alternativas ---
 
     def criar_alternativa(self, data: dict, imagem=None) -> dict:

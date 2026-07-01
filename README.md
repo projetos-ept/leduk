@@ -29,7 +29,7 @@ leduk/
 │   ├── migrate_tokens_senha.py  ← migração: collection tokens_senha (reset de senha)
 │   ├── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
 │   ├── migrate_formulario_cadastro.py ← migração: formularios_cadastro + campo matricula em users
-│   └── cleanup_questoes_duplicadas.py ← relata/remove questões duplicadas ou órfãs (dry-run/--apply)
+│   └── cleanup_questoes_duplicadas.py ← relata/remove questões duplicadas ou órfãs (apaga subitens antes; dry-run/--apply)
 │
 ├── templates/
 │   ├── index.html
@@ -176,7 +176,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 225 testes, todos passando.
+**Resultado esperado:** 230 testes, todos passando.
 
 ---
 
@@ -475,8 +475,14 @@ grupo).
 
 **Seleção e exclusão em massa:** o banco por disciplina (`banco_questoes.html`)
 tem checkbox por questão + "Selecionar todas" + "Excluir selecionadas", que
-faz o mesmo cascade (remove de `atividades.questoes[]` antes de apagar) da
-exclusão individual, numa única confirmação.
+faz o mesmo cascade da exclusão individual, numa única confirmação: remove o
+ID de `atividades.questoes[]` que referenciam a questão, **depois apaga os
+subitens** (alternativas/itens_vf/pares_associativos) e só então a questão —
+o PocketBase recusa (400) apagar um registro ainda referenciado por uma
+relation obrigatória sem `cascadeDelete` habilitado nela (ver
+`LESSONS-LEARNED.md` § 8). Se mesmo assim a exclusão falhar, a rota não
+quebra (500): captura o erro, loga, e redireciona com um aviso legível em vez
+de propagar a exceção.
 
 ### Boletim (collections `boletins`, `unidades`, `recuperacao_final`)
 

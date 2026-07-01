@@ -50,6 +50,18 @@
     </a>
   </p>
 
+  {% if request.args.get('erro_exclusao') %}
+    <div class="alerta-bloqueio">
+      <strong>Não foi possível excluir a questão.</strong> {{ request.args.get('erro_exclusao') }}
+    </div>
+  {% endif %}
+  {% if request.args.get('falhas_exclusao') %}
+    <div class="alerta-bloqueio">
+      <strong>{{ request.args.get('falhas_exclusao') }} questão(ões) não puderam ser excluída(s).</strong>
+      Tente novamente ou use "Excluir" individualmente em cada uma para ver o motivo detalhado.
+    </div>
+  {% endif %}
+
   <!-- Filtros -->
   <form method="get" class="banco-filtros">
     <select name="tipo" class="banco-filtro-select" onchange="this.form.submit()">

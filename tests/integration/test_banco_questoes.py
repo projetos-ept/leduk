@@ -117,6 +117,97 @@ def test_excluir_em_massa_remove_questoes_e_limpa_vinculos(client):
     assert patch_cap and "q001" not in patch_cap[0].get("questoes", [])
 
 
+@rsps_lib.activate
+def test_excluir_questao_remove_subitens_antes_da_questao(client):
+    """Regressão: o PocketBase recusa (400) apagar uma questão enquanto ainda
+    houver alternativas/itens_vf/pares referenciando-a via relation obrigatória
+    sem cascadeDelete. A exclusão precisa apagar os subitens primeiro."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": [{"id": "a1"}, {"id": "a2"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    excluidas_alt = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/alternativas/records/a1",
+                          callback=lambda r: (excluidas_alt.append("a1"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/alternativas/records/a2",
+                          callback=lambda r: (excluidas_alt.append("a2"), (204, {}, ""))[1])
+    excluida_questao = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
+                          callback=lambda r: (excluida_questao.append("q001"), (204, {}, ""))[1])
+    resp = client.post("/professor/questao/q001/excluir", data={"origem_disciplina": "disc01"})
+    assert resp.status_code in (200, 302)
+    assert set(excluidas_alt) == {"a1", "a2"}, "subitens deveriam ser removidos antes da questão"
+    assert excluida_questao == ["q001"]
+
+
+@rsps_lib.activate
+def test_excluir_questao_400_persistente_nao_derruba_a_rota(client):
+    """Se o PocketBase ainda recusar a exclusão (400) mesmo após remover
+    vínculos e subitens, a rota não deve propagar a exceção (500) — deve
+    redirecionar com um erro legível."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
+                 status=400, json={"code": 400, "message": "Failed to delete record."})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01",
+                 json=DISCIPLINA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records", json={"items": DISCIPLINAS})
+    resp = client.post("/professor/questao/q001/excluir", data={"origem_disciplina": "disc01"})
+    assert resp.status_code in (200, 302)
+    # segue o redirect e confirma que a página carrega com o aviso, sem 500
+    if resp.status_code == 302:
+        resp2 = client.get(resp.headers["Location"])
+        assert resp2.status_code == 200
+        assert "Não foi possível excluir" in resp2.data.decode()
+
+
+@rsps_lib.activate
+def test_excluir_em_massa_apaga_subitens_de_cada_questao(client):
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": [{"id": "a1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/alternativas/records/a1", status=204, body="")
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001", status=204, body="")
+    resp = client.post("/professor/disciplina/disc01/questoes/excluir-em-massa",
+                       data={"questoes": ["q001"]})
+    assert resp.status_code in (200, 302)
+
+
+@rsps_lib.activate
+def test_excluir_em_massa_reporta_falhas_sem_interromper(client):
+    """Uma exclusão que falha persistentemente é contada em falhas_exclusao,
+    mas não impede a exclusão das demais nem quebra a rota."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/qRUIM",
+                 status=400, json={"message": "Failed to delete record."})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    excluidas = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/qBOA",
+                          callback=lambda r: (excluidas.append("qBOA"), (204, {}, ""))[1])
+    resp = client.post("/professor/disciplina/disc01/questoes/excluir-em-massa",
+                       data={"questoes": ["qRUIM", "qBOA"]})
+    assert resp.status_code in (200, 302)
+    assert excluidas == ["qBOA"], "a segunda exclusão deveria prosseguir mesmo após a primeira falhar"
+    if resp.status_code == 302:
+        assert "falhas_exclusao=1" in resp.headers["Location"]
+
+
 # ── Filtro por assunto/tipo/dificuldade ─────────────────────────────────────────
 
 @rsps_lib.activate

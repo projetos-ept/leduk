@@ -136,3 +136,35 @@ via `_chave_duplicata` em `app.py`) tanto contra o que **já existe no banco**
 quanto contra o que **já foi processado no mesmo lote**. Reportar duplicatas
 separadamente de erros de validação (são esperadas, não são um bug) e deixar
 claro na pré-visualização (dry-run) quantas serão puladas antes de confirmar.
+
+---
+
+## 8. Apagar um registro-pai exige apagar os filhos primeiro (sem cascadeDelete)
+
+**Sintoma real (2026-07):** após a correção da lição 5, algumas questões
+criadas *antes* da correção (com alternativas já existentes, não órfãs)
+falhavam ao excluir — tanto na rota individual (`500`, exceção não tratada)
+quanto na exclusão em massa (falha silenciosa, contabilizada como sucesso
+sem realmente remover o registro).
+
+**Causa:** `excluir_questao` apagava só o registro de `questoes`, sem antes
+apagar `alternativas`/`itens_vf`/`pares_associativos` que ainda apontam para
+ela via relation obrigatória. O PocketBase recusa (`400 Bad Request`,
+"Failed to delete record...") apagar um registro enquanto outro ainda o
+referencia por uma relation obrigatória sem `cascadeDelete` habilitado nela —
+e essas collections de subitem foram seedadas fora dos scripts deste repo,
+então não há garantia de que `cascadeDelete` esteja ligado.
+
+**Regra:** antes de `excluir_questao(id)`, sempre chamar
+`pb.apagar_subitens_questao(id)` — que verifica as três collections de
+subitem (não só a do `tipo` declarado, para tolerar dados legados/
+reclassificados de forma inconsistente) e apaga tudo que referencia a
+questão. O mesmo padrão vale para qualquer registro-pai com filhos via
+relation obrigatória: **filhos primeiro, pai depois** — nunca assuma que
+`cascadeDelete` está configurado na collection filha.
+
+**Resiliência da rota:** mesmo com o cascade correto, uma falha de exclusão
+ainda pode ocorrer (rede, outra relation não prevista). A rota de exclusão
+individual e a de exclusão em massa **nunca devem deixar uma exceção não
+tratada propagar** (isso derruba a requisição com 500) — capturar, logar, e
+redirecionar com uma mensagem legível (`_erro_http`) em vez de crashar.

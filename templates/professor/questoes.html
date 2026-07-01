@@ -43,6 +43,12 @@
     </div>
   </div>
 
+  {% if request.args.get('erro_exclusao') %}
+    <div class="alerta-bloqueio">
+      <strong>Não foi possível excluir a questão.</strong> {{ request.args.get('erro_exclusao') }}
+    </div>
+  {% endif %}
+
   {% if ativ.disciplina %}
   <p style="font-size:.8rem;margin:-8px 0 14px;">
     <a href="/professor/disciplina/{{ ativ.disciplina }}/banco-questoes" style="color:var(--primaria);text-decoration:none;font-weight:600;">
