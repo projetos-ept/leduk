@@ -285,6 +285,49 @@ def test_rollback_remove_questao_quando_alternativa_falha(client):
     assert "questão removida" in html.lower()
 
 
+@rsps_lib.activate
+def test_rollback_apaga_alternativas_parciais_antes_de_excluir_a_questao(client):
+    """Se a 2ª alternativa falhar, a 1ª já criada não pode impedir o rollback
+    (o PocketBase recusaria apagar a questão com uma alternativa ainda presa a
+    ela). O rollback precisa limpar os subitens parciais antes de excluir."""
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/questoes/records", json={"id": "qORFA"})
+
+    alt_posts = {"n": 0}
+
+    def cap_alt_post(r):
+        alt_posts["n"] += 1
+        if alt_posts["n"] == 1:
+            return (200, {}, json.dumps({"id": "altPARCIAL"}))
+        return (403, {}, json.dumps({"message": "sem permissão"}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/alternativas/records",
+                          callback=cap_alt_post, content_type="application/json")
+    # apagar_subitens_questao busca a alternativa parcial e a remove
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": [{"id": "altPARCIAL"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    apagadas_alt = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/alternativas/records/altPARCIAL",
+                          callback=lambda r: (apagadas_alt.append("altPARCIAL"), (204, {}, ""))[1])
+    excluidas_questao = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/qORFA",
+                          callback=lambda r: (excluidas_questao.append("qORFA"), (204, {}, ""))[1])
+
+    payload = [{"tipo": "mc4", "enunciado": "Duas alternativas, a 2ª falha",
+               "alternativas": [{"letra": "A", "texto": "ok", "correta": True},
+                                 {"letra": "B", "texto": "vai falhar", "correta": False}]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert apagadas_alt == ["altPARCIAL"], "a alternativa parcial deveria ter sido limpa no rollback"
+    assert excluidas_questao == ["qORFA"]
+    assert "questão removida" in resp.data.decode().lower()
+
+
 # ── Excluir em massa ─────────────────────────────────────────────────────────────
 
 @rsps_lib.activate

@@ -364,12 +364,19 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                             "ordem": j,
                         })
             except Exception as exc_sub:
-                # Rollback best-effort: não deixar a questão órfã (só enunciado, sem alternativas).
+                # Rollback best-effort: não deixar a questão órfã (só enunciado, sem
+                # alternativas). Apaga primeiro os subitens que chegaram a ser criados
+                # antes da falha — o PocketBase recusa apagar a questão enquanto ainda
+                # houver subitem referenciando-a via relation obrigatória.
+                removida = False
                 try:
+                    pb_inst.apagar_subitens_questao(qid)
                     pb_inst.excluir_questao(qid)
+                    removida = True
                 except Exception:
                     pass
-                erros.append(f"Questão {i}: falha ao criar alternativas/itens, questão removida "
+                status = "questão removida" if removida else "questão NÃO pôde ser removida — revise manualmente"
+                erros.append(f"Questão {i}: falha ao criar alternativas/itens, {status} "
                             f"({_erro_http(exc_sub)})")
                 continue
 
@@ -1319,9 +1326,21 @@ def create_app(config: dict | None = None) -> Flask:
         origem_disc = request.form.get("origem_disciplina", "")
         # Cascade manual: remove a referência de todas as atividades que usam a
         # questão antes de apagá-la (cascadeDelete=False é proposital — não
-        # queremos apagar a atividade, só limpar o vínculo órfão).
+        # queremos apagar a atividade, só limpar o vínculo órfão). Também
+        # remove os subitens (alternativas/itens_vf/pares) antes: o PocketBase
+        # recusa (400) apagar um registro ainda referenciado por uma relation
+        # obrigatória sem cascadeDelete habilitado nela.
         get_pb().remover_questao_de_todas_atividades(questao_id)
-        get_pb().excluir_questao(questao_id)
+        get_pb().apagar_subitens_questao(questao_id)
+        try:
+            get_pb().excluir_questao(questao_id)
+        except Exception as exc:
+            log.warning("excluir_questao(%s) falhou mesmo após remover vínculos/subitens: %s",
+                       questao_id, exc)
+            erro = _erro_http(exc)
+            if ativ_id:
+                return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id, erro_exclusao=erro))
+            return redirect(url_for("professor_banco_questoes", disciplina_id=origem_disc, erro_exclusao=erro))
         if ativ_id:
             return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
         return redirect(url_for("professor_banco_questoes", disciplina_id=origem_disc))
@@ -1330,12 +1349,17 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_professor
     def professor_questoes_excluir_em_massa(disciplina_id: str):
         ids = request.form.getlist("questoes")
+        falhas = 0
         for qid in ids:
             try:
                 get_pb().remover_questao_de_todas_atividades(qid)
+                get_pb().apagar_subitens_questao(qid)
                 get_pb().excluir_questao(qid)
             except Exception as exc:
                 log.warning("excluir_em_massa falhou para %s: %s", qid, exc)
+                falhas += 1
+        if falhas:
+            return redirect(url_for("professor_banco_questoes", disciplina_id=disciplina_id, falhas_exclusao=falhas))
         return redirect(url_for("professor_banco_questoes", disciplina_id=disciplina_id))
 
     # ── Banco de questões da disciplina ──

@@ -100,13 +100,18 @@ def _remover_de_atividades(token: str, questao_id: str) -> int:
 
 
 def _apagar_subitens(token: str, questao: dict) -> None:
-    col = SUBITEM_COLLECTION.get(questao.get("tipo"))
-    if not col:
-        return
-    itens = _get_paginado(token, col, filtro=f'questao="{questao["id"]}"')
-    for it in itens:
-        requests.delete(f"{PB_URL}/api/collections/{col}/records/{it['id']}",
-                        headers=_headers(token))
+    """Apaga alternativas/itens_vf/pares_associativos da questão.
+
+    Verifica as três collections de subitem independente do campo `tipo` da
+    questão — registros corrompidos/reclassificados podem ter `tipo`
+    desatualizado, e o PocketBase recusa (400) apagar a questão enquanto
+    qualquer subitem ainda referenciá-la via relation obrigatória.
+    """
+    for col in ("alternativas", "itens_vf", "pares_associativos"):
+        itens = _get_paginado(token, col, filtro=f'questao="{questao["id"]}"')
+        for it in itens:
+            requests.delete(f"{PB_URL}/api/collections/{col}/records/{it['id']}",
+                            headers=_headers(token))
 
 
 def main() -> None:
