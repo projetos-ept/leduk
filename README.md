@@ -572,6 +572,21 @@ O PocketBase trata `false` como valor vazio em campos bool obrigatórios e rejei
 | atividades | `""` | `""` | admin | leitura pública |
 | tentativas | restrito | restrito | `""` | apenas escrita pública |
 
+**Convenção das migrações:** todo `scripts/migrate_*.py` que cria uma collection
+**já inclui as regras de acesso no payload de criação** — nunca depende de um
+PATCH posterior (o padrão do PocketBase é admin-only, o que exigiria liberar à
+mão a cada migração). O padrão para collections novas é:
+
+```python
+"listRule": "", "viewRule": "",
+"createRule": '@request.auth.id != ""',
+"updateRule": '@request.auth.id != ""',
+"deleteRule": '@request.auth.id != ""',
+```
+
+Exceções com regras próprias: `tentativas` (escrita pública para o aluno) e
+`tokens_senha` (create/update públicos para o fluxo de redefinição de senha).
+
 ---
 
 ## Autenticação e papéis (roles)
