@@ -560,6 +560,13 @@ O PocketBase rejeita campos `relation` que apontam para collections inexistentes
 
 O PocketBase trata `false` como valor vazio em campos bool obrigatórios e rejeita a inserção com `validation_required`. Sempre usar `"required": false` em campos bool.
 
+**Auditoria (2026-07):** todos os `scripts/migrate_*.py` e `pb.py` foram revisados —
+nenhuma ocorrência de `bool` com `required: True`. Nenhum script cria/altera o
+schema de `alternativas` ou `itens_vf` (pré-seedadas fora deste conjunto de
+scripts); se algum script futuro precisar tocar essas collections, os campos
+`correta`/`gabarito` devem seguir a mesma regra. Detalhes e mais lições em
+[`LESSONS-LEARNED.md`](LESSONS-LEARNED.md).
+
 ### Regras de acesso (listRule / viewRule)
 
 | Collection | listRule | viewRule | createRule | Observação |
