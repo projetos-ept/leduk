@@ -426,7 +426,7 @@ def test_importar_vf_com_texto_normaliza_para_afirmacao(client):
     assert resp.status_code == 200
     assert "1 de 1" in resp.data.decode()
     assert [i["afirmacao"] for i in itens_cap] == ["Afirmação um", "Afirmação dois"]
-    assert itens_cap[0]["correta"] is True
+    assert itens_cap[0]["gabarito"] is True
 
 
 @rsps_lib.activate
@@ -467,8 +467,8 @@ def test_importar_vf_aceita_gabarito_como_alias_de_correta(client):
     resp = client.post("/professor/disciplina/disc01/importar-questoes",
                        data={"acao": "importar", "json_text": json.dumps(payload)})
     assert resp.status_code == 200
-    assert [i["correta"] for i in itens_cap] == [True, False]
-    assert "gabarito" not in itens_cap[0], "o campo gravado deve ser 'correta', nunca 'gabarito'"
+    assert [i["gabarito"] for i in itens_cap] == [True, False]
+    assert "correta" not in itens_cap[0], "o campo gravado deve ser 'gabarito', nunca 'correta'"
 
 
 @rsps_lib.activate

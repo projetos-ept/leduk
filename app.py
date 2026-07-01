@@ -68,7 +68,7 @@ def _criar_subitems_questao(pb_inst, questao_id: str, tipo: str, form, files) ->
             pb_inst.criar_item_vf({
                 "questao": questao_id,
                 "afirmacao": af,
-                "correta": form.get(f"vf_ok_{i}") == "V",
+                "gabarito": form.get(f"vf_ok_{i}") == "V",
                 "ordem": i,
             })
     elif tipo == "associativa":
@@ -232,9 +232,9 @@ def _normalizar_alternativas(alternativas: list) -> list:
 def _normalizar_itens_vf(itens: list) -> list:
     """Normaliza itens V/F vindos de geradores externos de JSON.
 
-    Aceita `texto` como alias de `afirmacao` e `gabarito` como alias de
-    `correta` (o campo gravado no PocketBase é sempre `correta` — nunca
-    renomeamos para `gabarito`, só aceitamos como entrada alternativa).
+    Aceita `texto` como alias de `afirmacao` e `correta` como alias de
+    `gabarito` (o campo real no PocketBase é `gabarito` — sempre normalizamos
+    para ele; `correta` é aceito como alias de entrada).
     Preenche `ordem` pela posição quando ausente, sem sobrescrever um valor
     já informado.
     """
@@ -246,8 +246,8 @@ def _normalizar_itens_vf(itens: list) -> list:
         item = dict(item)
         if not item.get("afirmacao") and item.get("texto"):
             item["afirmacao"] = item.pop("texto")
-        if "correta" not in item and "gabarito" in item:
-            item["correta"] = item.pop("gabarito")
+        if "gabarito" not in item and "correta" in item:
+            item["gabarito"] = item.pop("correta")
         if not item.get("ordem"):
             item["ordem"] = i
         resultado.append(item)
@@ -398,7 +398,7 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                         pb_inst.criar_item_vf({
                             "questao": qid,
                             "afirmacao": it.get("afirmacao", ""),
-                            "correta": bool(it.get("correta")),
+                            "gabarito": bool(it.get("gabarito")),
                             "ordem": it.get("ordem") or j,
                         })
                 elif tipo == "associativa":
