@@ -14,14 +14,15 @@
     <input type="hidden" name="ativ_id"    value="{{ ativ_id }}">
 
     <div class="alternativas">
+      {% set _letras = ['A','B','C','D','E'] %}
       {% for alt in questao.alternativas %}
         <label class="alternativa-label">
           <input type="radio" name="resposta" value="{{ alt.letra }}" required>
-          <span class="letra-badge">{{ alt.letra }}</span>
+          <span class="letra-badge">{{ _letras[loop.index0] }}</span>
           <span class="alternativa-texto">
             {{ alt.texto }}
             {% if alt.imagem %}
-              <img src="{{ alt.imagem }}" alt="imagem alternativa {{ alt.letra }}">
+              <img src="{{ alt.imagem }}" alt="imagem alternativa {{ _letras[loop.index0] }}">
             {% endif %}
           </span>
         </label>

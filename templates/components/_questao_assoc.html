@@ -9,6 +9,7 @@
     <input type="hidden" name="ativ_id"    value="{{ ativ_id }}">
 
     <div class="pares">
+      {% set opcoes = opcoes_embaralhadas if opcoes_embaralhadas is defined else questao.pares_associativos %}
       {% for par in questao.pares_associativos %}
         <div class="par-row">
           <span class="col-a">
@@ -19,7 +20,7 @@
           </span>
           <select name="par_{{ par.ordem }}" required>
             <option value="">— selecione —</option>
-            {% for opcao in questao.pares_associativos %}
+            {% for opcao in opcoes %}
               <option value="{{ opcao.coluna_b }}">{{ opcao.coluna_b }}</option>
             {% endfor %}
           </select>

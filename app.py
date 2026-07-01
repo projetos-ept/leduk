@@ -460,11 +460,19 @@ def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None,
 
 def _render_questao(questao: dict, num: int, total: int, ativ_id: str):
     template = _TEMPLATE_MAP.get(questao.get("tipo", ""), "components/_questao_mc.html")
-    if questao.get("tipo") in ("mc4", "mc5") and questao.get("alternativas"):
-        seed = session.get("tentativa_id", "") + questao.get("id", "")
+    extra: dict = {}
+    tipo = questao.get("tipo")
+    seed = session.get("tentativa_id", "") + questao.get("id", "")
+    if tipo in ("mc4", "mc5") and questao.get("alternativas"):
         rng = random.Random(seed)
         questao = dict(questao, alternativas=rng.sample(questao["alternativas"], len(questao["alternativas"])))
-    return render_template(template, questao=questao, num=num, total=total, ativ_id=ativ_id)
+    elif tipo == "associativa" and questao.get("pares_associativos"):
+        pares = questao["pares_associativos"]
+        rng = random.Random(seed)
+        questao = dict(questao, pares_associativos=rng.sample(pares, len(pares)))
+        rng2 = random.Random(seed + "_opcoes")
+        extra["opcoes_embaralhadas"] = rng2.sample(pares, len(pares))
+    return render_template(template, questao=questao, num=num, total=total, ativ_id=ativ_id, **extra)
 
 
 def _atividade_disponivel(ativ: dict) -> tuple[bool, str]:
