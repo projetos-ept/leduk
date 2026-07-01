@@ -78,3 +78,61 @@ Todo `scripts/migrate_*.py` verifica se a collection/campo já existe antes de
 criar (`get_collection(token, nome)` retornando `None` em 404) e imprime
 `[OK] ... já existe` em vez de falhar. Isso permite rodar o mesmo script
 várias vezes em produção sem efeito colateral.
+
+---
+
+## 5. Criação em várias etapas precisa de rollback se uma etapa falhar
+
+**Sintoma real (2026-07):** importação de questões via JSON criava o registro
+da questão (`questoes`) e, em seguida, os subitens (`alternativas`/`itens_vf`/
+`pares_associativos`) em chamadas HTTP separadas. Quando a criação de um
+subitem falhava (rede, validação, ou **permissão negada** — ver lição 6), a
+questão-pai já gravada ficava **órfã**: só o enunciado aparecia no banco, sem
+nenhuma alternativa, mesmo o JSON de origem estando correto. Reimportar o
+mesmo arquivo então empilhava mais cópias parciais.
+
+**Regra:** ao criar um registro que depende de subitens criados em chamadas
+subsequentes, envolva a criação dos subitens em `try/except` e, se falhar,
+**apague o registro-pai** (`excluir_questao`, etc.) antes de reportar o erro —
+nunca deixe um registro "enunciado-only" para trás. Ver `_importar_questoes`
+em `app.py` para o padrão de referência.
+
+**Limpeza de dados já afetados:** `scripts/cleanup_questoes_duplicadas.py`
+localiza grupos de questões com o mesmo (disciplina, tipo, enunciado
+normalizado), mantém a mais completa (mais subitens) e remove as demais —
+rode em dry-run primeiro (padrão), depois com `--apply`.
+
+---
+
+## 6. `data=` em multipart não serializa bool — vira string capitalizada
+
+**Sintoma real (2026-07):** alternativas com imagem e `correta=False` eram
+rejeitadas ou gravadas incorretamente pelo PocketBase.
+
+**Causa:** `requests.post(..., data={"correta": False}, files=...)` (usado
+para multipart, quando há upload de imagem) não tem tipo booleano nativo —
+`requests` faz `str(False)` internamente, enviando o campo como a string
+**`"False"`** (Python, capitalizado). O parser de bool do PocketBase espera
+`"true"`/`"false"` (minúsculo) e pode rejeitar ou interpretar mal a forma
+capitalizada. Isso só afeta o caminho multipart (upload de imagem); o caminho
+JSON puro (`_post`/`_patch`, sem imagem) sempre serializou bool corretamente.
+
+**Regra:** `PocketBaseClient._post_multipart`/`_patch_multipart` normalizam
+automaticamente qualquer valor `True`/`False` em `data` para as strings
+`"true"`/`"false"` antes de enviar (ver `_normalizar_bool_multipart` em
+`pb.py`). Qualquer novo método que use multipart deve passar por esses
+wrappers — não chamar `requests.post(..., data=...)` diretamente.
+
+---
+
+## 7. Importação em massa deve checar duplicatas — contra o banco e dentro do próprio lote
+
+**Sintoma real (2026-07):** reimportar o mesmo JSON (às vezes sem querer, por
+causa da lição 5) criava questões repetidas no banco, sem aviso.
+
+**Regra:** antes de criar cada registro num fluxo de importação em massa,
+comparar contra uma chave de deduplicação (ex: `(tipo, enunciado normalizado)`
+via `_chave_duplicata` em `app.py`) tanto contra o que **já existe no banco**
+quanto contra o que **já foi processado no mesmo lote**. Reportar duplicatas
+separadamente de erros de validação (são esperadas, não são um bug) e deixar
+claro na pré-visualização (dry-run) quantas serão puladas antes de confirmar.

@@ -35,9 +35,19 @@ class PocketBaseClient:
         resp.raise_for_status()
         return resp.json()
 
+    @staticmethod
+    def _normalizar_bool_multipart(data: dict) -> dict:
+        """Multipart/form-data não tem tipo booleano nativo: requests faz
+        str(valor) em campos não-string, o que envia "True"/"False" (Python)
+        em vez de "true"/"false". O parser de bool do PocketBase pode não
+        reconhecer a forma capitalizada e rejeitar o campo. Convertemos aqui
+        para a forma que o PocketBase espera."""
+        return {k: ("true" if v is True else "false" if v is False else v)
+                for k, v in data.items()}
+
     def _post_multipart(self, path: str, data: dict, files: dict | None = None) -> dict:
         resp = requests.post(f"{self.base_url}{path}", headers=self._auth_headers(),
-                             data=data, files=files or {})
+                             data=self._normalizar_bool_multipart(data), files=files or {})
         resp.raise_for_status()
         return resp.json()
 
@@ -48,7 +58,7 @@ class PocketBaseClient:
 
     def _patch_multipart(self, path: str, data: dict, files: dict | None = None) -> dict:
         resp = requests.patch(f"{self.base_url}{path}", headers=self._auth_headers(),
-                              data=data, files=files or {})
+                              data=self._normalizar_bool_multipart(data), files=files or {})
         resp.raise_for_status()
         return resp.json()
 

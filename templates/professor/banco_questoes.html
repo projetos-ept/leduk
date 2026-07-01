@@ -89,10 +89,17 @@
       <a href="/professor/disciplina/{{ disciplina.id }}/questao/nova" class="btn-primary">+ Criar primeira questão</a>
     </div>
   {% else %}
-    <p class="banco-total">{{ questoes|length }} questã{{ 'o' if questoes|length == 1 else 'ões' }} no banco</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+      <p class="banco-total" style="margin:0;">{{ questoes|length }} questã{{ 'o' if questoes|length == 1 else 'ões' }} no banco</p>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);cursor:pointer;">
+        <input type="checkbox" id="qb-select-all" onchange="alternarTodasSelecao(this)"> Selecionar todas
+      </label>
+    </div>
     <div class="qb-list">
       {% for q in questoes %}
         <div class="qb-card">
+          <input type="checkbox" class="seletor-check qb-select-check" value="{{ q.id }}"
+                 style="margin-top:6px;" onchange="atualizarSelecaoLote()">
           <div class="qb-card-num">{{ loop.index }}</div>
           <div class="qb-card-body">
             <div class="qb-card-meta">
@@ -129,6 +136,13 @@
           </div>
         </div>
       {% endfor %}
+    </div>
+
+    <div class="multi-barra">
+      <span id="qb-lote-contagem" class="multi-contagem">0 questões selecionadas</span>
+      <button type="button" class="btn-danger" id="qb-btn-excluir-lote" disabled onclick="abrirExcluirLote()">
+        Excluir selecionadas
+      </button>
     </div>
   {% endif %}
 </div>
@@ -173,7 +187,60 @@
   </div>
 </div>
 
+<!-- Modal Excluir em massa -->
+<div id="modal-excluir-lote" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="excluir-lote-titulo" hidden>
+  <div class="modal-box">
+    <h2 class="modal-titulo" id="excluir-lote-titulo">Excluir questões selecionadas</h2>
+    <p class="modal-msg" id="excluir-lote-msg"></p>
+    <div class="modal-acoes">
+      <button type="button" class="btn-ghost" onclick="fecharExcluirLote()">Cancelar</button>
+      <form id="form-excluir-lote" method="post"
+            action="/professor/disciplina/{{ disciplina.id }}/questoes/excluir-em-massa" style="display:inline;">
+        <button type="submit" class="btn-danger">Excluir selecionadas</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
+function atualizarSelecaoLote() {
+  const marcados = document.querySelectorAll('.qb-select-check:checked');
+  const n = marcados.length;
+  const contagem = document.getElementById('qb-lote-contagem');
+  if (contagem) {
+    contagem.textContent = n + (n === 1 ? ' questão selecionada' : ' questões selecionadas');
+  }
+  const btn = document.getElementById('qb-btn-excluir-lote');
+  if (btn) btn.disabled = (n === 0);
+  const selectAll = document.getElementById('qb-select-all');
+  const todas = document.querySelectorAll('.qb-select-check');
+  if (selectAll) selectAll.checked = (todas.length > 0 && n === todas.length);
+}
+function alternarTodasSelecao(cb) {
+  document.querySelectorAll('.qb-select-check').forEach(c => { c.checked = cb.checked; });
+  atualizarSelecaoLote();
+}
+function abrirExcluirLote() {
+  const marcados = [...document.querySelectorAll('.qb-select-check:checked')].map(c => c.value);
+  if (marcados.length === 0) return;
+  const form = document.getElementById('form-excluir-lote');
+  form.querySelectorAll('input[name="questoes"]').forEach(i => i.remove());
+  marcados.forEach(id => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'questoes';
+    inp.value = id;
+    form.appendChild(inp);
+  });
+  document.getElementById('excluir-lote-msg').textContent =
+    'Excluir ' + marcados.length + ' questão(ões) selecionada(s) do banco? Elas serão removidas ' +
+    'de qualquer atividade que as utilize. Esta ação não pode ser desfeita.';
+  const m = document.getElementById('modal-excluir-lote');
+  m.hidden = false;
+  m.querySelector('.btn-ghost').focus();
+}
+function fecharExcluirLote() { document.getElementById('modal-excluir-lote').hidden = true; }
+
 function abrirReclassificar(qid, assunto, discId) {
   const f = document.getElementById('form-reclass');
   f.action = '/professor/questao/' + qid + '/reclassificar';

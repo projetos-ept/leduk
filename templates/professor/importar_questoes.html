@@ -42,6 +42,12 @@
         <ul>{% for e in erros %}<li>{{ e }}</li>{% endfor %}</ul>
       {% endif %}
     </div>
+    {% if duplicadas %}
+      <div class="alerta-bloqueio">
+        <strong>{{ duplicadas|length }} questão(ões) pulada(s) — já existem no banco.</strong>
+        <ul>{% for d in duplicadas %}<li>{{ d }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
     <div class="qb-footer">
       <a href="/professor/disciplina/{{ disciplina.id }}/banco-questoes" class="btn-primary">Ver banco de questões</a>
       <a href="/professor/disciplina/{{ disciplina.id }}/importar-questoes" class="btn-ghost">Importar mais</a>
@@ -52,6 +58,7 @@
     <div class="import-resumo">
       <div class="import-resumo-nums">
         <div class="qb-stat-card qb-stat-card--accent"><span class="qb-stat-num">{{ resumo.validas }}</span><span class="qb-stat-label">serão criadas</span></div>
+        {% if resumo.duplicadas %}<div class="qb-stat-card"><span class="qb-stat-num" style="color:#856404;">{{ resumo.duplicadas }}</span><span class="qb-stat-label">já existem (puladas)</span></div>{% endif %}
         {% if resumo.invalidas %}<div class="qb-stat-card"><span class="qb-stat-num" style="color:var(--erro);">{{ resumo.invalidas }}</span><span class="qb-stat-label">com problema</span></div>{% endif %}
         <div class="qb-stat-card"><span class="qb-stat-num">{{ resumo.total }}</span><span class="qb-stat-label">no JSON</span></div>
       </div>
@@ -64,15 +71,17 @@
 
     <div class="qb-list" style="margin-top:8px;">
       {% for it in itens %}
-        <div class="qb-card" style="padding:10px 14px;{% if not it.ok %}border-color:#e0b3b0;{% endif %}">
-          <div class="qb-card-num" style="{% if not it.ok %}background:var(--erro);{% endif %}">{{ it.num }}</div>
+        <div class="qb-card" style="padding:10px 14px;{% if it.duplicada %}border-color:#ffe69c;{% elif not it.ok %}border-color:#e0b3b0;{% endif %}">
+          <div class="qb-card-num" style="{% if it.duplicada %}background:#f7b731;{% elif not it.ok %}background:var(--erro);{% endif %}">{{ it.num }}</div>
           <div class="qb-card-body">
             <div class="qb-card-meta">
               {% if it.tipo %}<span class="quest-tipo-badge quest-tipo-{{ it.tipo }}">{{ tipo_label.get(it.tipo, it.tipo) }}</span>{% endif %}
               {% if it.assunto %}<span class="banco-assunto-badge">{{ it.assunto }}</span>{% endif %}
               {% if it.subitens %}<span class="qb-peso-badge">{{ it.subitens }} itens</span>{% endif %}
               {% if it.tem_imagem %}<span class="qb-img-indicator" title="Tem imagem">🖼️</span>{% endif %}
-              {% if it.ok %}<span class="import-ok">✓ válida</span>{% else %}<span class="import-erro">✗ {{ it.erro }}</span>{% endif %}
+              {% if it.ok %}<span class="import-ok">✓ válida</span>
+              {% elif it.duplicada %}<span class="import-duplicada">⚠ {{ it.erro }}</span>
+              {% else %}<span class="import-erro">✗ {{ it.erro }}</span>{% endif %}
             </div>
             <p class="qb-card-enunciado">{{ it.enunciado or '(sem enunciado)' }}</p>
           </div>

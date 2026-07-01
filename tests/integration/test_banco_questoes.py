@@ -71,6 +71,52 @@ def test_banco_lista_todas_questoes_inclui_nao_usadas(client):
     assert "Conceitos gerais" in html  # questão não usada também aparece
 
 
+@rsps_lib.activate
+def test_banco_questoes_tem_checkboxes_selecao_em_massa(client):
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records",
+                 json={"items": [Q_USADA, Q_NAO_USADA]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"totalItems": 0, "items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records", json={"items": DISCIPLINAS})
+
+    resp = client.get("/professor/disciplina/disc01/banco-questoes")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert 'class="seletor-check qb-select-check" value="q001"' in html
+    assert 'class="seletor-check qb-select-check" value="q002"' in html
+    assert "qb-select-all" in html
+    assert "Excluir selecionadas" in html
+    assert '/professor/disciplina/disc01/questoes/excluir-em-massa' in html
+
+
+# ── Excluir em massa ─────────────────────────────────────────────────────────────
+
+@rsps_lib.activate
+def test_excluir_em_massa_remove_questoes_e_limpa_vinculos(client):
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": [{"id": "ativ01", "questoes": ["q001", "q002"]}]})
+    patch_cap = []
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/ativ01",
+                          callback=lambda r: (patch_cap.append(json.loads(r.body)), (200, {}, "{}"))[1],
+                          content_type="application/json")
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"items": []})
+    excluidas = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
+                          callback=lambda r: (excluidas.append("q001"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q002",
+                          callback=lambda r: (excluidas.append("q002"), (204, {}, ""))[1])
+    resp = client.post("/professor/disciplina/disc01/questoes/excluir-em-massa",
+                       data={"questoes": ["q001", "q002"]})
+    assert resp.status_code in (200, 302)
+    assert set(excluidas) == {"q001", "q002"}
+    # cascade: a atividade que usava q001 teve o vínculo removido
+    assert patch_cap and "q001" not in patch_cap[0].get("questoes", [])
+
+
 # ── Filtro por assunto/tipo/dificuldade ─────────────────────────────────────────
 
 @rsps_lib.activate
@@ -231,6 +277,31 @@ def test_contar_uso_questao_retorna_total():
                  json={"totalItems": 3, "items": []})
     pb = PocketBaseClient(PB, token="tok")
     assert pb.contar_uso_questao("q001") == 3
+
+
+# ── Multipart normaliza bool para "true"/"false" (evita rejeição do PocketBase) ──
+
+@rsps_lib.activate
+def test_criar_alternativa_com_imagem_envia_bool_como_string_minuscula():
+    """requests faz str(False)=='False' em campos multipart; o parser de bool do
+    PocketBase espera 'true'/'false'. Regressão: alternativas com imagem e
+    correta=False sumiam/rejeitavam por causa dessa capitalização."""
+    captured = {}
+
+    def cap(r):
+        captured["body"] = r.body if isinstance(r.body, bytes) else r.body.encode()
+        return (200, {}, json.dumps({"id": "altX"}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/alternativas/records",
+                          callback=cap, content_type="application/json")
+    pb = PocketBaseClient(PB, token="tok")
+    pb.criar_alternativa(
+        {"questao": "q1", "letra": "B", "texto": "errada", "correta": False, "feedback": ""},
+        ("img.png", b"fake-bytes", "image/png"),
+    )
+    body = captured["body"]
+    assert b'name="correta"\r\n\r\nfalse' in body
+    assert b'name="correta"\r\n\r\nFalse' not in body
 
 
 # ── Criar questão direto no banco (sem atividade) ──────────────────────────────

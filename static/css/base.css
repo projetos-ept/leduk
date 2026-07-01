@@ -2088,6 +2088,7 @@ a.material-header:hover {
 .import-resumo-tipos { display: flex; flex-wrap: wrap; gap: 6px; }
 .import-ok { font-size: .75rem; font-weight: 700; color: #007a5a; }
 .import-erro { font-size: .75rem; font-weight: 700; color: var(--erro); }
+.import-duplicada { font-size: .75rem; font-weight: 700; color: #856404; }
 
 /* ------------------------------------------------------------------ */
 /* Boletim                                                              */

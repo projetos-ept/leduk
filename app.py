@@ -195,16 +195,46 @@ def _imagem_spec_to_tuple(spec):
     return None
 
 
-def _analisar_questoes(questoes: list) -> tuple[dict, list]:
+def _chave_duplicata(tipo: str, enunciado: str) -> tuple:
+    """Chave de comparação para detectar questões idênticas: tipo + enunciado
+    normalizado (espaços colapsados, minúsculo)."""
+    return (tipo, " ".join(enunciado.strip().lower().split()))
+
+
+def _chaves_do_banco(existentes: list) -> set:
+    return {_chave_duplicata(q.get("tipo", ""), q.get("enunciado", "")) for q in existentes}
+
+
+def _erro_http(exc: Exception) -> str:
+    """Extrai uma mensagem legível de uma falha de chamada ao PocketBase,
+    destacando especificamente erros de permissão (403) para que o professor
+    saiba que é preciso revisar as regras de acesso da collection."""
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        status = resp.status_code
+        try:
+            detalhe = resp.json().get("message", "") or resp.text[:200]
+        except Exception:
+            detalhe = resp.text[:200] if resp.text else ""
+        if status == 403:
+            return f"permissão negada (403) — verifique as regras de acesso (createRule) da collection. {detalhe}".strip()
+        return f"HTTP {status}: {detalhe}".strip()
+    return str(exc)
+
+
+def _analisar_questoes(questoes: list, chaves_existentes: set | None = None) -> tuple[dict, list]:
     """Dry-run: valida a lista sem gravar nada. Retorna (resumo, itens) para a
-    pré-visualização. Usa as mesmas regras de _importar_questoes."""
+    pré-visualização. Usa as mesmas regras de _importar_questoes, incluindo
+    detecção de duplicatas contra o banco já existente e dentro do próprio lote."""
     tipos_validos = ("mc4", "mc5", "vf", "aberta", "associativa")
+    chaves_vistas = set(chaves_existentes or set())
     itens = []
     por_tipo: dict[str, int] = {}
     validas = 0
+    duplicadas = 0
     for i, q in enumerate(questoes, 1):
         item = {"num": i, "tipo": None, "enunciado": "", "assunto": "",
-                "ok": True, "erro": "", "subitens": 0, "tem_imagem": False}
+                "ok": True, "duplicada": False, "erro": "", "subitens": 0, "tem_imagem": False}
         if not isinstance(q, dict):
             item.update(ok=False, erro="formato inválido (esperado objeto)")
             itens.append(item)
@@ -229,18 +259,40 @@ def _analisar_questoes(questoes: list) -> tuple[dict, list]:
         elif tipo == "associativa":
             item["subitens"] = len(q.get("pares") or q.get("pares_associativos") or [])
         if item["ok"]:
-            validas += 1
-            por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+            chave = _chave_duplicata(tipo, enunciado)
+            if chave in chaves_vistas:
+                item.update(ok=False, duplicada=True,
+                           erro="questão idêntica já existe no banco (pulada)")
+            else:
+                chaves_vistas.add(chave)
+                validas += 1
+                por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+        if item["duplicada"]:
+            duplicadas += 1
         itens.append(item)
-    resumo = {"total": len(questoes), "validas": validas,
-              "invalidas": len(questoes) - validas, "por_tipo": por_tipo}
+    invalidas = len(questoes) - validas - duplicadas
+    resumo = {"total": len(questoes), "validas": validas, "duplicadas": duplicadas,
+              "invalidas": invalidas, "por_tipo": por_tipo}
     return resumo, itens
 
 
-def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int, list]:
+def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int, list, list]:
     """Importa uma lista de questões no banco da disciplina. Best-effort: importa
-    as válidas e coleta mensagens de erro das demais. Retorna (criadas, erros)."""
+    as válidas, pula duplicatas (mesma disciplina+tipo+enunciado) e coleta
+    mensagens de erro das demais. Retorna (criadas, duplicadas, erros).
+
+    Atomicidade: se a criação de um subitem (alternativa/item V-F/par) falhar
+    depois que a questão-pai já foi gravada, a questão-pai é removida (rollback
+    best-effort) em vez de ficar órfã no banco só com o enunciado.
+    """
+    try:
+        chaves_vistas = _chaves_do_banco(pb_inst.listar_questoes_disciplina(disciplina_id))
+    except Exception as exc:
+        log.warning("listar_questoes_disciplina falhou ao checar duplicatas: %s", exc)
+        chaves_vistas = set()
+
     criadas = 0
+    duplicadas: list[str] = []
     erros: list[str] = []
     for i, q in enumerate(questoes, 1):
         try:
@@ -260,6 +312,12 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                 if not any(a.get("correta") for a in alts if isinstance(a, dict)):
                     erros.append(f"Questão {i}: múltipla escolha sem alternativa correta")
                     continue
+
+            chave = _chave_duplicata(tipo, enunciado)
+            if chave in chaves_vistas:
+                duplicadas.append(f"Questão {i}: idêntica a uma já existente no banco (pulada)")
+                continue
+
             img = _imagem_spec_to_tuple(q.get("imagem"))
             criada = pb_inst.criar_questao({
                 "enunciado": enunciado,
@@ -271,43 +329,55 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                 "assunto": q.get("assunto") or "",
             }, img)
             qid = criada["id"]
-            if tipo in ("mc4", "mc5"):
-                for a in q.get("alternativas") or []:
-                    if not isinstance(a, dict):
-                        continue
-                    pb_inst.criar_alternativa({
-                        "questao": qid,
-                        "letra": a.get("letra", ""),
-                        "texto": a.get("texto", ""),
-                        "correta": bool(a.get("correta")),
-                        "feedback": a.get("feedback", ""),
-                    }, _imagem_spec_to_tuple(a.get("imagem")))
-            elif tipo == "vf":
-                itens = q.get("itens_vf") or q.get("itens") or []
-                for j, it in enumerate(itens, 1):
-                    if not isinstance(it, dict):
-                        continue
-                    pb_inst.criar_item_vf({
-                        "questao": qid,
-                        "afirmacao": it.get("afirmacao", ""),
-                        "correta": bool(it.get("correta")),
-                        "ordem": j,
-                    })
-            elif tipo == "associativa":
-                pares = q.get("pares") or q.get("pares_associativos") or []
-                for j, p in enumerate(pares, 1):
-                    if not isinstance(p, dict):
-                        continue
-                    pb_inst.criar_par_associativo({
-                        "questao": qid,
-                        "coluna_a": p.get("coluna_a", ""),
-                        "coluna_b": p.get("coluna_b", ""),
-                        "ordem": j,
-                    })
+            try:
+                if tipo in ("mc4", "mc5"):
+                    for a in q.get("alternativas") or []:
+                        if not isinstance(a, dict):
+                            continue
+                        pb_inst.criar_alternativa({
+                            "questao": qid,
+                            "letra": a.get("letra", ""),
+                            "texto": a.get("texto", ""),
+                            "correta": bool(a.get("correta")),
+                            "feedback": a.get("feedback", ""),
+                        }, _imagem_spec_to_tuple(a.get("imagem")))
+                elif tipo == "vf":
+                    itens = q.get("itens_vf") or q.get("itens") or []
+                    for j, it in enumerate(itens, 1):
+                        if not isinstance(it, dict):
+                            continue
+                        pb_inst.criar_item_vf({
+                            "questao": qid,
+                            "afirmacao": it.get("afirmacao", ""),
+                            "correta": bool(it.get("correta")),
+                            "ordem": j,
+                        })
+                elif tipo == "associativa":
+                    pares = q.get("pares") or q.get("pares_associativos") or []
+                    for j, p in enumerate(pares, 1):
+                        if not isinstance(p, dict):
+                            continue
+                        pb_inst.criar_par_associativo({
+                            "questao": qid,
+                            "coluna_a": p.get("coluna_a", ""),
+                            "coluna_b": p.get("coluna_b", ""),
+                            "ordem": j,
+                        })
+            except Exception as exc_sub:
+                # Rollback best-effort: não deixar a questão órfã (só enunciado, sem alternativas).
+                try:
+                    pb_inst.excluir_questao(qid)
+                except Exception:
+                    pass
+                erros.append(f"Questão {i}: falha ao criar alternativas/itens, questão removida "
+                            f"({_erro_http(exc_sub)})")
+                continue
+
+            chaves_vistas.add(chave)
             criadas += 1
         except Exception as exc:
-            erros.append(f"Questão {i}: erro ao importar ({exc})")
-    return criadas, erros
+            erros.append(f"Questão {i}: erro ao importar ({_erro_http(exc)})")
+    return criadas, duplicadas, erros
 
 
 def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
@@ -1186,12 +1256,17 @@ def create_app(config: dict | None = None) -> Flask:
                                    json_text=raw, aluno_nome=session.get("aluno_nome", ""))
         acao = request.form.get("acao", "previsualizar")
         if acao == "importar":
-            criadas, erros = _importar_questoes(get_pb(), disciplina_id, questoes)
+            criadas, duplicadas, erros = _importar_questoes(get_pb(), disciplina_id, questoes)
             return render_template("professor/importar_questoes.html", disciplina=disciplina,
-                                   criadas=criadas, erros=erros, total=len(questoes),
-                                   aluno_nome=session.get("aluno_nome", ""))
+                                   criadas=criadas, duplicadas=duplicadas, erros=erros,
+                                   total=len(questoes), aluno_nome=session.get("aluno_nome", ""))
         # Pré-visualização (dry-run, sem gravar)
-        resumo, itens = _analisar_questoes(questoes)
+        try:
+            chaves_existentes = _chaves_do_banco(get_pb().listar_questoes_disciplina(disciplina_id))
+        except Exception as exc:
+            log.warning("listar_questoes_disciplina falhou na pré-visualização: %s", exc)
+            chaves_existentes = set()
+        resumo, itens = _analisar_questoes(questoes, chaves_existentes)
         return render_template("professor/importar_questoes.html", disciplina=disciplina,
                                resumo=resumo, itens=itens, json_text=raw,
                                aluno_nome=session.get("aluno_nome", ""))
@@ -1250,6 +1325,18 @@ def create_app(config: dict | None = None) -> Flask:
         if ativ_id:
             return redirect(url_for("professor_questoes_atividade", ativ_id=ativ_id))
         return redirect(url_for("professor_banco_questoes", disciplina_id=origem_disc))
+
+    @app.route("/professor/disciplina/<disciplina_id>/questoes/excluir-em-massa", methods=["POST"])
+    @requer_professor
+    def professor_questoes_excluir_em_massa(disciplina_id: str):
+        ids = request.form.getlist("questoes")
+        for qid in ids:
+            try:
+                get_pb().remover_questao_de_todas_atividades(qid)
+                get_pb().excluir_questao(qid)
+            except Exception as exc:
+                log.warning("excluir_em_massa falhou para %s: %s", qid, exc)
+        return redirect(url_for("professor_banco_questoes", disciplina_id=disciplina_id))
 
     # ── Banco de questões da disciplina ──
 

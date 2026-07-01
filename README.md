@@ -28,7 +28,8 @@ leduk/
 │   ├── migrate_boletim.py       ← migração: collections boletins/unidades/recuperacao_final
 │   ├── migrate_tokens_senha.py  ← migração: collection tokens_senha (reset de senha)
 │   ├── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
-│   └── migrate_formulario_cadastro.py ← migração: formularios_cadastro + campo matricula em users
+│   ├── migrate_formulario_cadastro.py ← migração: formularios_cadastro + campo matricula em users
+│   └── cleanup_questoes_duplicadas.py ← relata/remove questões duplicadas ou órfãs (dry-run/--apply)
 │
 ├── templates/
 │   ├── index.html
@@ -175,7 +176,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 216 testes, todos passando.
+**Resultado esperado:** 225 testes, todos passando.
 
 ---
 
@@ -227,7 +228,8 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/questao/<id>/excluir` | Excluir questão (e remover da atividade) |
 | GET | `/professor/disciplina/<id>/banco-questoes` | Banco da disciplina — gerenciar questões (criar/editar/clonar/excluir) |
 | GET/POST | `/professor/disciplina/<id>/questao/nova` | Criar questão direto no banco da disciplina |
-| GET/POST | `/professor/disciplina/<id>/importar-questoes` | Importar questões via JSON (colar/arquivo, imagens link/base64) |
+| GET/POST | `/professor/disciplina/<id>/importar-questoes` | Importar questões via JSON (dedup, rollback, imagens link/base64) |
+| POST | `/professor/disciplina/<id>/questoes/excluir-em-massa` | Excluir várias questões selecionadas (cascade) |
 | GET | `/professor/banco-questoes` | Seletor multidisciplinar — selecionar questões de qualquer disciplina (filtros) |
 | GET/POST | `/professor/atividade/multidisciplinar` | Montar atividade com questões de várias disciplinas |
 | GET | `/professor/atividade/<id>/notas` | Notas dos alunos com liberação em lote |
@@ -453,6 +455,29 @@ resumo — quantas serão criadas, contagem por tipo e o status de cada questão
 (válida ou o motivo do problema) — e só então **Confirmar importação** grava de
 fato. Dá para ajustar o JSON e pré-visualizar de novo antes de confirmar.
 
+**Deduplicação:** antes de criar cada questão, o import compara `(tipo,
+enunciado normalizado)` contra o banco existente **e** contra o que já foi
+processado no mesmo lote — questões idênticas são puladas (não recriadas) e
+reportadas separadamente dos erros de validação, tanto na pré-visualização
+quanto no resultado final.
+
+**Atomicidade:** se a criação de um subitem (alternativa/item V-F/par) falhar
+depois que a questão-pai já foi gravada, a questão-pai é removida (rollback
+best-effort) em vez de ficar órfã no banco só com o enunciado, sem
+alternativas — ver `LESSONS-LEARNED.md` § 5. Falhas de permissão (HTTP 403)
+são reportadas de forma explícita ("permissão negada — verifique as regras de
+acesso da collection") em vez de uma mensagem genérica.
+
+Se você já tem questões duplicadas/órfãs no banco (de uma importação anterior
+a essa correção), rode `scripts/cleanup_questoes_duplicadas.py` (dry-run por
+padrão; `--apply` remove de fato, mantendo a cópia mais completa de cada
+grupo).
+
+**Seleção e exclusão em massa:** o banco por disciplina (`banco_questoes.html`)
+tem checkbox por questão + "Selecionar todas" + "Excluir selecionadas", que
+faz o mesmo cascade (remove de `atividades.questoes[]` antes de apagar) da
+exclusão individual, numa única confirmação.
+
 ### Boletim (collections `boletins`, `unidades`, `recuperacao_final`)
 
 Cada turma tem **um** boletim (`media_aprovacao`, `ativo`, `liberado`, `ano`).
@@ -571,12 +596,13 @@ scripts); se algum script futuro precisar tocar essas collections, os campos
 
 | Collection | listRule | viewRule | createRule | Observação |
 |---|---|---|---|---|
-| turmas | `""` | `""` | admin | leitura pública |
-| disciplinas | `""` | `""` | admin | leitura pública |
-| questoes | `""` | `""` | admin | leitura pública |
+| turmas | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
+| disciplinas | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
+| questoes | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
 | alternativas | `""` | `""` | `""` | leitura + escrita pública (seed) |
-| itens_vf | `""` | `""` | admin | leitura pública |
-| atividades | `""` | `""` | admin | leitura pública |
+| itens_vf | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
+| pares_associativos | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
+| atividades | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
 | tentativas | restrito | restrito | `""` | apenas escrita pública |
 
 **Convenção das migrações:** todo `scripts/migrate_*.py` que cria uma collection
@@ -593,6 +619,24 @@ mão a cada migração). O padrão para collections novas é:
 
 Exceções com regras próprias: `tentativas` (escrita pública para o aluno) e
 `tokens_senha` (create/update públicos para o fluxo de redefinição de senha).
+
+> **⚠️ Ação necessária (auditoria de 2026-07):** `turmas`, `disciplinas`,
+> `questoes`, `itens_vf`, `pares_associativos` e `atividades` foram seedadas
+> **antes** de existir este código (não por um `scripts/migrate_*.py` deste
+> repositório), então este documento não pode confirmar o `createRule` real
+> delas na instância de produção. O app cria/edita registros nessas collections
+> usando o token de sessão do professor (`users`, role=`professor`) — **nunca**
+> autentica como admin do PocketBase — então, para tudo funcionar, o
+> `createRule`/`updateRule` real precisa aceitar esse token (equivalente a
+> `@request.auth.id != ""`, e não um "admin only" literal do PocketBase).
+> Se questões de um tipo específico (ex: `itens_vf` para V/F) falharem ao
+> criar com erro 403 mas `alternativas` funcionar, é sinal de que essa
+> collection ficou com uma regra mais restritiva do que as demais. Confirme em
+> `/_/` → Collections → (nome) → API Rules, comparando com a linha
+> `alternativas` (que sabidamente funciona). A importação de JSON agora expõe
+> esse erro de forma legível (`_erro_http` em `app.py`): "permissão negada
+> (403) — verifique as regras de acesso (createRule) da collection" em vez de
+> uma exceção genérica.
 
 ---
 
