@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR"{% if turma and turma.cor_tema %} style="--local-accent: {{ turma.cor_tema }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastro — {{ turma.nome if turma else 'LeDuk' }}</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+</nav>
+
+<div class="shell" style="max-width:460px;">
+  <div class="portal-header">
+    <h1 class="portal-titulo">Cadastro — {{ turma.nome if turma else '' }}</h1>
+    {% if turma and turma.modalidade %}<p class="portal-turma">{{ turma.modalidade }}</p>{% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if erro %}<div class="alerta-bloqueio" style="margin-bottom:14px;"><strong>{{ erro }}</strong></div>{% endif %}
+    <form method="post" action="/cadastro/{{ token }}" style="display:flex;flex-direction:column;gap:15px;">
+      <div>
+        <label class="campo-label">Nome completo *</label>
+        <input type="text" name="nome" required value="{{ dados.nome if dados else '' }}"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div>
+        <label class="campo-label">Email *</label>
+        <input type="email" name="email" required value="{{ dados.email if dados else '' }}"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div>
+        <label class="campo-label">Senha * (mínimo 6 caracteres)</label>
+        <input type="password" name="senha" required minlength="6"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div>
+        <label class="campo-label">Confirmar senha *</label>
+        <input type="password" name="senha_confirmar" required minlength="6"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div>
+        <label class="campo-label">WhatsApp (opcional)</label>
+        <input type="text" name="whatsapp" value="{{ dados.whatsapp if dados else '' }}" placeholder="(71) 99999-9999"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <button type="submit" class="btn-home" style="padding:12px;">Criar minha conta</button>
+    </form>
+    <p style="text-align:center;margin-top:14px;font-size:.85rem;">
+      Já tem conta? <a href="/login" style="color:var(--primaria);text-decoration:none;font-weight:600;">Fazer login →</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>

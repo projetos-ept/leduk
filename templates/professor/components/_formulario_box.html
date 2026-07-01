@@ -1,0 +1,24 @@
+{# Caixa do formulário público de cadastro. Requer: turma_id, formulario, portal_url. #}
+<div id="formulario-box" class="card" style="margin-bottom:16px;">
+  <p style="font-weight:700;margin-bottom:10px;">🔗 Formulário de cadastro público</p>
+  {% if formulario %}
+    {% set link = portal_url ~ '/cadastro/' ~ formulario.token %}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span class="boletim-pill {% if formulario.ativo %}on{% else %}off{% endif %}">
+        {% if formulario.ativo %}● Ativo{% else %}○ Inativo{% endif %}
+      </span>
+      <code style="background:var(--fundo);border:1px solid var(--borda);border-radius:6px;padding:4px 8px;font-size:.8rem;overflow:auto;max-width:100%;">{{ link }}</code>
+      <button type="button" class="btn-ghost btn-sm" onclick="copiarLink('{{ link }}')">Copiar link</button>
+      <button type="button" class="btn-ghost btn-sm"
+              hx-post="/professor/turma/{{ turma_id }}/formulario/toggle"
+              hx-target="#formulario-box" hx-swap="outerHTML">
+        {% if formulario.ativo %}Desativar{% else %}Ativar{% endif %}
+      </button>
+      <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma_id }}/formulario/relatorio">Ver relatório</a>
+    </div>
+  {% else %}
+    <form method="post" action="/professor/turma/{{ turma_id }}/formulario/criar">
+      <button type="submit" class="btn-primary btn-sm">+ Criar link de cadastro</button>
+    </form>
+  {% endif %}
+</div>

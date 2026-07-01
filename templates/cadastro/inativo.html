@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastro — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+</nav>
+
+<div class="shell" style="max-width:460px;">
+  <div class="card" style="margin-top:32px;text-align:center;">
+    <p class="dash-empty-icon">🔒</p>
+    <p style="color:var(--muted);font-size:1.05rem;">
+      {% if nao_encontrado %}Link de cadastro não encontrado.{% else %}Este link não está mais disponível.{% endif %}
+    </p>
+    <p style="color:var(--muted);font-size:.85rem;margin-top:8px;">Peça ao professor um link atualizado.</p>
+    <a href="/login" class="btn-ghost" style="margin-top:16px;display:inline-block;">Ir para o login</a>
+  </div>
+</div>
+</body>
+</html>

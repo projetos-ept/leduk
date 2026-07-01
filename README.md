@@ -27,7 +27,8 @@ leduk/
 │   ├── add_multidisciplinar_atividades.py ← migração: campo multidisciplinar em atividades
 │   ├── migrate_boletim.py       ← migração: collections boletins/unidades/recuperacao_final
 │   ├── migrate_tokens_senha.py  ← migração: collection tokens_senha (reset de senha)
-│   └── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
+│   ├── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
+│   └── migrate_formulario_cadastro.py ← migração: formularios_cadastro + campo matricula em users
 │
 ├── templates/
 │   ├── index.html
@@ -48,7 +49,9 @@ leduk/
 │   │   ├── revisao.html
 │   │   └── boletim.html          ← boletim do aluno (só se liberado)
 │   ├── cadastro/
-│   │   └── redefinir_senha.html  ← formulário público de nova senha (via token)
+│   │   ├── redefinir_senha.html  ← formulário público de nova senha (via token)
+│   │   ├── formulario.html       ← auto-cadastro público via link de convite
+│   │   └── inativo.html          ← link de cadastro desativado / não encontrado
 │   ├── turma/
 │   │   └── portal.html
 │   ├── professor/
@@ -70,10 +73,13 @@ leduk/
 │   │   ├── selecionar_materiais.html ← seletor do banco para adicionar à turma
 │   │   ├── turma_materiais.html    ← materiais vinculados a uma turma
 │   │   ├── alunos.html / aluno_form.html ← gestão de alunos da turma (cadastro manual)
+│   │   ├── formulario_relatorio.html ← cadastros via link público (+ exportar CSV)
 │   │   ├── boletim/                ← configurar/unidades/notas/relatorio do boletim
 │   │   ├── components/
 │   │   │   ├── _seletor_questoes.html ← cards com checkbox (reuso de questões)
-│   │   │   └── _aluno_acoes.html   ← botões HTMX (reenviar dados / redefinir senha)
+│   │   │   ├── _aluno_acoes.html   ← botões HTMX (reenviar dados / redefinir senha)
+│   │   │   ├── _formulario_box.html ← caixa do link público (criar/copiar/toggle)
+│   │   │   └── _matricula_cell.html ← matrícula editável inline (HTMX)
 │   │   ├── notas.html
 │   │   └── notas_abertas.html
 │   └── relatorio/
@@ -113,7 +119,8 @@ leduk/
         ├── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
         ├── test_questao_form.py      ← seções condicionais do form + navegação banco
         ├── test_boletim_rotas.py     ← rotas do boletim (config, toggles, notas, acesso)
-        └── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
+        ├── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
+        └── test_cadastro_publico.py  ← auto-cadastro via link + gestão do formulário
 ```
 
 ---
@@ -168,7 +175,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 206 testes, todos passando.
+**Resultado esperado:** 216 testes, todos passando.
 
 ---
 
@@ -181,6 +188,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | GET/POST | `/login` | Formulário de login via PocketBase JWT |
 | GET | `/logout` | Limpa sessão e redireciona |
 | GET/POST | `/redefinir-senha/<token>` | Definir nova senha via token (público; 410 se inválido/expirado/usado) |
+| GET/POST | `/cadastro/<token>` | Auto-cadastro público via link de convite (404 se token inválido; login automático + boas-vindas) |
 
 ### Aluno
 
@@ -252,6 +260,9 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | GET/POST | `/professor/turma/<id>/alunos/novo` | Cadastro manual de aluno (cria user + matrícula) |
 | POST | `/professor/aluno/<id>/redefinir-senha` | Gera token e envia link de redefinição (HTMX) |
 | POST | `/professor/aluno/<id>/reenviar-boas-vindas` | Gera nova senha temporária e reenvia acesso (HTMX) |
+| POST | `/professor/aluno/<id>/matricula` | Edita a matrícula do aluno inline (HTMX) |
+| POST | `/professor/turma/<id>/formulario/criar` · `/toggle` | Cria / ativa-desativa o link público de cadastro |
+| GET | `/professor/turma/<id>/formulario/relatorio` · `.csv` | Cadastros via formulário (tela + exportação CSV) |
 
 ### Aluno — boletim
 
@@ -335,8 +346,10 @@ Questões abertas sem correção contribuem 0 até o professor avaliar.
 > (resolve os IDs em runtime). Consulte `/api/collections` para os IDs reais.
 
 Collections criadas por migração posterior (sem ID fixo seedado): `boletins`,
-`unidades`, `recuperacao_final` (boletim); `tokens_senha` (reset de senha) e
-`matriculas` (aluno ↔ turma, com `origem` = `manual`/`formulario`).
+`unidades`, `recuperacao_final` (boletim); `tokens_senha` (reset de senha);
+`matriculas` (aluno ↔ turma, com `origem` = `manual`/`formulario`) e
+`formularios_cadastro` (link público por turma). A collection `users` também
+ganhou o campo `matricula` (text, opcional).
 
 ### Tipos de questão
 
@@ -487,11 +500,22 @@ O professor dispara, por aluno (HTMX inline, na lista de alunos da turma):
 Cadastro manual (`/professor/turma/<id>/alunos/novo`) cria o `user` (role=aluno)
 + `matricula` (origem=manual) e, opcionalmente, envia o email de boas-vindas.
 
-> **Escopo:** o item de integração no fluxo público de auto-cadastro
-> (`/cadastro/<token>`) não foi incluído porque esse fluxo ainda não existe neste
-> branch. As ações de aluno vivem na nova página de alunos da turma; quando o
-> auto-cadastro público for construído, basta chamar `email_boas_vindas()` ao
-> final dele (a função já está pronta).
+### Auto-cadastro público (link de convite)
+
+Cada turma pode ter um `formularios_cadastro` com um `token` e um flag `ativo`.
+O professor cria/ativa/desativa o link na página de alunos (com copiar-link) e
+acompanha os cadastros em um relatório com exportação CSV.
+
+`/cadastro/<token>` (público, sem login):
+- token inexistente → **404**; formulário inativo → página "não está mais disponível"
+- valida nome/email/senha (mín. 6, com confirmação); email duplicado → erro inline
+- cria `user` (role=aluno) + `matricula` (origem=`formulario`), faz **login
+  automático** (grava sessão) e redireciona ao portal; email de boas-vindas
+  best-effort (não reverte o cadastro se falhar)
+
+O campo `matricula` (em `users`) fica vazio no auto-cadastro e no cadastro manual;
+o professor preenche depois — editável **inline via HTMX** na lista de alunos e
+exibido no relatório do formulário.
 
 ### Diagrama de relacionamentos
 
@@ -675,6 +699,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] Campo `multidisciplinar` (bool) existe em `atividades` (`scripts/add_multidisciplinar_atividades.py`)
 - [ ] Collections `boletins`, `unidades`, `recuperacao_final` criadas (`scripts/migrate_boletim.py`)
 - [ ] Collections `tokens_senha` e `matriculas` criadas (`scripts/migrate_tokens_senha.py`, `scripts/migrate_matriculas.py`)
+- [ ] Collection `formularios_cadastro` criada + campo `matricula` em `users` (`scripts/migrate_formulario_cadastro.py`)
 - [ ] `RESEND_API_KEY` definido no service (`/etc/systemd/system/leduk.service`) para envio de email
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
@@ -701,6 +726,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 12 — Importação JSON | Concluída | Importar questões via JSON (colar ou arquivo .json), com imagens por URL ou base64; arquivo de exemplo cobrindo todos os tipos |
 | 13 — Boletim | Concluída | Boletim por turma: unidades por disciplina, recuperação de unidade e final, mapa de calor, relatório, situação (aprovado/recuperação/reprovado) e visão liberável ao aluno |
 | 14 — Email + reset de senha | Concluída | Envio via Resend (boas-vindas, redefinição), token seguro (`secrets`, expira 24h, uso único), gestão e cadastro manual de alunos por turma |
+| 15 — Auto-cadastro público | Concluída | Link de convite por turma (`/cadastro/<token>`), auto-cadastro com login automático, relatório + CSV, matrícula editável inline |
 
 ### Funcionalidades futuras consideradas
 
