@@ -11,6 +11,7 @@ leduk/
 ├── app.py                  ← aplicação Flask (factory create_app)
 ├── questao.py              ← lógica de validação e cálculo de score/nota
 ├── boletim.py              ← cálculo de boletim por unidade/disciplina + recuperação
+├── utils/email.py          ← envio transacional via Resend (boas-vindas, reset de senha)
 ├── pb.py                   ← cliente HTTP para o PocketBase
 ├── gunicorn.conf.py        ← bind, workers, wsgi_app = "app:create_app()"
 ├── deploy.sh               ← pull → pip install → restart → health check
@@ -24,7 +25,9 @@ leduk/
 │   ├── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
 │   ├── migrate_materiais.py     ← migração: assunto + collection turma_materiais + backfill
 │   ├── add_multidisciplinar_atividades.py ← migração: campo multidisciplinar em atividades
-│   └── migrate_boletim.py       ← migração: collections boletins/unidades/recuperacao_final
+│   ├── migrate_boletim.py       ← migração: collections boletins/unidades/recuperacao_final
+│   ├── migrate_tokens_senha.py  ← migração: collection tokens_senha (reset de senha)
+│   └── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
 │
 ├── templates/
 │   ├── index.html
@@ -42,7 +45,10 @@ leduk/
 │   │   └── shell.html
 │   ├── aluno/
 │   │   ├── historico.html
-│   │   └── revisao.html
+│   │   ├── revisao.html
+│   │   └── boletim.html          ← boletim do aluno (só se liberado)
+│   ├── cadastro/
+│   │   └── redefinir_senha.html  ← formulário público de nova senha (via token)
 │   ├── turma/
 │   │   └── portal.html
 │   ├── professor/
@@ -63,8 +69,11 @@ leduk/
 │   │   ├── material_form.html      ← criar/editar material (vídeo/pdf/link/arquivo)
 │   │   ├── selecionar_materiais.html ← seletor do banco para adicionar à turma
 │   │   ├── turma_materiais.html    ← materiais vinculados a uma turma
+│   │   ├── alunos.html / aluno_form.html ← gestão de alunos da turma (cadastro manual)
+│   │   ├── boletim/                ← configurar/unidades/notas/relatorio do boletim
 │   │   ├── components/
-│   │   │   └── _seletor_questoes.html ← cards com checkbox (reuso de questões)
+│   │   │   ├── _seletor_questoes.html ← cards com checkbox (reuso de questões)
+│   │   │   └── _aluno_acoes.html   ← botões HTMX (reenviar dados / redefinir senha)
 │   │   ├── notas.html
 │   │   └── notas_abertas.html
 │   └── relatorio/
@@ -84,7 +93,8 @@ leduk/
     │   ├── test_questao.py
     │   ├── test_score.py
     │   ├── test_peso.py
-    │   └── test_boletim.py       ← cálculo do boletim + bordas de recuperação
+    │   ├── test_boletim.py       ← cálculo do boletim + bordas de recuperação
+    │   └── test_email.py         ← envio via Resend (mock, payload, sem-chave)
     └── integration/
         ├── test_auth.py
         ├── test_rotas_atividade.py
@@ -102,7 +112,8 @@ leduk/
         ├── test_banco_geral.py       ← banco geral + atividade multidisciplinar
         ├── test_importar_questoes.py ← importação JSON (colar/arquivo, imagens)
         ├── test_questao_form.py      ← seções condicionais do form + navegação banco
-        └── test_boletim_rotas.py     ← rotas do boletim (config, toggles, notas, acesso)
+        ├── test_boletim_rotas.py     ← rotas do boletim (config, toggles, notas, acesso)
+        └── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
 ```
 
 ---
@@ -157,7 +168,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 193 testes, todos passando.
+**Resultado esperado:** 206 testes, todos passando.
 
 ---
 
@@ -169,6 +180,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 |---|---|---|
 | GET/POST | `/login` | Formulário de login via PocketBase JWT |
 | GET | `/logout` | Limpa sessão e redireciona |
+| GET/POST | `/redefinir-senha/<token>` | Definir nova senha via token (público; 410 se inválido/expirado/usado) |
 
 ### Aluno
 
@@ -236,6 +248,10 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | GET | `/professor/turma/<id>/boletim/notas` | Mapa de calor aluno × unidade × disciplina |
 | GET | `/professor/turma/<id>/boletim/relatorio` | Relatório de médias finais e situação |
 | GET | `/professor/aluno/<aluno_id>/boletim/<turma_id>` | Boletim individual (visão do professor) |
+| GET | `/professor/turma/<id>/alunos` | Lista de alunos matriculados (ações por aluno) |
+| GET/POST | `/professor/turma/<id>/alunos/novo` | Cadastro manual de aluno (cria user + matrícula) |
+| POST | `/professor/aluno/<id>/redefinir-senha` | Gera token e envia link de redefinição (HTMX) |
+| POST | `/professor/aluno/<id>/reenviar-boas-vindas` | Gera nova senha temporária e reenvia acesso (HTMX) |
 
 ### Aluno — boletim
 
@@ -317,6 +333,10 @@ Questões abertas sem correção contribuem 0 até o professor avaliar.
 > `materiais` e `turma_materiais` não têm ID fixo seedado aqui: `materiais` já
 > existia na instância e `turma_materiais` é criada dinamicamente pela migração
 > (resolve os IDs em runtime). Consulte `/api/collections` para os IDs reais.
+
+Collections criadas por migração posterior (sem ID fixo seedado): `boletins`,
+`unidades`, `recuperacao_final` (boletim); `tokens_senha` (reset de senha) e
+`matriculas` (aluno ↔ turma, com `origem` = `manual`/`formulario`).
 
 ### Tipos de questão
 
@@ -448,6 +468,30 @@ O boletim do aluno só aparece quando `liberado=true` (senão a rota responde 40
 o card "📊 Ver meu boletim" só surge no portal quando `ativo=true`. A leitura no
 portal é resiliente: se a collection `boletins` ainda não existir (pré-migração),
 o portal funciona normalmente sem o card.
+
+### Email transacional e redefinição de senha
+
+`utils/email.py` envia via **Resend** (`RESEND_API_KEY` no ambiente — nunca
+hardcodado). Sem a chave, o envio é um no-op que retorna `False`; todo envio é
+**best-effort** — se o Resend falhar, o cadastro/ação já feito não é revertido.
+
+Redefinição de senha (collection `tokens_senha`):
+- token gerado com `secrets.token_urlsafe(32)` (não UUID)
+- `expira_em` = agora + 24h, **verificado no servidor** ao abrir o link
+- token de uso único: marcado `usado=true` imediatamente após redefinir
+- link inválido/expirado/usado → página de erro (HTTP 410)
+
+O professor dispara, por aluno (HTMX inline, na lista de alunos da turma):
+**🔑 Redefinir senha** (gera token + envia link) e **📧 Reenviar dados de acesso**
+(gera nova senha temporária de 8 caracteres, atualiza no PocketBase e reenvia).
+Cadastro manual (`/professor/turma/<id>/alunos/novo`) cria o `user` (role=aluno)
++ `matricula` (origem=manual) e, opcionalmente, envia o email de boas-vindas.
+
+> **Escopo:** o item de integração no fluxo público de auto-cadastro
+> (`/cadastro/<token>`) não foi incluído porque esse fluxo ainda não existe neste
+> branch. As ações de aluno vivem na nova página de alunos da turma; quando o
+> auto-cadastro público for construído, basta chamar `email_boas_vindas()` ao
+> final dele (a função já está pronta).
 
 ### Diagrama de relacionamentos
 
@@ -630,6 +674,8 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] Collection `turma_materiais` criada e com backfill rodado (`scripts/migrate_materiais.py`)
 - [ ] Campo `multidisciplinar` (bool) existe em `atividades` (`scripts/add_multidisciplinar_atividades.py`)
 - [ ] Collections `boletins`, `unidades`, `recuperacao_final` criadas (`scripts/migrate_boletim.py`)
+- [ ] Collections `tokens_senha` e `matriculas` criadas (`scripts/migrate_tokens_senha.py`, `scripts/migrate_matriculas.py`)
+- [ ] `RESEND_API_KEY` definido no service (`/etc/systemd/system/leduk.service`) para envio de email
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`
@@ -654,6 +700,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 11 — Banco geral e multidisciplinar | Concluída | Banco geral de questões (filtros cross-disciplina), montagem de atividade multidisciplinar e aba dedicada "Multidisciplinar" no portal do aluno |
 | 12 — Importação JSON | Concluída | Importar questões via JSON (colar ou arquivo .json), com imagens por URL ou base64; arquivo de exemplo cobrindo todos os tipos |
 | 13 — Boletim | Concluída | Boletim por turma: unidades por disciplina, recuperação de unidade e final, mapa de calor, relatório, situação (aprovado/recuperação/reprovado) e visão liberável ao aluno |
+| 14 — Email + reset de senha | Concluída | Envio via Resend (boas-vindas, redefinição), token seguro (`secrets`, expira 24h, uso único), gestão e cadastro manual de alunos por turma |
 
 ### Funcionalidades futuras consideradas
 

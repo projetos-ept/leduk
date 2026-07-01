@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alunos — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:960px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}">{{ turma.nome }}</a><span>›</span><span>Alunos</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Alunos — {{ turma.nome }}</h1>
+      <p class="qb-subtitulo">{{ matriculas|length }} aluno(s) matriculado(s).</p>
+    </div>
+    <a href="/professor/turma/{{ turma.id }}/alunos/novo" class="btn-primary">+ Novo aluno</a>
+  </div>
+
+  {% if not matriculas %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">👥</p>
+      <p class="qb-empty-msg">Nenhum aluno matriculado ainda.</p>
+      <a href="/professor/turma/{{ turma.id }}/alunos/novo" class="btn-primary">+ Cadastrar primeiro aluno</a>
+    </div>
+  {% else %}
+    <div class="turma-desktop">
+      <div class="card" style="overflow-x:auto;">
+        <table class="prof-tabela">
+          <thead><tr><th>Nome</th><th>Email</th><th>WhatsApp</th><th>Ações</th></tr></thead>
+          <tbody>
+            {% for m in matriculas %}
+              {% set al = (m.expand.aluno if m.expand else None) %}
+              <tr>
+                <td style="font-weight:600;">{{ al.name if al else m.aluno }}</td>
+                <td style="color:var(--muted);font-size:.85rem;">{{ al.email if al else '—' }}</td>
+                <td style="color:var(--muted);font-size:.85rem;">{{ m.whatsapp or '—' }}</td>
+                <td>
+                  {% if al %}
+                    {% set aluno_id = al.id %}{% set turma_nome = turma.nome %}
+                    {% include "professor/components/_aluno_acoes.html" %}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Mobile -->
+    <div class="turma-mobile">
+      {% for m in matriculas %}
+        {% set al = (m.expand.aluno if m.expand else None) %}
+        <div class="ativ-mcard">
+          <div class="ativ-mcard-head">
+            <div>
+              <p class="ativ-mcard-titulo">{{ al.name if al else m.aluno }}</p>
+              <p class="ativ-mcard-disc">{{ al.email if al else '' }}{% if m.whatsapp %} · {{ m.whatsapp }}{% endif %}</p>
+            </div>
+          </div>
+          {% if al %}
+            {% set aluno_id = al.id %}{% set turma_nome = turma.nome %}
+            {% include "professor/components/_aluno_acoes.html" %}
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>
