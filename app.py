@@ -205,6 +205,54 @@ def _chaves_do_banco(existentes: list) -> set:
     return {_chave_duplicata(q.get("tipo", ""), q.get("enunciado", "")) for q in existentes}
 
 
+_LETRAS_ALTERNATIVA = ["A", "B", "C", "D", "E"]
+
+
+def _normalizar_alternativas(alternativas: list) -> list:
+    """Garante que toda alternativa tenha o campo `letra`.
+
+    Geradores externos de JSON (ex: NotebookLM) frequentemente omitem `letra`,
+    enviando só `texto`/`correta`/`feedback`. O schema do PocketBase exige
+    `letra`, então preenchemos automaticamente pela posição na lista
+    (A, B, C, D, E) quando ausente — sem sobrescrever uma letra já informada.
+    """
+    resultado = []
+    for i, alt in enumerate(alternativas):
+        if not isinstance(alt, dict):
+            resultado.append(alt)
+            continue
+        alt = dict(alt)
+        if not alt.get("letra") and i < len(_LETRAS_ALTERNATIVA):
+            alt["letra"] = _LETRAS_ALTERNATIVA[i]
+        resultado.append(alt)
+    return resultado
+
+
+def _normalizar_itens_vf(itens: list) -> list:
+    """Normaliza itens V/F vindos de geradores externos de JSON.
+
+    Aceita `texto` como alias de `afirmacao` e `gabarito` como alias de
+    `correta` (o campo gravado no PocketBase é sempre `correta` — nunca
+    renomeamos para `gabarito`, só aceitamos como entrada alternativa).
+    Preenche `ordem` pela posição quando ausente, sem sobrescrever um valor
+    já informado.
+    """
+    resultado = []
+    for i, item in enumerate(itens, 1):
+        if not isinstance(item, dict):
+            resultado.append(item)
+            continue
+        item = dict(item)
+        if not item.get("afirmacao") and item.get("texto"):
+            item["afirmacao"] = item.pop("texto")
+        if "correta" not in item and "gabarito" in item:
+            item["correta"] = item.pop("gabarito")
+        if not item.get("ordem"):
+            item["ordem"] = i
+        resultado.append(item)
+    return resultado
+
+
 def _erro_http(exc: Exception) -> str:
     """Extrai uma mensagem legível de uma falha de chamada ao PocketBase,
     destacando especificamente erros de permissão (403) para que o professor
@@ -250,12 +298,12 @@ def _analisar_questoes(questoes: list, chaves_existentes: set | None = None) -> 
         elif not enunciado:
             item.update(ok=False, erro="enunciado vazio")
         elif tipo in ("mc4", "mc5"):
-            alts = q.get("alternativas") or []
+            alts = _normalizar_alternativas(q.get("alternativas") or [])
             item["subitens"] = len(alts)
             if not any(isinstance(a, dict) and a.get("correta") for a in alts):
                 item.update(ok=False, erro="múltipla escolha sem alternativa correta")
         elif tipo == "vf":
-            item["subitens"] = len(q.get("itens_vf") or q.get("itens") or [])
+            item["subitens"] = len(_normalizar_itens_vf(q.get("itens_vf") or q.get("itens") or []))
         elif tipo == "associativa":
             item["subitens"] = len(q.get("pares") or q.get("pares_associativos") or [])
         if item["ok"]:
@@ -308,7 +356,7 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                 erros.append(f"Questão {i}: enunciado vazio")
                 continue
             if tipo in ("mc4", "mc5"):
-                alts = q.get("alternativas") or []
+                alts = _normalizar_alternativas(q.get("alternativas") or [])
                 if not any(a.get("correta") for a in alts if isinstance(a, dict)):
                     erros.append(f"Questão {i}: múltipla escolha sem alternativa correta")
                     continue
@@ -331,7 +379,7 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
             qid = criada["id"]
             try:
                 if tipo in ("mc4", "mc5"):
-                    for a in q.get("alternativas") or []:
+                    for a in _normalizar_alternativas(q.get("alternativas") or []):
                         if not isinstance(a, dict):
                             continue
                         pb_inst.criar_alternativa({
@@ -342,7 +390,7 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                             "feedback": a.get("feedback", ""),
                         }, _imagem_spec_to_tuple(a.get("imagem")))
                 elif tipo == "vf":
-                    itens = q.get("itens_vf") or q.get("itens") or []
+                    itens = _normalizar_itens_vf(q.get("itens_vf") or q.get("itens") or [])
                     for j, it in enumerate(itens, 1):
                         if not isinstance(it, dict):
                             continue
@@ -350,7 +398,7 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
                             "questao": qid,
                             "afirmacao": it.get("afirmacao", ""),
                             "correta": bool(it.get("correta")),
-                            "ordem": j,
+                            "ordem": it.get("ordem") or j,
                         })
                 elif tipo == "associativa":
                     pares = q.get("pares") or q.get("pares_associativos") or []

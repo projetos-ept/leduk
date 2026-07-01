@@ -361,3 +361,153 @@ def test_excluir_em_massa_continua_apos_falha_individual(client):
                        data={"questoes": ["qBOA", "qOK"]})
     assert resp.status_code in (200, 302)
     assert excluidas == ["qOK"], "a segunda exclusão deveria prosseguir mesmo após a primeira falhar"
+
+
+# ── Normalização de campos de JSON gerado por ferramentas externas (NotebookLM) ──
+
+@rsps_lib.activate
+def test_importar_mc4_sem_letra_gera_letras_pela_posicao(client):
+    """JSON do NotebookLM só manda texto/correta nas alternativas, sem letra."""
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/questoes/records", json={"id": "q1"})
+    alts_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/alternativas/records",
+                          callback=lambda r: (alts_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "a"})))[1],
+                          content_type="application/json")
+    payload = [{"tipo": "mc4", "enunciado": "Sem letra nas alternativas", "alternativas": [
+        {"texto": "primeira", "correta": True},
+        {"texto": "segunda", "correta": False},
+        {"texto": "terceira", "correta": False},
+        {"texto": "quarta", "correta": False},
+    ]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert "1 de 1" in resp.data.decode()
+    assert [a["letra"] for a in alts_cap] == ["A", "B", "C", "D"]
+    assert alts_cap[0]["correta"] is True
+
+
+@rsps_lib.activate
+def test_previsualizar_mc4_sem_letra_nao_reporta_erro(client):
+    """A ausência de 'letra' não deve ser tratada como inválida na prévia."""
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    payload = [{"tipo": "mc4", "enunciado": "Sem letra", "alternativas": [
+        {"texto": "a", "correta": True}, {"texto": "b", "correta": False}]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "previsualizar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "válida" in html
+    assert "sem alternativa correta" not in html.lower()
+
+
+@rsps_lib.activate
+def test_importar_vf_com_texto_normaliza_para_afirmacao(client):
+    """JSON do NotebookLM usa 'texto' em vez de 'afirmacao' nos itens V/F."""
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/questoes/records", json={"id": "q1"})
+    itens_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/itens_vf/records",
+                          callback=lambda r: (itens_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "i"})))[1],
+                          content_type="application/json")
+    payload = [{"tipo": "vf", "enunciado": "VF com texto", "itens_vf": [
+        {"texto": "Afirmação um", "correta": True},
+        {"texto": "Afirmação dois", "correta": False},
+    ]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert "1 de 1" in resp.data.decode()
+    assert [i["afirmacao"] for i in itens_cap] == ["Afirmação um", "Afirmação dois"]
+    assert itens_cap[0]["correta"] is True
+
+
+@rsps_lib.activate
+def test_importar_vf_sem_ordem_gera_pela_posicao(client):
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/questoes/records", json={"id": "q1"})
+    itens_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/itens_vf/records",
+                          callback=lambda r: (itens_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "i"})))[1],
+                          content_type="application/json")
+    payload = [{"tipo": "vf", "enunciado": "VF sem ordem", "itens_vf": [
+        {"afirmacao": "primeira", "correta": True},
+        {"afirmacao": "segunda", "correta": False},
+        {"afirmacao": "terceira", "correta": True},
+    ]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert [i["ordem"] for i in itens_cap] == [1, 2, 3]
+
+
+@rsps_lib.activate
+def test_importar_vf_aceita_gabarito_como_alias_de_correta(client):
+    _sess_prof(client)
+    _mock_disc()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/questoes/records", json={"id": "q1"})
+    itens_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/itens_vf/records",
+                          callback=lambda r: (itens_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "i"})))[1],
+                          content_type="application/json")
+    payload = [{"tipo": "vf", "enunciado": "VF com gabarito", "itens_vf": [
+        {"afirmacao": "verdadeira", "gabarito": True},
+        {"afirmacao": "falsa", "gabarito": False},
+    ]}]
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": json.dumps(payload)})
+    assert resp.status_code == 200
+    assert [i["correta"] for i in itens_cap] == [True, False]
+    assert "gabarito" not in itens_cap[0], "o campo gravado deve ser 'correta', nunca 'gabarito'"
+
+
+@rsps_lib.activate
+def test_exemplo_json_continua_importando_normalmente(client):
+    """Regressão: o arquivo de exemplo (que já tem letra/afirmacao/ordem
+    explícitos) não deve ter seu comportamento alterado pela normalização."""
+    _sess_prof(client)
+    _mock_disc()
+    with open("static/exemplos/questoes_exemplo.json", encoding="utf-8") as f:
+        conteudo = f.read()
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records", json={"items": []})
+    criadas_cap = []
+
+    def _cap_questao(r):
+        # duas questões do exemplo têm "imagem" (mc5 e aberta) e vão em
+        # multipart, não JSON puro — só registramos o corpo quando é JSON.
+        ctype = r.headers.get("Content-Type", "")
+        if "application/json" in ctype:
+            criadas_cap.append(json.loads(r.body))
+        return (200, {}, json.dumps({"id": f"q{len(criadas_cap) + 1}"}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/questoes/records",
+                          callback=_cap_questao, content_type="application/json")
+    alts_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/alternativas/records",
+                          callback=lambda r: (alts_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "a"})))[1],
+                          content_type="application/json")
+    itens_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/itens_vf/records",
+                          callback=lambda r: (itens_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "i"})))[1],
+                          content_type="application/json")
+    pares_cap = []
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/pares_associativos/records",
+                          callback=lambda r: (pares_cap.append(json.loads(r.body)), (200, {}, json.dumps({"id": "p"})))[1],
+                          content_type="application/json")
+    resp = client.post("/professor/disciplina/disc01/importar-questoes",
+                       data={"acao": "importar", "json_text": conteudo})
+    assert resp.status_code == 200
+    assert "5 de 5" in resp.data.decode()
+    # letras do exemplo preservadas (não sobrescritas pela normalização)
+    letras_mc4 = [a["letra"] for a in alts_cap if a["letra"] in ("A", "B", "C", "D")][:4]
+    assert letras_mc4 == ["A", "B", "C", "D"]

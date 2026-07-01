@@ -142,8 +142,8 @@
       <p>Envie uma <strong>lista</strong> de questões ou um objeto <code>{"questoes": [...]}</code>. Campos por tipo:</p>
       <ul>
         <li><strong>Comuns:</strong> <code>tipo</code> (mc4/mc5/vf/aberta/associativa), <code>enunciado</code>, <code>peso</code>, <code>dificuldade</code> (facil/medio/dificil), <code>assunto</code>, <code>feedback_geral</code>, <code>imagem</code></li>
-        <li><strong>mc4 / mc5:</strong> <code>alternativas: [{"letra","texto","correta","feedback","imagem"}]</code> (pelo menos uma <code>correta: true</code>)</li>
-        <li><strong>vf:</strong> <code>itens_vf: [{"afirmacao","correta"}]</code></li>
+        <li><strong>mc4 / mc5:</strong> <code>alternativas: [{"letra","texto","correta","feedback","imagem"}]</code> (pelo menos uma <code>correta: true</code>). <code>letra</code> é opcional — se ausente, é gerada automaticamente pela posição (A, B, C...)</li>
+        <li><strong>vf:</strong> <code>itens_vf: [{"afirmacao","correta","ordem"}]</code>. Aceita <code>texto</code> no lugar de <code>afirmacao</code>, <code>gabarito</code> no lugar de <code>correta</code>, e gera <code>ordem</code> pela posição se ausente — útil para JSON gerado por ferramentas externas (ex: NotebookLM)</li>
         <li><strong>associativa:</strong> <code>pares: [{"coluna_a","coluna_b"}]</code></li>
         <li><strong>aberta:</strong> sem itens — correção manual</li>
       </ul>
