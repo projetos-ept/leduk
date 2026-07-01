@@ -1,4 +1,6 @@
 """Cliente HTTP mínimo para a API do PocketBase."""
+from datetime import datetime, timezone
+
 import requests
 
 # Campos gerados pelo PocketBase que não devem ser reenviados ao clonar registros.
@@ -754,3 +756,78 @@ class PocketBaseClient:
             except Exception:
                 pass
         return todas
+
+    # --- Usuários, matrículas e tokens de senha ---
+
+    def buscar_user(self, user_id: str) -> dict:
+        return self._get(f"/api/collections/users/records/{user_id}")
+
+    def criar_user_aluno(self, nome: str, email: str, senha: str) -> dict:
+        return self._post("/api/collections/users/records", {
+            "name": nome,
+            "email": email,
+            "password": senha,
+            "passwordConfirm": senha,
+            "role": "aluno",
+            "emailVisibility": True,
+        })
+
+    def redefinir_senha_aluno(self, aluno_id: str, nova_senha: str) -> dict:
+        return self._patch(f"/api/collections/users/records/{aluno_id}", {
+            "password": nova_senha,
+            "passwordConfirm": nova_senha,
+        })
+
+    def criar_matricula(self, aluno_id: str, turma_id: str,
+                        origem: str = "manual", whatsapp: str = "") -> dict:
+        return self._post("/api/collections/matriculas/records", {
+            "aluno": aluno_id,
+            "turma": turma_id,
+            "ativo": True,
+            "origem": origem,
+            "whatsapp": whatsapp,
+        })
+
+    def listar_alunos_turma(self, turma_id: str) -> list:
+        result = self._get(
+            "/api/collections/matriculas/records",
+            params={"filter": f'turma="{turma_id}"&&ativo=true', "expand": "aluno",
+                    "sort": "created", "perPage": 500},
+        )
+        return result.get("items", [])
+
+    def criar_token_senha(self, aluno_id: str, token: str, expira_em: str) -> dict:
+        return self._post("/api/collections/tokens_senha/records", {
+            "aluno_id": aluno_id,
+            "token": token,
+            "expira_em": expira_em,
+            "usado": False,
+        })
+
+    def buscar_token_senha(self, token: str) -> dict | None:
+        """Retorna o registro do token se válido (não usado e não expirado); senão None."""
+        result = self._get(
+            "/api/collections/tokens_senha/records",
+            params={"filter": f'token="{token}"&&usado=false', "perPage": 1},
+        )
+        items = result.get("items", [])
+        if not items:
+            return None
+        rec = items[0]
+        expira = rec.get("expira_em", "")
+        if expira:
+            try:
+                dt = datetime.strptime(expira, "%Y-%m-%d %H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+                if dt < datetime.now(timezone.utc):
+                    return None
+            except ValueError:
+                try:
+                    dt = datetime.fromisoformat(expira.replace("Z", "+00:00"))
+                    if dt < datetime.now(timezone.utc):
+                        return None
+                except ValueError:
+                    pass
+        return rec
+
+    def invalidar_token_senha(self, token_id: str) -> dict:
+        return self._patch(f"/api/collections/tokens_senha/records/{token_id}", {"usado": True})

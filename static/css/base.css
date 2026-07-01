@@ -2110,3 +2110,7 @@ a.material-header:hover {
 }
 .boletim-pill.on  { background: #e6faf5; color: #007a5a; }
 .boletim-pill.off { background: #f0f0f0; color: var(--muted); }
+
+/* ── Ações de aluno (HTMX) ── */
+.aluno-acoes { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.aluno-acao-fb { font-weight: 600; }

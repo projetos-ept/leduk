@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novo aluno — {{ turma.nome }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:520px;">
+  <div class="breadcrumb">
+    <a href="/professor/turma/{{ turma.id }}/alunos">Alunos</a><span>›</span><span>Novo</span>
+  </div>
+  <div class="portal-header"><h1 class="portal-titulo">Novo aluno — {{ turma.nome }}</h1></div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if erro %}<div class="alerta-bloqueio" style="margin-bottom:14px;"><strong>{{ erro }}</strong></div>{% endif %}
+    <form method="post" style="display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <label class="campo-label">Nome completo *</label>
+        <input type="text" name="nome" required value="{{ dados.nome if dados else '' }}"
+               style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
+      </div>
+      <div>
+        <label class="campo-label">Email *</label>
+        <input type="email" name="email" required value="{{ dados.email if dados else '' }}"
+               style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
+      </div>
+      <div>
+        <label class="campo-label">Senha temporária *</label>
+        <input type="text" name="senha" required minlength="6"
+               style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
+      </div>
+      <div>
+        <label class="campo-label">WhatsApp (opcional)</label>
+        <input type="text" name="whatsapp" value="{{ dados.whatsapp if dados else '' }}" placeholder="(71) 99999-9999"
+               style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
+        <input type="checkbox" name="enviar_email" checked> Enviar email com dados de acesso
+      </label>
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:12px;">Criar aluno</button>
+        <a href="/professor/turma/{{ turma.id }}/alunos" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

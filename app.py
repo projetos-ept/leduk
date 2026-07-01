@@ -5,8 +5,10 @@ import logging
 import mimetypes
 import os
 import re
+import secrets
+import string
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 import requests
@@ -14,6 +16,7 @@ from flask import Flask, make_response, redirect, render_template, request, sess
 
 from boletim import calcular_boletim_aluno, calcular_boletim_turma
 from pb import PocketBaseClient
+from utils.email import email_boas_vindas, email_redefinir_senha
 from questao import (
     calcular_nota_final,
     calcular_valor_ponto,
@@ -119,6 +122,20 @@ def _material_campos_comuns(form) -> dict:
         "url": form.get("url", "").strip(),
         "assunto": form.get("assunto", "").strip(),
     }
+
+
+def _portal_url() -> str:
+    return os.environ.get("PORTAL_URL", "https://leduk.repoept.duckdns.org").rstrip("/")
+
+
+def _senha_temporaria(n: int = 8) -> str:
+    alfabeto = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alfabeto) for _ in range(n))
+
+
+def _pb_datetime(dt: datetime) -> str:
+    """Formata um datetime para o formato de data do PocketBase."""
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.000Z")
 
 
 def _form_to_boletim(form, turma_id: str) -> dict:
@@ -1770,6 +1787,118 @@ def create_app(config: dict | None = None) -> Flask:
         return render_template("aluno/boletim.html", turma=turma, boletim=boletim,
                                resultado=res, aluno_nome_boletim=session.get("aluno_nome", ""),
                                aluno_nome=session.get("aluno_nome", ""))
+
+    # ── Redefinição de senha (público) ──
+
+    @app.route("/redefinir-senha/<token>", methods=["GET", "POST"])
+    def redefinir_senha(token: str):
+        registro = get_pb().buscar_token_senha(token)
+        if not registro:
+            return render_template("cadastro/redefinir_senha.html", token=token,
+                                   invalido=True), 410
+        if request.method == "GET":
+            return render_template("cadastro/redefinir_senha.html", token=token)
+        nova = request.form.get("senha", "")
+        confirmar = request.form.get("senha_confirmar", "")
+        if len(nova) < 6:
+            return render_template("cadastro/redefinir_senha.html", token=token,
+                                   erro="A senha deve ter pelo menos 6 caracteres.")
+        if nova != confirmar:
+            return render_template("cadastro/redefinir_senha.html", token=token,
+                                   erro="As senhas não coincidem.")
+        try:
+            get_pb().redefinir_senha_aluno(registro["aluno_id"], nova)
+            get_pb().invalidar_token_senha(registro["id"])
+        except Exception as exc:
+            log.warning("redefinir_senha falhou: %s", exc)
+            return render_template("cadastro/redefinir_senha.html", token=token,
+                                   erro="Não foi possível alterar a senha. Tente novamente.")
+        return render_template("cadastro/redefinir_senha.html", token=token, sucesso=True)
+
+    # ── Ações de aluno (professor, via HTMX) ──
+
+    @app.route("/professor/aluno/<aluno_id>/redefinir-senha", methods=["POST"])
+    @requer_professor
+    def professor_aluno_redefinir_senha(aluno_id: str):
+        try:
+            user = get_pb().buscar_user(aluno_id)
+            token = secrets.token_urlsafe(32)
+            expira = _pb_datetime(datetime.now(timezone.utc) + timedelta(hours=24))
+            get_pb().criar_token_senha(aluno_id, token, expira)
+            link = f"{_portal_url()}/redefinir-senha/{token}"
+            ok = email_redefinir_senha(user.get("email", ""), user.get("name", ""), link)
+        except Exception as exc:
+            log.warning("professor_aluno_redefinir_senha falhou: %s", exc)
+            ok = False
+        return _feedback_aluno_acao(ok, "Link de redefinição enviado", "Falha no envio")
+
+    @app.route("/professor/aluno/<aluno_id>/reenviar-boas-vindas", methods=["POST"])
+    @requer_professor
+    def professor_aluno_reenviar(aluno_id: str):
+        turma_nome = request.form.get("turma_nome", "")
+        try:
+            user = get_pb().buscar_user(aluno_id)
+            nova_senha = _senha_temporaria()
+            get_pb().redefinir_senha_aluno(aluno_id, nova_senha)
+            ok = email_boas_vindas(user.get("email", ""), user.get("name", ""),
+                                   nova_senha, turma_nome, _portal_url())
+        except Exception as exc:
+            log.warning("professor_aluno_reenviar falhou: %s", exc)
+            ok = False
+        return _feedback_aluno_acao(ok, "Email enviado", "Falha no envio")
+
+    def _feedback_aluno_acao(ok: bool, msg_ok: str, msg_falha: str):
+        cor = "var(--sucesso)" if ok else "var(--erro)"
+        icone = "✓" if ok else "✗"
+        texto = msg_ok if ok else msg_falha
+        return (f'<span class="aluno-acao-feedback" style="color:{cor};font-size:.8rem;">'
+                f'{icone} {texto}</span>')
+
+    # ── Gestão de alunos da turma (professor) ──
+
+    @app.route("/professor/turma/<turma_id>/alunos")
+    @requer_professor
+    def professor_alunos(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        try:
+            matriculas = get_pb().listar_alunos_turma(turma_id)
+        except Exception:
+            matriculas = []  # collection 'matriculas' ausente (pré-migração)
+        return render_template("professor/alunos.html", turma=turma, matriculas=matriculas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/turma/<turma_id>/alunos/novo", methods=["GET", "POST"])
+    @requer_professor
+    def professor_aluno_novo(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        if request.method == "GET":
+            return render_template("professor/aluno_form.html", turma=turma,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip()
+        senha = request.form.get("senha", "").strip()
+        whatsapp = request.form.get("whatsapp", "").strip()
+        enviar = "enviar_email" in request.form
+        if not (nome and email and senha):
+            return render_template("professor/aluno_form.html", turma=turma,
+                                   erro="Nome, email e senha são obrigatórios.",
+                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp},
+                                   aluno_nome=session.get("aluno_nome", "")), 422
+        try:
+            user = get_pb().criar_user_aluno(nome, email, senha)
+            get_pb().criar_matricula(user["id"], turma_id, origem="manual", whatsapp=whatsapp)
+        except Exception as exc:
+            log.warning("criar_user_aluno falhou: %s", exc)
+            return render_template("professor/aluno_form.html", turma=turma,
+                                   erro="Não foi possível criar o aluno (email já usado?).",
+                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp},
+                                   aluno_nome=session.get("aluno_nome", "")), 422
+        if enviar:
+            try:
+                email_boas_vindas(email, nome, senha, turma.get("nome", ""), _portal_url())
+            except Exception as exc:
+                log.warning("email_boas_vindas falhou: %s", exc)
+        return redirect(url_for("professor_alunos", turma_id=turma_id))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)

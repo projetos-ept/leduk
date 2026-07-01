@@ -1,0 +1,13 @@
+{# Ações HTMX por aluno. Requer: aluno_id, turma_nome. #}
+<span class="aluno-acoes">
+  <button type="button" class="btn-ghost btn-sm"
+          hx-post="/professor/aluno/{{ aluno_id }}/reenviar-boas-vindas"
+          hx-vals='{"turma_nome": {{ turma_nome | tojson }}}'
+          hx-target="#fb-{{ aluno_id }}" hx-swap="innerHTML"
+          title="Gera nova senha temporária e reenvia os dados de acesso">📧 Reenviar</button>
+  <button type="button" class="btn-ghost btn-sm"
+          hx-post="/professor/aluno/{{ aluno_id }}/redefinir-senha"
+          hx-target="#fb-{{ aluno_id }}" hx-swap="innerHTML"
+          title="Envia link para o aluno definir a própria senha">🔑 Redefinir senha</button>
+  <span id="fb-{{ aluno_id }}" class="aluno-acao-fb"></span>
+</span>

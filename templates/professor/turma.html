@@ -64,6 +64,11 @@
     <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/boletim">Configurar</a>
     <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/boletim/notas">Ver notas</a>
   </div>
+  <div class="turma-banco-bar">
+    <span class="turma-banco-titulo">👥 Alunos:</span>
+    <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/alunos">Gerenciar alunos</a>
+    <a class="btn-ghost btn-sm" href="/professor/turma/{{ turma.id }}/alunos/novo">+ Novo aluno</a>
+  </div>
 
   {% if not atividades %}
     <div class="qb-empty">

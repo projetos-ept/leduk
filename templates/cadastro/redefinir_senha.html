@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Redefinir senha — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">LeDuk</a>
+</nav>
+
+<div class="shell" style="max-width:440px;">
+  <div class="portal-header"><h1 class="portal-titulo">Definir nova senha</h1></div>
+
+  {% if invalido %}
+    <div class="card" style="margin-top:16px;text-align:center;">
+      <p class="dash-empty-icon">🔒</p>
+      <p style="color:var(--muted);">Este link não é mais válido. Solicite ao professor um novo link.</p>
+      <a href="/login" class="btn-ghost" style="margin-top:12px;display:inline-block;">Ir para o login</a>
+    </div>
+  {% elif sucesso %}
+    <div class="card" style="margin-top:16px;text-align:center;">
+      <p class="dash-empty-icon">✅</p>
+      <p style="font-weight:600;">Senha alterada com sucesso.</p>
+      <a href="/login" class="btn-primary" style="margin-top:12px;display:inline-block;">Fazer login →</a>
+    </div>
+  {% else %}
+    <div class="card" style="margin-top:16px;">
+      {% if erro %}<div class="alerta-bloqueio" style="margin-bottom:14px;"><strong>{{ erro }}</strong></div>{% endif %}
+      <form method="post" action="/redefinir-senha/{{ token }}" style="display:flex;flex-direction:column;gap:16px;">
+        <div>
+          <label class="campo-label">Nova senha * (mínimo 6 caracteres)</label>
+          <input type="password" name="senha" required minlength="6" autofocus
+                 style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+        </div>
+        <div>
+          <label class="campo-label">Confirmar senha *</label>
+          <input type="password" name="senha_confirmar" required minlength="6"
+                 style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+        </div>
+        <button type="submit" class="btn-home" style="padding:12px;">Salvar nova senha</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>
