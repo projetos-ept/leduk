@@ -55,14 +55,26 @@
 
 <script>
   document.body.addEventListener("htmx:afterSwap", function () {
+    var fill  = document.getElementById("prog-fill");
+    var label = document.getElementById("prog-label");
+    if (!fill || !label) return;
+
     var el = document.querySelector("[data-num]");
-    if (!el) return;
+    if (!el) {
+      // placar carregou — todas as questões respondidas
+      if (document.querySelector(".placar-card")) {
+        var m = label.textContent.match(/\/\s*(\d+)/);
+        if (m) { label.textContent = m[1] + " / " + m[1]; }
+        fill.style.width = "100%";
+      }
+      return;
+    }
     var num   = parseInt(el.dataset.num,   10);
     var total = parseInt(el.dataset.total, 10);
     if (!total) return;
     var pct = Math.round((num - 1) / total * 100);
-    document.getElementById("prog-fill").style.width  = pct + "%";
-    document.getElementById("prog-label").textContent = (num - 1) + " / " + total;
+    fill.style.width  = pct + "%";
+    label.textContent = (num - 1) + " / " + total;
   });
 
   (function () {
