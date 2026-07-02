@@ -34,43 +34,45 @@
     <div class="placar-fill" style="width: {{ pct }}%; background: {{ cor }};"></div>
   </div>
 
-  {% if detalhamento is defined and detalhamento %}
-    {% set ns = namespace(corretas=0) %}
-    {% for d in detalhamento %}
-      {% if d.correta %}{% set ns.corretas = ns.corretas + 1 %}{% endif %}
-    {% endfor %}
-    <p class="placar-corretas">{{ ns.corretas }} de {{ detalhamento | length }} questão{{ 'ões' if detalhamento | length != 1 }} correta{{ 's' if ns.corretas != 1 }}</p>
-  {% endif %}
+  {% if not modo_prova %}
+    {% if detalhamento is defined and detalhamento %}
+      {% set ns = namespace(corretas=0) %}
+      {% for d in detalhamento %}
+        {% if d.correta %}{% set ns.corretas = ns.corretas + 1 %}{% endif %}
+      {% endfor %}
+      <p class="placar-corretas">{{ ns.corretas }} de {{ detalhamento | length }} questão{{ 'ões' if detalhamento | length != 1 }} correta{{ 's' if ns.corretas != 1 }}</p>
+    {% endif %}
 
-  {% if nota_automatica is defined and nota_automatica %}
-    <div class="placar-nota">
-      {% if nota_final is defined and nota_final is not none and valor_total %}
-        <span class="badge-nota">Nota: {{ (nota_final | round(1)) | string | replace(".", ",") }} / {{ valor_total | string | replace(".", ",") }}</span>
-      {% else %}
-        <span class="badge-nota">Nota: {{ pct }}%</span>
-      {% endif %}
-    </div>
-  {% elif nota_automatica is defined %}
-    <div class="placar-nota">
-      <span class="badge-correcao">📋 Aguardando correção do professor</span>
-    </div>
-  {% endif %}
+    {% if nota_automatica is defined and nota_automatica %}
+      <div class="placar-nota">
+        {% if nota_final is defined and nota_final is not none and valor_total %}
+          <span class="badge-nota">Nota: {{ (nota_final | round(1)) | string | replace(".", ",") }} / {{ valor_total | string | replace(".", ",") }}</span>
+        {% else %}
+          <span class="badge-nota">Nota: {{ pct }}%</span>
+        {% endif %}
+      </div>
+    {% elif nota_automatica is defined %}
+      <div class="placar-nota">
+        <span class="badge-correcao">📋 Aguardando correção do professor</span>
+      </div>
+    {% endif %}
 
-  {% if detalhamento is defined and detalhamento %}
-    <div class="detalhamento">
-      <p class="detalhamento-titulo">Detalhamento por questão</p>
-      <table class="detalhamento-tabela">
-        {% for d in detalhamento %}
-          {% set p = d.peso %}
-          <tr class="det-row{% if d.correta %} det-correta{% else %} det-errada{% endif %}">
-            <td class="det-num">Q{{ d.num }}</td>
-            <td class="det-peso">peso {% if p == p | int %}{{ p | int }}{% else %}{{ p }}{% endif %}</td>
-            <td class="det-status">{% if d.correta %}✓ Correta{% else %}✗ Incorreta{% endif %}</td>
-            <td class="det-pts">{{ (d.pontos | round(2)) | string | replace(".", ",") }} pts</td>
-          </tr>
-        {% endfor %}
-      </table>
-    </div>
+    {% if detalhamento is defined and detalhamento %}
+      <div class="detalhamento">
+        <p class="detalhamento-titulo">Detalhamento por questão</p>
+        <table class="detalhamento-tabela">
+          {% for d in detalhamento %}
+            {% set p = d.peso %}
+            <tr class="det-row{% if d.correta %} det-correta{% else %} det-errada{% endif %}">
+              <td class="det-num">Q{{ d.num }}</td>
+              <td class="det-peso">peso {% if p == p | int %}{{ p | int }}{% else %}{{ p }}{% endif %}</td>
+              <td class="det-status">{% if d.correta %}✓ Correta{% else %}✗ Incorreta{% endif %}</td>
+              <td class="det-pts">{{ (d.pontos | round(2)) | string | replace(".", ",") }} pts</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+    {% endif %}
   {% endif %}
 
   {% if tentativas_restantes is defined and tentativas_restantes > 0 %}

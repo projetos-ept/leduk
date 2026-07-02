@@ -218,3 +218,46 @@ def test_modo_prova_false_placar_exibe_botao_gabarito(client):
     resp = client.get("/htmx/resultado/ativ01")
     assert resp.status_code == 200
     assert "Ver gabarito" in resp.data.decode()
+
+
+@rsps_lib.activate
+def test_modo_prova_placar_oculta_detalhamento(client):
+    """Em modo_prova o detalhamento por questão e 'Aguardando correção' não aparecem."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={"id": "ativ01", "exibir_feedback_pos": False,
+                       "nota_automatica": False, "valor_total": 10.0,
+                       "questoes": ["q1"]})
+    respostas = [{"score_raw": 0, "score_max": 1, "correta": False, "_peso": 1, "_num": 1}]
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = True
+        sess["respostas"] = respostas
+        sess["tentativa_id"] = "tent01"
+        sess["nota_automatica"] = False
+        sess["tentativa_concluida"] = True
+        sess["max_tentativas"] = 0
+    resp = client.get("/htmx/resultado/ativ01")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Detalhamento por questão" not in html
+    assert "Aguardando correção" not in html
+    assert "questão correta" not in html
+
+
+@rsps_lib.activate
+def test_modo_prova_false_placar_exibe_detalhamento(client):
+    """Sem modo_prova o detalhamento por questão é exibido normalmente."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={"id": "ativ01", "exibir_feedback_pos": False,
+                       "nota_automatica": False, "valor_total": 10.0,
+                       "questoes": ["q1"]})
+    respostas = [{"score_raw": 1, "score_max": 1, "correta": True, "_peso": 1, "_num": 1}]
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = False
+        sess["respostas"] = respostas
+        sess["tentativa_id"] = "tent01"
+        sess["nota_automatica"] = False
+        sess["tentativa_concluida"] = True
+        sess["max_tentativas"] = 0
+    resp = client.get("/htmx/resultado/ativ01")
+    assert resp.status_code == 200
+    assert "Detalhamento por questão" in resp.data.decode()
