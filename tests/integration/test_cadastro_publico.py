@@ -81,7 +81,7 @@ def test_post_cadastro_email_duplicado_erro(client):
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/formularios_cadastro/records",
                  json={"items": [FORM_ATIVO]})
     rsps_lib.add(rsps_lib.POST, f"{PB}/api/collections/users/records",
-                 status=400, json={"code": 400, "message": "Failed to create."})
+                 status=400, json={"code": 400, "message": "The email is already in use."})
     mat = []
     rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/matriculas/records",
                           callback=lambda r: (mat.append(1), (200, {}, "{}"))[1],
