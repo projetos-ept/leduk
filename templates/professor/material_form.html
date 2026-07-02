@@ -24,7 +24,7 @@
   <div class="portal-header"><h1 class="portal-titulo">{% if material %}Editar material{% else %}Novo material{% endif %}</h1></div>
 
   <div class="card" style="margin-top:16px;">
-    <form method="post" enctype="multipart/form-data" action="{{ form_action }}"
+    <form id="form-material" method="post" enctype="multipart/form-data" action="{{ form_action }}"
           style="display:flex;flex-direction:column;gap:18px;">
       {% if disciplina_id %}
         <input type="hidden" name="disciplina" value="{{ disciplina_id }}">
@@ -93,8 +93,18 @@
                style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
       </div>
 
+      <div id="upload-progress-wrap" style="display:none;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:.4rem;">
+          <span style="font-size:.75rem;color:var(--muted);">Enviando arquivo...</span>
+          <span id="upload-pct" style="font-size:.75rem;color:var(--accent);">0%</span>
+        </div>
+        <div style="height:4px;background:var(--borda);border-radius:2px;overflow:hidden;">
+          <div id="upload-bar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width .1s linear;"></div>
+        </div>
+      </div>
+
       <div style="display:flex;gap:12px;margin-top:4px;">
-        <button type="submit" class="btn-home" style="flex:1;padding:12px;">{% if material %}Salvar{% else %}Criar material{% endif %}</button>
+        <button id="btn-salvar" type="submit" class="btn-home" style="flex:1;padding:12px;">{% if material %}Salvar{% else %}Criar material{% endif %}</button>
         <a href="{{ voltar_url }}" style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
       </div>
     </form>
@@ -113,6 +123,53 @@ function mostrarArquivo(tipo) {
     url.style.display    = '';
   }
 }
+
+document.getElementById('form-material').addEventListener('submit', function(e) {
+  const arquivoInput = document.querySelector('input[name="arquivo"]');
+  if (!arquivoInput || !arquivoInput.files.length) return;
+
+  e.preventDefault();
+
+  const wrap = document.getElementById('upload-progress-wrap');
+  const bar  = document.getElementById('upload-bar');
+  const pct  = document.getElementById('upload-pct');
+  const btn  = document.getElementById('btn-salvar');
+
+  wrap.style.display = 'block';
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  const xhr = new XMLHttpRequest();
+  const fd  = new FormData(this);
+
+  xhr.upload.addEventListener('progress', function(ev) {
+    if (!ev.lengthComputable) return;
+    const p = Math.round(ev.loaded / ev.total * 100);
+    bar.style.width = p + '%';
+    pct.textContent = p + '%';
+  });
+
+  xhr.addEventListener('load', function() {
+    if (xhr.status >= 200 && xhr.status < 400) {
+      window.location.href = xhr.responseURL || window.location.href;
+    } else {
+      btn.disabled = false;
+      btn.textContent = '{{ "Salvar" if material else "Criar material" }}';
+      wrap.style.display = 'none';
+      alert('Erro no upload (' + xhr.status + '). Tente novamente.');
+    }
+  });
+
+  xhr.addEventListener('error', function() {
+    btn.disabled = false;
+    btn.textContent = '{{ "Salvar" if material else "Criar material" }}';
+    wrap.style.display = 'none';
+    alert('Falha na conexão. Tente novamente.');
+  });
+
+  xhr.open('POST', this.action || window.location.pathname);
+  xhr.send(fd);
+});
 </script>
 </body>
 </html>
