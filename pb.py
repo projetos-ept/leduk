@@ -497,15 +497,14 @@ class PocketBaseClient:
         self._delete(f"/api/collections/questoes/records/{questao_id}")
 
     def apagar_subitens_questao(self, questao_id: str) -> int:
-        """Apaga alternativas/itens_vf/pares_associativos vinculados à questão.
+        """Remove subitens e desvincula tentativas associadas à questão.
 
         Necessário antes de excluir_questao: o PocketBase recusa (400) apagar
         um registro ainda referenciado por uma relation obrigatória em outra
-        collection quando cascadeDelete não está habilitado nela — as
-        collections de subitem (seedadas fora dos scripts deste repo) caem
-        nesse caso. Verifica as três collections de subitem independente do
-        campo `tipo` da questão, para ser robusto contra dados legados ou
-        reclassificados de forma inconsistente.
+        collection quando cascadeDelete não está habilitado. Verifica as três
+        collections de subitem (alternativas, itens_vf, pares_associativos) e
+        anula o campo `questao` em tentativas vinculadas (sem deletá-las —
+        tentativas são histórico do aluno).
         """
         removidos = 0
         for colecao in ("alternativas", "itens_vf", "pares_associativos"):
@@ -522,6 +521,24 @@ class PocketBaseClient:
                     removidos += 1
                 except Exception:
                     pass
+
+        # tentativas — NÃO deleta (são histórico do aluno), apenas desvincula
+        try:
+            result = self._get(
+                "/api/collections/tentativas/records",
+                params={"filter": f'questao="{questao_id}"', "perPage": 500},
+            )
+            for item in result.get("items", []):
+                try:
+                    self._patch(
+                        f"/api/collections/tentativas/records/{item['id']}",
+                        {"questao": None},
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         return removidos
 
     # --- Alternativas ---
