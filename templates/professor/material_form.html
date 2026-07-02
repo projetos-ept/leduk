@@ -80,9 +80,10 @@
                style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
       </div>
 
-      <div id="campo-arquivo" style="{% if not material or material.tipo != 'arquivo' %}display:none;{% endif %}">
+      <div id="campo-arquivo" style="{% if not material or material.tipo not in ('arquivo', 'pdf') %}display:none;{% endif %}">
         <label class="campo-label">Arquivo {% if material and material.arquivo %}(enviar novo substitui o atual){% endif %}</label>
-        <input type="file" name="arquivo" style="font-size:.85rem;">
+        <input type="file" name="arquivo" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:.85rem;">
+        <small style="color:var(--muted);font-size:.8rem;">Máximo 50 MB. Deixe em branco para manter o atual.</small>
       </div>
 
       <div>
@@ -102,8 +103,15 @@
 
 <script>
 function mostrarArquivo(tipo) {
-  document.getElementById('campo-arquivo').style.display = (tipo === 'arquivo') ? '' : 'none';
-  document.getElementById('campo-url').style.display = (tipo === 'arquivo') ? 'none' : '';
+  const upload = document.getElementById('campo-arquivo');
+  const url    = document.getElementById('campo-url');
+  if (tipo === 'pdf' || tipo === 'arquivo') {
+    upload.style.display = '';
+    url.style.display    = '';
+  } else {
+    upload.style.display = 'none';
+    url.style.display    = '';
+  }
 }
 </script>
 </body>

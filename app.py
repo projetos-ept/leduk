@@ -759,10 +759,10 @@ def create_app(config: dict | None = None) -> Flask:
         disciplina = get_pb().buscar_disciplina(disciplina_id)
         materiais = get_pb().listar_materiais(turma_id, disciplina_id)
 
-        # Pre-compute PocketBase file URL for uploaded files
+        # Pre-compute PocketBase file URL for any material with an uploaded file
         for m in materiais:
-            if m.get("tipo") == "arquivo" and m.get("arquivo"):
-                m["_arquivo_url"] = f"{pb_url}/api/files/materiais/{m['id']}/{m['arquivo']}"
+            if m.get("arquivo"):
+                m["_arquivo_url"] = get_pb().url_arquivo_material(m)
 
         todas_disciplinas = get_pb().listar_disciplinas_da_turma(turma_id)
         tem_multidisciplinar = bool(get_pb().listar_atividades_multidisciplinares(turma_id))

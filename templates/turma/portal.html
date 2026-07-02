@@ -281,8 +281,9 @@
                     <p class="material-titulo">{{ m.titulo }}</p>
                     {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
                   </div>
-                  {% if m.url %}
-                    <a href="{{ m.url }}" target="_blank" rel="noopener" class="material-btn">Abrir PDF</a>
+                  {% set pdf_href = m._arquivo_url if m._arquivo_url else m.url %}
+                  {% if pdf_href %}
+                    <a href="{{ pdf_href }}" target="_blank" rel="noopener" class="material-btn">Abrir PDF</a>
                   {% endif %}
                 </div>
 

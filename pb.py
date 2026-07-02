@@ -643,6 +643,12 @@ class PocketBaseClient:
         )
         return result.get("items", [])
 
+    def url_arquivo_material(self, material: dict) -> str | None:
+        arquivo = material.get("arquivo")
+        if not arquivo:
+            return material.get("url") or None
+        return f"{self.base_url}/api/files/materiais/{material['id']}/{arquivo}"
+
     def criar_material(self, data: dict, arquivo=None) -> dict:
         if arquivo:
             return self._post_multipart("/api/collections/materiais/records", data, {"arquivo": arquivo})
