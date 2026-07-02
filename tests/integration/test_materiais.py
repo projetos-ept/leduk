@@ -46,10 +46,11 @@ def _sess_prof(client):
 
 # ── url_arquivo_material ──────────────────────────────────────────────────────
 
-def test_url_arquivo_material_retorna_url_pocketbase_quando_arquivo():
+def test_url_arquivo_material_retorna_url_pocketbase_quando_arquivo(monkeypatch):
+    monkeypatch.setenv("PB_PUBLIC_URL", "https://pb.repoept.duckdns.org")
     pb = PocketBaseClient("http://pb.test")
     url = pb.url_arquivo_material(MATERIAL_COM_ARQUIVO)
-    assert url == "http://pb.test/api/files/materiais/mat01/hemostasia.pdf"
+    assert url == "https://pb.repoept.duckdns.org/api/files/izszkyi16wtznur/mat01/hemostasia.pdf"
 
 
 def test_url_arquivo_material_retorna_url_externa_quando_sem_arquivo():

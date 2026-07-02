@@ -1,4 +1,5 @@
 """Cliente HTTP mínimo para a API do PocketBase."""
+import os
 from datetime import datetime, timezone
 
 import requests
@@ -647,7 +648,9 @@ class PocketBaseClient:
         arquivo = material.get("arquivo")
         if not arquivo:
             return material.get("url") or None
-        return f"{self.base_url}/api/files/materiais/{material['id']}/{arquivo}"
+        pb_publico = os.environ.get("PB_PUBLIC_URL", self.base_url).rstrip("/")
+        col_id = "izszkyi16wtznur"
+        return f"{pb_publico}/api/files/{col_id}/{material['id']}/{arquivo}"
 
     def criar_material(self, data: dict, arquivo=None) -> dict:
         if arquivo:
