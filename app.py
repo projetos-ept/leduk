@@ -1695,6 +1695,7 @@ def create_app(config: dict | None = None) -> Flask:
             **_material_campos_comuns(request.form),
             "tipo": request.form.get("tipo", "link"),
             "disciplina": disciplina_id,
+            "turma": turma_id,
             "ativo": True,
         }, arq_tuple)
         # Criado a partir de uma turma: já vincula o material à turma.
