@@ -29,7 +29,8 @@ leduk/
 │   ├── migrate_tokens_senha.py  ← migração: collection tokens_senha (reset de senha)
 │   ├── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
 │   ├── migrate_formulario_cadastro.py ← migração: formularios_cadastro + campo matricula em users
-│   └── cleanup_questoes_duplicadas.py ← relata/remove questões duplicadas ou órfãs (apaga subitens antes; dry-run/--apply)
+│   ├── cleanup_questoes_duplicadas.py ← relata/remove questões duplicadas ou órfãs (apaga subitens antes; dry-run/--apply)
+│   └── migrate_materiais_rules.py     ← corrige createRule/updateRule de `materiais` para permitir upload de arquivos
 │
 ├── templates/
 │   ├── index.html
@@ -121,7 +122,8 @@ leduk/
         ├── test_questao_form.py      ← seções condicionais do form + navegação banco
         ├── test_boletim_rotas.py     ← rotas do boletim (config, toggles, notas, acesso)
         ├── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
-        └── test_cadastro_publico.py  ← auto-cadastro via link + gestão do formulário
+        ├── test_cadastro_publico.py  ← auto-cadastro via link + gestão do formulário
+        └── test_materiais.py         ← upload multipart vs JSON, url_arquivo_material()
 ```
 
 ---
@@ -340,12 +342,12 @@ Questões abertas sem correção contribuem 0 até o professor avaliar.
 | pares_associativos | `8okcm31re6gxm4p` | Coluna A : Coluna B com imagens |
 | tentativas | `2cgvat5j77ne31y` | Log completo de respostas por aluno |
 | atividades | `44qehlo0jku49lq` | Agrupa `questoes[]` por turma/disciplina (campo `multidisciplinar`) |
-| materiais | — | Vídeos/PDFs/links/arquivos do banco da disciplina (+ `assunto`) |
+| materiais | `izszkyi16wtznur` | Vídeos/PDFs/links/arquivos do banco da disciplina (+ `assunto` + `arquivo`) |
 | turma_materiais | — | Pivô N:N turma ↔ material — criada por `scripts/migrate_materiais.py` |
 
-> `materiais` e `turma_materiais` não têm ID fixo seedado aqui: `materiais` já
-> existia na instância e `turma_materiais` é criada dinamicamente pela migração
-> (resolve os IDs em runtime). Consulte `/api/collections` para os IDs reais.
+> `turma_materiais` não tem ID fixo seedado aqui: é criada dinamicamente pela
+> migração (resolve os IDs em runtime). O ID de `materiais` (`izszkyi16wtznur`)
+> é usado por `pb.url_arquivo_material()` para montar a URL pública dos arquivos.
 
 Collections criadas por migração posterior (sem ID fixo seedado): `boletins`,
 `unidades`, `recuperacao_final` (boletim); `tokens_senha` (reset de senha);
@@ -406,7 +408,7 @@ Ao excluir uma questão, o sistema faz **cascade manual**: remove o ID de
 o registro — assim nenhuma atividade fica com vínculo órfão. Na tela do banco, se
 a questão está em uso, a confirmação avisa explicitamente em quantas atividades.
 
-### Banco de materiais reutilizável (campo `assunto` + `turma_materiais`)
+### Banco de materiais reutilizável (campo `assunto` + `turma_materiais` + upload de arquivo)
 
 Materiais seguem o mesmo modelo das questões: pertencem ao **banco da disciplina**
 (ganharam o campo `assunto`) e a turma os "usa" através da collection pivô
@@ -432,6 +434,43 @@ confia no pivô (mesmo vazio) para não exibir dados legados defasados.
 Exclusão de material faz **cascade manual** em `turma_materiais` antes de apagar
 o registro; gestão de turmas/disciplinas **bloqueia exclusão** quando há vínculos
 (turma_disciplina, atividades, tentativas, questões, materiais), com aviso explícito.
+
+**Upload de arquivo (campo `arquivo`, tipo `file`):** materiais dos tipos `pdf` e
+`arquivo` aceitam upload direto. O formulário usa `XMLHttpRequest` com evento
+`progress` para exibir barra de progresso durante o envio (até 50 MB). O template
+ainda aceita URL externa como alternativa ao upload.
+
+`pb.url_arquivo_material(material)` resolve a URL pública do arquivo:
+- se `material["arquivo"]` estiver preenchido → `{PB_PUBLIC_URL}/api/files/izszkyi16wtznur/{id}/{arquivo}`
+- senão → `material["url"]`
+
+`PB_PUBLIC_URL` deve ser definido no serviço (`/etc/systemd/system/leduk.service`); sem
+ela, o método usa `base_url` (interno `127.0.0.1:8090`, não acessível pelo aluno).
+
+A collection `materiais` precisa de `createRule`/`updateRule` = `@request.auth.id != ""`
+para permitir o upload multipart. Se uploads retornarem 403:
+
+```bash
+PB_URL=http://127.0.0.1:8090 \
+PB_ADMIN_EMAIL=admin@exemplo.com \
+PB_ADMIN_PASSWORD=senha \
+  python scripts/migrate_materiais_rules.py
+```
+
+### Embaralhamento de alternativas
+
+Para mc4/mc5, as alternativas são embaralhadas por aluno usando `random.Random(tentativa_id + questao_id)` — seed estável, determinístico por tentativa. Os **badges exibidos** (A, B, C, D) sempre seguem a posição sequential na tela; o `value` do radio mantém a letra original para que a validação da resposta funcione corretamente.
+
+Para questões `associativa`, dois RNGs independentes embaralham: as **linhas** (coluna A) e as **opções do dropdown** (coluna B) com seeds `seed` e `seed + "_opcoes"` respectivamente — garantindo ordens distintas entre si.
+
+### Modo prova (`campo modo_prova` em atividades)
+
+Quando `modo_prova = true`, a atividade funciona como uma prova controlada:
+
+- **Durante**: o feedback pós-resposta é suprimido — o fragmento `_feedback.html` emite apenas um `<div hx-trigger="load">` que avança automaticamente para a próxima questão, sem mostrar "Resposta correta/incorreta".
+- **Após**: o placar exibe apenas nota final, percentual de aproveitamento e barra de progresso. São ocultados: detalhamento por questão (Q1 ✓/✗ pts), contagem de corretas, badge "Aguardando correção" e link "Ver gabarito".
+
+O campo `modo_prova` é configurável no formulário de atividade (checkbox "🔒 Modo prova"). É gravado como `bool` via `_form_to_atividade()` e persistido na sessão Flask em `session["modo_prova"]` ao iniciar a atividade.
 
 ### Importação de questões via JSON
 
@@ -618,6 +657,7 @@ scripts); se algum script futuro precisar tocar essas collections, os campos
 | itens_vf | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
 | pares_associativos | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
 | atividades | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
+| materiais | `""` | `""` | `@request.auth.id != ""` | obrigatório para upload multipart; corrigir com `migrate_materiais_rules.py` se 403 |
 | tentativas | restrito | restrito | `""` | apenas escrita pública |
 
 **Convenção das migrações:** todo `scripts/migrate_*.py` que cria uma collection
@@ -782,6 +822,8 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] Collections `tokens_senha` e `matriculas` criadas (`scripts/migrate_tokens_senha.py`, `scripts/migrate_matriculas.py`)
 - [ ] Collection `formularios_cadastro` criada + campo `matricula` em `users` (`scripts/migrate_formulario_cadastro.py`)
 - [ ] `RESEND_API_KEY` definido no service (`/etc/systemd/system/leduk.service`) para envio de email
+- [ ] `PB_PUBLIC_URL` definido no service (ex: `https://pb.repoept.duckdns.org`) para URLs públicas de arquivos de materiais
+- [ ] `materiais`: `createRule`/`updateRule` = `@request.auth.id != ""` (rodar `migrate_materiais_rules.py` se uploads retornarem 403)
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`

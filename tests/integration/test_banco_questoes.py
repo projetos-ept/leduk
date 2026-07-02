@@ -453,3 +453,89 @@ def test_selecionar_questoes_exclui_ja_incluidas(client):
     # q002 disponível para adicionar; q001 (já incluída) não aparece como opção
     assert "Conceitos gerais" in html
     assert "Fases do LIS?" not in html
+
+
+# ── Excluir questão com tentativas vinculadas ────────────────────────────────
+
+@rsps_lib.activate
+def test_excluir_questao_com_tentativas_desvincula_sem_deletar(client):
+    """Regressão: quando há tentativas vinculadas à questão via campo `questao`,
+    o PocketBase recusa (400) a exclusão. A solução é anular o campo `questao`
+    nas tentativas (preservando o histórico) antes de excluir a questão."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    # tentativas vinculadas à questão
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [{"id": "tent01"}, {"id": "tent02"}]})
+
+    patched = []
+    deleted_tentativas = []
+
+    def cap_patch(req):
+        patched.append(req.url)
+        return (200, {}, json.dumps({"id": req.url.split("/")[-1]}))
+
+    def cap_delete_tentativa(req):
+        deleted_tentativas.append(req.url)
+        return (204, {}, "")
+
+    rsps_lib.add_callback(rsps_lib.PATCH,
+                          f"{PB}/api/collections/tentativas/records/tent01",
+                          callback=cap_patch, content_type="application/json")
+    rsps_lib.add_callback(rsps_lib.PATCH,
+                          f"{PB}/api/collections/tentativas/records/tent02",
+                          callback=cap_patch, content_type="application/json")
+    rsps_lib.add_callback(rsps_lib.DELETE,
+                          f"{PB}/api/collections/tentativas/records/tent01",
+                          callback=cap_delete_tentativa, content_type="application/json")
+    rsps_lib.add_callback(rsps_lib.DELETE,
+                          f"{PB}/api/collections/tentativas/records/tent02",
+                          callback=cap_delete_tentativa, content_type="application/json")
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
+                 status=204, body="")
+
+    resp = client.post("/professor/questao/q001/excluir", data={"origem_disciplina": "disc01"})
+    assert resp.status_code in (200, 302)
+    # tentativas foram desvinculadas (PATCH), não deletadas (DELETE)
+    assert len(patched) == 2, "as duas tentativas deveriam ter sido desvinculadas via PATCH"
+    assert len(deleted_tentativas) == 0, "tentativas não devem ser deletadas — são histórico"
+
+
+@rsps_lib.activate
+def test_excluir_questao_sem_tentativas_funciona_normalmente(client):
+    """Sem tentativas vinculadas a exclusão segue o fluxo normal."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.DELETE, f"{PB}/api/collections/questoes/records/q001",
+                 status=204, body="")
+
+    resp = client.post("/professor/questao/q001/excluir", data={"origem_disciplina": "disc01"})
+    assert resp.status_code in (200, 302)
+
+
+@rsps_lib.activate
+def test_tentativas_com_questao_null_nao_quebram_historico(client):
+    """Tentativas com questao=null não devem causar erro no histórico do aluno.
+    A rota de resultado (/htmx/resultado) usa apenas os dados da sessão
+    (respostas), não busca tentativas pelo campo questao — null no PocketBase
+    não afeta o placar exibido."""
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={"id": "ativ01", "exibir_feedback_pos": False, "nota_automatica": False})
+    with client.session_transaction() as sess:
+        sess["modo_prova"] = False
+        sess["respostas"] = [{"score_raw": 1, "score_max": 1, "correta": True, "_peso": 1, "_num": 1}]
+        sess["tentativa_id"] = "tent01"
+        sess["nota_automatica"] = False
+        sess["tentativa_concluida"] = True
+        sess["max_tentativas"] = 0
+    resp = client.get("/htmx/resultado/ativ01")
+    assert resp.status_code == 200
+    # a página de placar renderiza normalmente — questao=null no PocketBase não causa erro
+    assert "placar-card" in resp.data.decode()
