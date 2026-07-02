@@ -2180,9 +2180,13 @@ def create_app(config: dict | None = None) -> Flask:
         if senha != confirmar:
             return _erro("As senhas não coincidem."), 422
         try:
-            user = get_pb().criar_user_aluno(nome, email, senha)
-        except Exception:
-            return _erro("Este email já possui uma conta."), 422
+            user = get_pb().criar_user_aluno(nome, email, senha, whatsapp=whatsapp)
+        except Exception as exc:
+            body = getattr(getattr(exc, "response", None), "text", "") or ""
+            if "already in use" in body or "invalid_email" in body:
+                return _erro("Este email já possui uma conta. Faça login ou use outro email."), 422
+            log.warning("criar_user_aluno falhou: %s", exc)
+            return _erro("Não foi possível criar a conta. Tente novamente."), 422
         try:
             get_pb().criar_matricula(user["id"], form.get("turma", ""),
                                      origem="formulario", whatsapp=whatsapp)

@@ -826,7 +826,7 @@ class PocketBaseClient:
     def buscar_user(self, user_id: str) -> dict:
         return self._get(f"/api/collections/users/records/{user_id}")
 
-    def criar_user_aluno(self, nome: str, email: str, senha: str, matricula: str = "") -> dict:
+    def criar_user_aluno(self, nome: str, email: str, senha: str, matricula: str = "", whatsapp: str = "") -> dict:
         return self._post("/api/collections/users/records", {
             "name": nome,
             "email": email,
@@ -834,6 +834,7 @@ class PocketBaseClient:
             "passwordConfirm": senha,
             "role": "aluno",
             "matricula": matricula,
+            "whatsapp": whatsapp,
             "emailVisibility": True,
         })
 
