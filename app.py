@@ -2077,11 +2077,24 @@ def create_app(config: dict | None = None) -> Flask:
                                    aluno_nome=session.get("aluno_nome", "")), 422
         try:
             user = get_pb().criar_user_aluno(nome, email, senha, matricula)
+        except Exception as exc:
+            log.warning("criar_user_aluno falhou: %s", exc, exc_info=True)
+            body = getattr(getattr(exc, "response", None), "text", "") or ""
+            if "already in use" in body or "invalid_email" in body:
+                msg = "Este email já possui uma conta no sistema."
+            else:
+                msg = f"Não foi possível criar o aluno. Detalhe: {exc}"
+            return render_template("professor/aluno_form.html", turma=turma,
+                                   erro=msg,
+                                   dados={"nome": nome, "email": email, "whatsapp": whatsapp,
+                                          "matricula": matricula},
+                                   aluno_nome=session.get("aluno_nome", "")), 422
+        try:
             get_pb().criar_matricula(user["id"], turma_id, origem="manual", whatsapp=whatsapp)
         except Exception as exc:
-            log.warning("criar_user_aluno falhou: %s", exc)
+            log.warning("criar_matricula falhou (aluno %s já criado): %s", user["id"], exc, exc_info=True)
             return render_template("professor/aluno_form.html", turma=turma,
-                                   erro="Não foi possível criar o aluno (email já usado?).",
+                                   erro="Aluno criado mas não foi possível matriculá-lo. Tente matriculá-lo manualmente.",
                                    dados={"nome": nome, "email": email, "whatsapp": whatsapp,
                                           "matricula": matricula},
                                    aluno_nome=session.get("aluno_nome", "")), 422
