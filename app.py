@@ -548,6 +548,14 @@ def create_app(config: dict | None = None) -> Flask:
         """Retorna um PocketBaseClient com o token JWT da sessão atual."""
         return PocketBaseClient(pb_url, token=session.get("token"))
 
+    def get_pb_anonimo() -> PocketBaseClient:
+        """Cliente sem token — para operações públicas (createRule aberta).
+
+        Evita que um JWT residual na sessão (ex.: professor testando o
+        formulário de cadastro logado) seja enviado no Authorization e faça
+        o PocketBase avaliar a criação sob as regras do usuário autenticado."""
+        return PocketBaseClient(pb_url)
+
     def _disciplinas_da_turma(turma_id: str) -> list:
         """Disciplinas distintas de uma turma, derivadas das atividades (expand)."""
         try:
@@ -644,7 +652,9 @@ def create_app(config: dict | None = None) -> Flask:
         email = request.form.get("email", "").strip()
         senha = request.form.get("senha", "")
         try:
-            dados = get_pb().login_aluno(email, senha)
+            # cliente sem token: nunca envia o JWT de uma sessão anterior no login
+            dados = get_pb_anonimo().login_aluno(email, senha)
+            session.clear()
             session["token"] = dados["token"]
             session["aluno_id"] = dados["record"]["id"]
             session["aluno_nome"] = dados["record"].get("name", email)
@@ -2076,7 +2086,9 @@ def create_app(config: dict | None = None) -> Flask:
                                           "matricula": matricula},
                                    aluno_nome=session.get("aluno_nome", "")), 422
         try:
-            user = get_pb().criar_user_aluno(nome, email, senha, matricula)
+            # cliente sem token: a createRule de users é pública e o PocketBase
+            # rejeita a criação quando avaliada sob o JWT de um usuário comum
+            user = get_pb_anonimo().criar_user_aluno(nome, email, senha, matricula)
         except Exception as exc:
             log.warning("criar_user_aluno falhou: %s", exc, exc_info=True)
             body = getattr(getattr(exc, "response", None), "text", "") or ""
@@ -2196,8 +2208,11 @@ def create_app(config: dict | None = None) -> Flask:
             return _erro("A senha deve ter pelo menos 6 caracteres."), 422
         if senha != confirmar:
             return _erro("As senhas não coincidem."), 422
+        # Cliente sem token: a criação pública deve ser avaliada pela createRule
+        # aberta, nunca sob o JWT de uma sessão residual (professor logado testando)
+        pb_pub = get_pb_anonimo()
         try:
-            user = get_pb().criar_user_aluno(nome, email, senha, whatsapp=whatsapp)
+            user = pb_pub.criar_user_aluno(nome, email, senha, whatsapp=whatsapp)
         except Exception as exc:
             log.warning("criar_user_aluno falhou — detalhes: %s", exc, exc_info=True)
             body = getattr(getattr(exc, "response", None), "text", "") or ""
@@ -2205,13 +2220,13 @@ def create_app(config: dict | None = None) -> Flask:
                 return _erro("Este email já possui uma conta. Faça login ou use outro email."), 422
             return _erro("Não foi possível criar a conta. Tente novamente."), 422
         try:
-            get_pb().criar_matricula(user["id"], form.get("turma", ""),
-                                     origem="formulario", whatsapp=whatsapp)
+            pb_pub.criar_matricula(user["id"], form.get("turma", ""),
+                                   origem="formulario", whatsapp=whatsapp)
         except Exception as exc:
             log.warning("criar_matricula (formulario) falhou — detalhes: %s", exc, exc_info=True)
         # login automático
         try:
-            dados = get_pb().login_aluno(email, senha)
+            dados = pb_pub.login_aluno(email, senha)
             session["token"] = dados["token"]
             session["aluno_id"] = dados["record"]["id"]
             session["aluno_nome"] = dados["record"].get("name", nome)
