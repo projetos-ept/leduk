@@ -88,43 +88,63 @@
             </div>
           {% endif %}
 
-          <a class="btn-primary btn-sm" href="/professor/turma/{{ turma.id }}" style="align-self:flex-start;">Ver turma →</a>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <a class="btn-primary btn-sm" href="/professor/turma/{{ turma.id }}" style="align-self:flex-start;">Ver turma →</a>
+            {% if td.alunos %}
+              <button class="btn-sm"
+                      style="background:var(--fundo);border:1px solid var(--borda);color:var(--texto);cursor:pointer;border-radius:var(--raio);padding:6px 14px;font-size:.82rem;font-weight:600;"
+                      onclick="document.getElementById('modal-{{ turma.id }}').showModal()">
+                📊 Desempenho
+              </button>
+            {% endif %}
+          </div>
+        </div>
 
-          <!-- Heatmap -->
-          {% if td.alunos %}
-            <div style="overflow-x:auto;margin-top:16px;">
-              <table class="mapa-calor">
-                <thead>
-                  <tr>
-                    <th class="mapa-nome">Aluno</th>
-                    {% for ativ in td.atividades %}
-                      <th title="{{ ativ.titulo }}">{{ ativ.titulo[:20] }}{% if ativ.titulo|length > 20 %}…{% endif %}</th>
-                    {% endfor %}
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for aluno in td.alunos %}
+        <!-- Modal heatmap por turma -->
+        {% if td.alunos %}
+          <dialog id="modal-{{ turma.id }}" class="dash-heatmap-modal"
+                  onclick="if(event.target===this)this.close()">
+            <div class="dash-heatmap-inner">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <strong style="font-size:1rem;">{{ turma.nome }} — Desempenho</strong>
+                <button onclick="this.closest('dialog').close()"
+                        style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1;"
+                        aria-label="Fechar">✕</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mapa-calor">
+                  <thead>
                     <tr>
-                      <td class="mapa-nome">{{ aluno.nome }}</td>
+                      <th class="mapa-nome">Aluno</th>
                       {% for ativ in td.atividades %}
-                        {% set nota = aluno.notas.get(ativ.id) %}
-                        {% if nota is none %}
-                          <td class="mapa-vazio">—</td>
-                        {% elif nota >= 70 %}
-                          <td class="mapa-verde">{{ nota }}%</td>
-                        {% elif nota >= 40 %}
-                          <td class="mapa-amarelo">{{ nota }}%</td>
-                        {% else %}
-                          <td class="mapa-vermelho">{{ nota }}%</td>
-                        {% endif %}
+                        <th title="{{ ativ.titulo }}">{{ ativ.titulo[:22] }}{% if ativ.titulo|length > 22 %}…{% endif %}</th>
                       {% endfor %}
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {% for aluno in td.alunos %}
+                      <tr>
+                        <td class="mapa-nome">{{ aluno.nome }}</td>
+                        {% for ativ in td.atividades %}
+                          {% set nota = aluno.notas.get(ativ.id) %}
+                          {% if nota is none %}
+                            <td class="mapa-vazio">—</td>
+                          {% elif nota >= 70 %}
+                            <td class="mapa-verde">{{ nota }}%</td>
+                          {% elif nota >= 40 %}
+                            <td class="mapa-amarelo">{{ nota }}%</td>
+                          {% else %}
+                            <td class="mapa-vermelho">{{ nota }}%</td>
+                          {% endif %}
+                        {% endfor %}
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          {% endif %}
-        </div>
+          </dialog>
+        {% endif %}
       {% endfor %}
     </div>
   {% endif %}
