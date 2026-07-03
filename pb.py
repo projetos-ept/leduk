@@ -881,7 +881,17 @@ class PocketBaseClient:
             params={"filter": f'turma="{turma_id}"&&ativo=true', "expand": "aluno",
                     "sort": "created", "perPage": 500},
         )
-        return result.get("items", [])
+        items = result.get("items", [])
+        # Fallback: se o expand não trouxe os dados do usuário (viewRule restritiva
+        # na collection users), busca cada aluno individualmente
+        for item in items:
+            if not item.get("expand", {}).get("aluno") and item.get("aluno"):
+                try:
+                    user = self._get(f"/api/collections/users/records/{item['aluno']}")
+                    item.setdefault("expand", {})["aluno"] = user
+                except Exception:
+                    pass
+        return items
 
     def criar_token_senha(self, aluno_id: str, token: str, expira_em: str) -> dict:
         return self._post("/api/collections/tokens_senha/records", {
