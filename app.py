@@ -674,7 +674,11 @@ def create_app(config: dict | None = None) -> Flask:
     @app.route("/")
     @requer_login
     def index():
-        turmas = get_pb().listar_turmas()
+        aluno_id = session.get("aluno_id")
+        if aluno_id and session.get("role") == "aluno":
+            turmas = get_pb().listar_turmas_do_aluno(aluno_id)
+        else:
+            turmas = get_pb().listar_turmas()
         ultimo_acesso = session.get("ultimo_acesso", "")
         estrutura: dict[str, list] = {}
         for t in turmas:

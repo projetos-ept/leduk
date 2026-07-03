@@ -106,6 +106,18 @@ class PocketBaseClient:
         result = self._get("/api/collections/turmas/records", params={"sort": "nome"})
         return result.get("items", [])
 
+    def listar_turmas_do_aluno(self, aluno_id: str) -> list:
+        r = self._get("/api/collections/matriculas/records", params={
+            "filter": f'aluno="{aluno_id}" && ativo=true',
+            "expand": "turma",
+            "perPage": "500",
+        })
+        return [
+            item["expand"]["turma"]
+            for item in r.get("items", [])
+            if item.get("expand", {}).get("turma")
+        ]
+
     def listar_atividades_por_disciplina(self, turma_id: str, disciplina_id: str) -> list:
         result = self._get(
             "/api/collections/atividades/records",
