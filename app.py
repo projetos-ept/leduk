@@ -2182,16 +2182,16 @@ def create_app(config: dict | None = None) -> Flask:
         try:
             user = get_pb().criar_user_aluno(nome, email, senha, whatsapp=whatsapp)
         except Exception as exc:
+            log.warning("criar_user_aluno falhou — detalhes: %s", exc, exc_info=True)
             body = getattr(getattr(exc, "response", None), "text", "") or ""
             if "already in use" in body or "invalid_email" in body:
                 return _erro("Este email já possui uma conta. Faça login ou use outro email."), 422
-            log.warning("criar_user_aluno falhou: %s", exc)
             return _erro("Não foi possível criar a conta. Tente novamente."), 422
         try:
             get_pb().criar_matricula(user["id"], form.get("turma", ""),
                                      origem="formulario", whatsapp=whatsapp)
         except Exception as exc:
-            log.warning("criar_matricula (formulario) falhou: %s", exc)
+            log.warning("criar_matricula (formulario) falhou — detalhes: %s", exc, exc_info=True)
         # login automático
         try:
             dados = get_pb().login_aluno(email, senha)

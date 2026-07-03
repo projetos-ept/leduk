@@ -16,6 +16,7 @@ class PocketBaseClient:
     def _headers(self) -> dict:
         h = {"Content-Type": "application/json"}
         if self.token:
+            # PocketBase aceita o JWT diretamente sem prefixo "Bearer"
             h["Authorization"] = self.token
         return h
 
