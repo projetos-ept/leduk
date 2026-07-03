@@ -840,16 +840,21 @@ class PocketBaseClient:
         return self._get(f"/api/collections/users/records/{user_id}")
 
     def criar_user_aluno(self, nome: str, email: str, senha: str, matricula: str = "", whatsapp: str = "") -> dict:
-        return self._post("/api/collections/users/records", {
+        data: dict = {
             "name": nome,
             "email": email,
             "password": senha,
             "passwordConfirm": senha,
             "role": "aluno",
-            "matricula": matricula,
-            "whatsapp": whatsapp,
             "emailVisibility": True,
-        })
+        }
+        # Campos opcionais: só envia se preenchidos, evitando rejeição por
+        # campo inexistente ou required no schema do PocketBase
+        if matricula:
+            data["matricula"] = matricula
+        if whatsapp:
+            data["whatsapp"] = whatsapp
+        return self._post("/api/collections/users/records", data)
 
     def atualizar_user(self, user_id: str, data: dict) -> dict:
         return self._patch(f"/api/collections/users/records/{user_id}", data)
