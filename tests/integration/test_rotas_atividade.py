@@ -131,3 +131,83 @@ def test_atividade_sem_questoes(client):
 
     resp = client.get("/atividade/ativ99")
     assert resp.status_code == 200
+
+
+# ── Filtro de turmas por matrícula do aluno ───────────────────────────────────
+
+TURMA_A = {"id": "turmaA", "nome": "1º Ano EMI", "modalidade": "EMI", "ano": "2025"}
+TURMA_B = {"id": "turmaB", "nome": "2º Ano EMI", "modalidade": "EMI", "ano": "2025"}
+
+
+@rsps_lib.activate
+def test_home_aluno_ve_apenas_turmas_matriculadas(client):
+    """Aluno matriculado em 1 de 2 turmas vê só a turma vinculada."""
+    with client.session_transaction() as sess:
+        sess["aluno_id"] = "aluno01"
+        sess["role"] = "aluno"
+        sess["aluno_nome"] = "Lucas"
+
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/matriculas/records",
+        json={"items": [{"id": "m1", "expand": {"turma": TURMA_A}}]},
+    )
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/atividades/records",
+        json={"items": [ATIVIDADE]},
+    )
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "1º Ano EMI" in html
+    assert "2º Ano EMI" not in html
+
+
+@rsps_lib.activate
+def test_home_professor_ve_todas_as_turmas(client):
+    """Professor/admin não é filtrado por matrículas — vê todas as turmas."""
+    with client.session_transaction() as sess:
+        sess["role"] = "professor"
+        sess["aluno_nome"] = "Prof. Ana"
+
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/turmas/records",
+        json={"items": [TURMA_A, TURMA_B]},
+    )
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/atividades/records",
+        json={"items": [ATIVIDADE]},
+    )
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/atividades/records",
+        json={"items": []},
+    )
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "1º Ano EMI" in html or "2º Ano EMI" in html
+
+
+@rsps_lib.activate
+def test_home_aluno_sem_matricula_exibe_mensagem_vazia(client):
+    """Aluno sem nenhuma matrícula ativa vê a mensagem de sem conteúdo."""
+    with client.session_transaction() as sess:
+        sess["aluno_id"] = "aluno99"
+        sess["role"] = "aluno"
+        sess["aluno_nome"] = "Sem Turma"
+
+    rsps_lib.add(
+        rsps_lib.GET,
+        f"{PB}/api/collections/matriculas/records",
+        json={"items": []},
+    )
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Nenhuma atividade disponível" in resp.data.decode()
