@@ -1907,6 +1907,15 @@ a.material-header:hover {
 .prof-card { display: flex; flex-direction: column; }
 .prof-card-stats { flex: 1; }
 
+/* Heatmap modal */
+.dash-heatmap-modal {
+  border: none; border-radius: var(--raio); box-shadow: 0 8px 32px rgba(0,0,0,.22);
+  padding: 0; max-width: 90vw; width: 720px; max-height: 80vh;
+  background: var(--card); color: var(--texto);
+}
+.dash-heatmap-modal::backdrop { background: rgba(0,0,0,.45); }
+.dash-heatmap-inner { padding: 24px; overflow-y: auto; max-height: 80vh; }
+
 /* ------------------------------------------------------------------ */
 /* Turma — atividade desktop/mobile layouts                            */
 /* ------------------------------------------------------------------ */
