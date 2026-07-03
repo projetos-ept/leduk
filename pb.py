@@ -1,11 +1,23 @@
 """Cliente HTTP mínimo para a API do PocketBase."""
+import logging
 import os
 from datetime import datetime, timezone
 
 import requests
 
+log = logging.getLogger(__name__)
+
 # Campos gerados pelo PocketBase que não devem ser reenviados ao clonar registros.
 _CAMPOS_PB = {"id", "created", "updated", "collectionId", "collectionName", "expand"}
+
+
+def _checar(resp: requests.Response, metodo: str, path: str) -> None:
+    """Loga o body completo da resposta de erro antes do raise — o
+    raise_for_status() sozinho descarta o JSON de erro do PocketBase,
+    que contém o campo e a razão exata da rejeição."""
+    if not resp.ok:
+        log.error("PB %s %s → %s: %s", metodo, path, resp.status_code, resp.text)
+    resp.raise_for_status()
 
 
 class PocketBaseClient:
@@ -29,12 +41,12 @@ class PocketBaseClient:
 
     def _get(self, path: str, params: dict | None = None) -> dict:
         resp = requests.get(f"{self.base_url}{path}", headers=self._headers(), params=params)
-        resp.raise_for_status()
+        _checar(resp, "GET", path)
         return resp.json()
 
     def _post(self, path: str, data: dict) -> dict:
         resp = requests.post(f"{self.base_url}{path}", headers=self._headers(), json=data)
-        resp.raise_for_status()
+        _checar(resp, "POST", path)
         return resp.json()
 
     @staticmethod
@@ -50,23 +62,23 @@ class PocketBaseClient:
     def _post_multipart(self, path: str, data: dict, files: dict | None = None) -> dict:
         resp = requests.post(f"{self.base_url}{path}", headers=self._auth_headers(),
                              data=self._normalizar_bool_multipart(data), files=files or {})
-        resp.raise_for_status()
+        _checar(resp, "POST(multipart)", path)
         return resp.json()
 
     def _patch(self, path: str, data: dict) -> dict:
         resp = requests.patch(f"{self.base_url}{path}", headers=self._headers(), json=data)
-        resp.raise_for_status()
+        _checar(resp, "PATCH", path)
         return resp.json()
 
     def _patch_multipart(self, path: str, data: dict, files: dict | None = None) -> dict:
         resp = requests.patch(f"{self.base_url}{path}", headers=self._auth_headers(),
                               data=self._normalizar_bool_multipart(data), files=files or {})
-        resp.raise_for_status()
+        _checar(resp, "PATCH(multipart)", path)
         return resp.json()
 
     def _delete(self, path: str) -> None:
         resp = requests.delete(f"{self.base_url}{path}", headers=self._auth_headers())
-        resp.raise_for_status()
+        _checar(resp, "DELETE", path)
 
     # --- Collections ---
 
