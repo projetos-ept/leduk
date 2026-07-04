@@ -2343,7 +2343,7 @@ def create_app(config: dict | None = None) -> Flask:
 
         ativ_cache: dict[str, dict] = {}
         for t in tentativas:
-            ativ_id = t.get("disciplina", "")
+            ativ_id = t.get("atividade", "")
             if ativ_id and ativ_id not in ativ_cache:
                 try:
                     ativ_cache[ativ_id] = get_pb().buscar_atividade_expandido(ativ_id)
@@ -2352,7 +2352,7 @@ def create_app(config: dict | None = None) -> Flask:
 
         grupos: dict[str, dict] = {}
         for t in tentativas:
-            ativ_id = t.get("disciplina", "")
+            ativ_id = t.get("atividade", "")
             ativ = ativ_cache.get(ativ_id, {})
             disc = (ativ.get("expand") or {}).get("disciplina") or {"id": "_", "nome": "Outras"}
             disc_id = disc.get("id", "_")
@@ -2362,13 +2362,13 @@ def create_app(config: dict | None = None) -> Flask:
                 grupos[disc_id]["atividades"][ativ_id] = {"ativ": ativ, "tentativas": []}
             grupos[disc_id]["atividades"][ativ_id]["tentativas"].append(t)
 
-        historico = [
-            {
-                "disc": g["disc"],
-                "atividades": list(g["atividades"].values()),
-            }
-            for g in grupos.values()
-        ]
+        historico = []
+        for g in grupos.values():
+            atividades = []
+            for item in g["atividades"].values():
+                item["tentativas"].sort(key=lambda t: (int(t.get("numero_tentativa") or 0), t.get("created", "")))
+                atividades.append(item)
+            historico.append({"disc": g["disc"], "atividades": atividades})
         return render_template(
             "aluno/historico.html",
             historico=historico,
