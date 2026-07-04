@@ -641,10 +641,57 @@ class PocketBaseClient:
         return self._patch(f"/api/collections/turmas/records/{turma_id}", data)
 
     def excluir_turma(self, turma_id: str) -> None:
+        """Exclui a turma com cascade manual dos vínculos.
+
+        Vínculos removidos: matrículas, turma_disciplina, formulários de
+        cadastro, turma_materiais e boletins. Atividades e tentativas são
+        preservadas (histórico) — apenas a referência de turma é anulada.
+        Mesmo padrão de apagar_subitens_questao.
+        """
+        filtro = {"filter": f'turma="{turma_id}"', "perPage": "500"}
+
+        # 1-3. remove vínculos diretos (pivôs e configs da turma)
+        for collection in ("matriculas", "turma_disciplina", "formularios_cadastro",
+                           "turma_materiais", "boletins"):
+            try:
+                r = self._get(f"/api/collections/{collection}/records", params=filtro)
+                for item in r.get("items", []):
+                    try:
+                        self._delete(f"/api/collections/{collection}/records/{item['id']}")
+                    except Exception:
+                        pass
+            except Exception:
+                pass  # collection ausente (pré-migração) ou sem campo turma
+
+        # 4. anula referência de turma nas tentativas (não deleta — histórico)
+        try:
+            r = self._get("/api/collections/tentativas/records", params=filtro)
+            for item in r.get("items", []):
+                try:
+                    self._patch(f"/api/collections/tentativas/records/{item['id']}",
+                                {"turma": None})
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # 5. anula referência de turma nas atividades
+        try:
+            r = self._get("/api/collections/atividades/records", params=filtro)
+            for item in r.get("items", []):
+                try:
+                    self._patch(f"/api/collections/atividades/records/{item['id']}",
+                                {"turma": None})
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # 6. deleta a turma
         self._delete(f"/api/collections/turmas/records/{turma_id}")
 
     def contar_vinculos_turma(self, turma_id: str) -> dict:
-        """Conta vínculos que impedem a exclusão segura de uma turma."""
+        """Conta vínculos exibidos no aviso de confirmação de exclusão."""
         def _total(collection: str, filtro: str) -> int:
             try:
                 r = self._get(f"/api/collections/{collection}/records",
@@ -653,6 +700,7 @@ class PocketBaseClient:
             except Exception:
                 return 0
         return {
+            "matriculas": _total("matriculas", f'turma="{turma_id}"'),
             "turma_disciplina": _total("turma_disciplina", f'turma="{turma_id}"'),
             "atividades": _total("atividades", f'turma="{turma_id}"'),
             "tentativas": _total("tentativas", f'turma="{turma_id}"'),

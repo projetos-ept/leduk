@@ -30,15 +30,27 @@
     <a href="/professor/turma/nova" class="btn-primary">+ Nova turma</a>
   </div>
 
-  {% if erro_vinculo %}
+  {% if confirmar_exclusao %}
     <div class="alerta-bloqueio">
-      <strong>Não foi possível excluir a turma.</strong>
-      Há vínculos que precisam ser removidos antes:
-      <ul>
-        {% if erro_vinculo.turma_disciplina %}<li>{{ erro_vinculo.turma_disciplina }} disciplina(s) vinculada(s)</li>{% endif %}
-        {% if erro_vinculo.atividades %}<li>{{ erro_vinculo.atividades }} atividade(s)</li>{% endif %}
-        {% if erro_vinculo.tentativas %}<li>{{ erro_vinculo.tentativas }} tentativa(s) de aluno</li>{% endif %}
-      </ul>
+      <strong>Excluir "{{ confirmar_turma_nome }}"?</strong>
+      Esta turma tem
+      {%- set partes = [] -%}
+      {%- if confirmar_exclusao.matriculas %}{% set _ = partes.append(confirmar_exclusao.matriculas ~ " aluno(s) matriculado(s)") %}{% endif -%}
+      {%- if confirmar_exclusao.atividades %}{% set _ = partes.append(confirmar_exclusao.atividades ~ " atividade(s)") %}{% endif -%}
+      {%- if confirmar_exclusao.turma_disciplina %}{% set _ = partes.append(confirmar_exclusao.turma_disciplina ~ " disciplina(s) vinculada(s)") %}{% endif -%}
+      {%- if confirmar_exclusao.tentativas %}{% set _ = partes.append(confirmar_exclusao.tentativas ~ " tentativa(s) de aluno") %}{% endif %}
+      {{ partes | join(", ") }}.
+      <p style="margin:8px 0;">
+        Todos os vínculos serão removidos. As tentativas e atividades serão preservadas,
+        mas desvinculadas da turma. Excluir mesmo assim?
+      </p>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <form method="post" action="/professor/turma/{{ confirmar_turma_id }}/excluir" style="display:inline;">
+          <input type="hidden" name="confirmar" value="1">
+          <button type="submit" class="btn-danger">Excluir mesmo assim</button>
+        </form>
+        <a href="/professor/turmas" class="btn-ghost">Cancelar</a>
+      </div>
     </div>
   {% endif %}
 
@@ -80,7 +92,7 @@
 <div id="modal-excluir" class="modal-overlay" role="dialog" aria-modal="true" hidden>
   <div class="modal-box">
     <h2 class="modal-titulo">Excluir turma</h2>
-    <p class="modal-msg">Excluir <strong id="excluir-nome"></strong>? Se houver disciplinas, atividades ou tentativas vinculadas, a exclusão será bloqueada.</p>
+    <p class="modal-msg">Excluir <strong id="excluir-nome"></strong>? Se houver alunos, disciplinas ou atividades vinculadas, você verá um resumo dos vínculos antes de confirmar.</p>
     <div class="modal-acoes">
       <button type="button" class="btn-ghost" onclick="fecharExcluir()">Cancelar</button>
       <form id="form-excluir" method="post" style="display:inline;">
