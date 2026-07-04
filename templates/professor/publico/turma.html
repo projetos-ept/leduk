@@ -38,8 +38,10 @@
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;{% if not loop.last %}border-bottom:1px solid var(--borda);{% endif %}">
               <div style="min-width:0;">
                 <p style="font-weight:600;font-size:.93rem;margin:0;">{{ a.titulo }}</p>
-                <p style="color:var(--muted);font-size:.8rem;margin:3px 0 0;">
+                <p style="color:var(--muted);font-size:.8rem;margin:3px 0 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                   Link público: <code style="font-size:.78rem;">{{ base_url }}/publica/{{ a.id }}</code>
+                  <button type="button" class="btn-ghost" style="font-size:.75rem;padding:2px 8px;cursor:pointer;"
+                          onclick="copiarLink('{{ base_url }}/publica/{{ a.id }}')">📋 Copiar</button>
                 </p>
               </div>
               <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -60,5 +62,17 @@
     </div>
   {% endif %}
 </div>
+
+<div id="toast-link" class="toast-copy" aria-live="polite"></div>
+<script>
+function copiarLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    const t = document.getElementById('toast-link');
+    t.textContent = 'Link copiado!';
+    t.classList.add('toast-visible');
+    setTimeout(() => t.classList.remove('toast-visible'), 2000);
+  });
+}
+</script>
 </body>
 </html>
