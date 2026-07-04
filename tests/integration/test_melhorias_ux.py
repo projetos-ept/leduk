@@ -110,7 +110,7 @@ def test_historico_mostra_tentativas(client):
     resp = client.get("/aluno/historico")
     html = resp.data.decode()
     assert "Quiz Hematologia" in html
-    assert "Tentativa 1" in html
+    assert "28/06/2026" in html  # data da última tentativa
     assert "75%" in html
 
 

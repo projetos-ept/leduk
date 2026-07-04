@@ -2346,37 +2346,34 @@ def create_app(config: dict | None = None) -> Flask:
         aluno_id = session.get("aluno_id", "")
         tentativas = get_pb().listar_historico_aluno(aluno_id)
 
-        ativ_cache: dict[str, dict] = {}
+        # Uma linha por atividade: guarda apenas a tentativa mais recente
+        ativ_ultima: dict[str, dict] = {}
         for t in tentativas:
             ativ_id = t.get("atividade", "")
-            if ativ_id and ativ_id not in ativ_cache:
-                try:
-                    ativ_cache[ativ_id] = get_pb().buscar_atividade_expandido(ativ_id)
-                except Exception:
-                    ativ_cache[ativ_id] = {"id": ativ_id, "titulo": "Atividade", "expand": {}}
+            if not ativ_id:
+                continue
+            prev = ativ_ultima.get(ativ_id)
+            if prev is None or t.get("created", "") > prev.get("created", ""):
+                ativ_ultima[ativ_id] = t
 
-        grupos: dict[str, dict] = {}
-        for t in tentativas:
-            ativ_id = t.get("atividade", "")
-            ativ = ativ_cache.get(ativ_id, {})
-            disc = (ativ.get("expand") or {}).get("disciplina") or {"id": "_", "nome": "Outras"}
-            disc_id = disc.get("id", "_")
-            if disc_id not in grupos:
-                grupos[disc_id] = {"disc": disc, "atividades": {}}
-            if ativ_id not in grupos[disc_id]["atividades"]:
-                grupos[disc_id]["atividades"][ativ_id] = {"ativ": ativ, "tentativas": []}
-            grupos[disc_id]["atividades"][ativ_id]["tentativas"].append(t)
+        itens = []
+        for ativ_id, ultima in ativ_ultima.items():
+            try:
+                ativ = get_pb().buscar_atividade(ativ_id)
+            except Exception:
+                ativ = {"id": ativ_id, "titulo": "Atividade"}
+            created = ultima.get("created", "")
+            try:
+                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                ultima["_data_fmt"] = dt.strftime("%d/%m/%Y às %H:%M")
+            except Exception:
+                ultima["_data_fmt"] = created[:16] if created else "—"
+            itens.append({"ativ": ativ, "ultima": ultima})
 
-        historico = []
-        for g in grupos.values():
-            atividades = []
-            for item in g["atividades"].values():
-                item["tentativas"].sort(key=lambda t: (int(t.get("numero_tentativa") or 0), t.get("created", "")))
-                atividades.append(item)
-            historico.append({"disc": g["disc"], "atividades": atividades})
+        itens.sort(key=lambda x: x["ultima"].get("created", ""), reverse=True)
         return render_template(
             "aluno/historico.html",
-            historico=historico,
+            itens=itens,
             aluno_nome=session.get("aluno_nome", ""),
         )
 
