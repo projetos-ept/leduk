@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Relatório — {{ atividade.titulo }}</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; margin: 32px; font-size: 12px; }
+    h1 { font-size: 18px; margin: 0 0 2px; }
+    .sub { color: #666; margin: 0 0 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { text-align: left; background: #f0f2f8; padding: 7px 9px; font-size: 11px; border-bottom: 2px solid #d5d9e6; }
+    td { padding: 6px 9px; border-bottom: 1px solid #e8eaf1; }
+    .muted { color: #777; }
+    .rodape { margin-top: 24px; color: #999; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <h1>LeDuk — Relatório de Respostas Públicas</h1>
+  <p class="sub">
+    Atividade: <strong>{{ atividade.titulo }}</strong>
+    {% if disciplina.nome %} · Disciplina: {{ disciplina.nome }}{% endif %}
+    · {{ tentativas|length }} respondente(s)
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>#</th><th>Nome</th><th>Email</th><th>Turma</th><th>Tentativa</th><th>Nota</th><th>Data</th></tr>
+    </thead>
+    <tbody>
+      {% for t in tentativas %}
+        <tr>
+          <td class="muted">{{ loop.index }}</td>
+          <td><strong>{{ t.aluno_nome or '—' }}</strong></td>
+          <td class="muted">{{ t.aluno_email or '—' }}</td>
+          <td class="muted">{{ t.aluno_turma or '—' }}</td>
+          <td>{{ t.numero_tentativa or '—' }}</td>
+          <td>
+            {% if t.nota_final is not none and atividade.valor_total %}
+              {{ (t.nota_final | round(1)) | string | replace(".", ",") }} / {{ atividade.valor_total | string | replace(".0", "") }}
+            {% else %}
+              {{ (t.score_percentual or 0) | int }}%
+            {% endif %}
+          </td>
+          <td class="muted">{{ t._data_fmt }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="rodape">Gerado em {{ gerado_em }} (UTC) · LeDuk</p>
+</body>
+</html>

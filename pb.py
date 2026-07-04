@@ -118,6 +118,13 @@ class PocketBaseClient:
         result = self._get("/api/collections/turmas/records", params={"sort": "nome"})
         return result.get("items", [])
 
+    def listar_turmas_publicas(self) -> list:
+        result = self._get(
+            "/api/collections/turmas/records",
+            params={"filter": "publica=true&&ativa=true", "sort": "nome"},
+        )
+        return result.get("items", [])
+
     def listar_turmas_do_aluno(self, aluno_id: str) -> list:
         r = self._get("/api/collections/matriculas/records", params={
             "filter": f'aluno="{aluno_id}" && ativo=true',
@@ -232,8 +239,9 @@ class PocketBaseClient:
     def registrar_tentativa(self, dados: dict) -> dict:
         return self._post("/api/collections/tentativas/records", dados)
 
-    def criar_tentativa(self, ativ_id: str, aluno_id: str, aluno_nome: str, numero: int) -> dict:
-        return self._post("/api/collections/tentativas/records", {
+    def criar_tentativa(self, ativ_id: str, aluno_id: str, aluno_nome: str, numero: int,
+                        extras: dict | None = None) -> dict:
+        data = {
             "atividade": ativ_id,
             "aluno_id": aluno_id,
             "aluno_nome": aluno_nome,
@@ -241,7 +249,10 @@ class PocketBaseClient:
             "concluida": False,
             "nota_liberada": False,
             "questoes_respondidas": 0,
-        })
+        }
+        if extras:
+            data.update(extras)
+        return self._post("/api/collections/tentativas/records", data)
 
     def atualizar_progresso(self, tentativa_id: str, respondidas: int) -> dict:
         return self._patch(f"/api/collections/tentativas/records/{tentativa_id}", {
@@ -258,6 +269,29 @@ class PocketBaseClient:
         )
         items = result.get("items", [])
         return items[0] if items else None
+
+    def listar_tentativas_publicas(self, ativ_id: str) -> list:
+        """Respondentes anônimos (sem conta) de uma atividade pública."""
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'atividade="{ativ_id}"&&aluno_id=""&&concluida=true',
+                "sort": "-created",
+                "perPage": "500",
+            },
+        )
+        return result.get("items", [])
+
+    def contar_tentativas_por_email(self, ativ_id: str, email: str) -> int:
+        """Controle de tentativas para respondentes públicos (sem conta)."""
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'atividade="{ativ_id}"&&aluno_email="{email}"&&concluida=true',
+                "perPage": "500",
+            },
+        )
+        return len(result.get("items", []))
 
     def listar_tentativas_aluno(self, ativ_id: str, aluno_id: str) -> list:
         try:

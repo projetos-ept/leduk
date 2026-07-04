@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ turma.nome }} — Atividades Públicas — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:860px;">
+  <div class="breadcrumb">
+    <a href="/professor/publico">Atividades Públicas</a><span>›</span><span>{{ turma.nome }}</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">🌐 {{ turma.nome }}</h1>
+      <p class="qb-subtitulo">{{ turma.descricao or 'Turma pública — sem matrícula.' }}</p>
+    </div>
+  </div>
+
+  {% if grupos %}
+    {% for g in grupos %}
+      <section style="margin-bottom:24px;">
+        <h2 style="font-size:1rem;margin:0 0 10px;">📖 {{ g.disc.nome }}</h2>
+        <div class="card" style="padding:0;overflow:hidden;">
+          {% for a in g.atividades %}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;{% if not loop.last %}border-bottom:1px solid var(--borda);{% endif %}">
+              <div style="min-width:0;">
+                <p style="font-weight:600;font-size:.93rem;margin:0;">{{ a.titulo }}</p>
+                <p style="color:var(--muted);font-size:.8rem;margin:3px 0 0;">
+                  Link público: <code style="font-size:.78rem;">{{ base_url }}/publica/{{ a.id }}</code>
+                </p>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                <span class="ativ-badge badge-tentativas">{{ a._respondentes }} resposta{{ 's' if a._respondentes != 1 }}</span>
+                <a class="btn-ghost" style="font-size:.82rem;padding:4px 10px;"
+                   href="/professor/atividade/{{ a.id }}/respostas-publicas">Ver respostas</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  {% else %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📝</p>
+      <p class="qb-empty-msg">Nenhuma atividade ativa nesta turma ainda.</p>
+      <p style="color:var(--muted);font-size:.85rem;">Crie atividades para esta turma na gestão normal de turmas.</p>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

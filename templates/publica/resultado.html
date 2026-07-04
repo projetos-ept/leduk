@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resultado — {{ atividade.titulo }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <span class="topbar-logo">LeDuk</span>
+  {% if nome %}<span class="topbar-aluno">{{ nome }}</span>{% endif %}
+</nav>
+
+<div class="shell" style="max-width:460px;">
+  <div class="portal-header">
+    <h1 class="portal-titulo">{{ atividade.titulo }}</h1>
+  </div>
+
+  <div class="card" style="margin-top:16px;text-align:center;">
+    {% if modo_prova and not nota_automatica %}
+      <p class="dash-empty-icon">📝</p>
+      <p style="font-weight:600;">Respostas enviadas!</p>
+      <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
+        Sua nota será divulgada pelo professor.
+      </p>
+    {% else %}
+      <p class="dash-empty-icon">🎉</p>
+      <p style="font-weight:600;">Atividade concluída, {{ nome }}!</p>
+      <p style="font-size:1.6rem;font-weight:700;margin:10px 0 4px;">{{ pct }}%</p>
+      <p style="color:var(--muted);font-size:.9rem;">{{ score_raw }} de {{ score_max }} ponto{{ 's' if score_max != 1 }}</p>
+      {% if nota_final is not none and atividade.valor_total %}
+        <p style="margin-top:8px;">
+          <span class="ativ-badge badge-nota">
+            Nota: {{ (nota_final | round(1)) | string | replace(".", ",") }} / {{ atividade.valor_total | string | replace(".0", "") }}
+          </span>
+        </p>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ atividade.titulo }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <span class="topbar-logo">LeDuk</span>
+</nav>
+
+<div class="shell" style="max-width:720px;">
+  <div class="portal-header">
+    <p class="portal-turma">{{ turma.nome }}{% if disciplina.nome %} · {{ disciplina.nome }}{% endif %}</p>
+    <h1 class="portal-titulo">{{ atividade.titulo }}</h1>
+  </div>
+
+  {% if atividade.descricao %}
+    <div class="card" style="margin-top:16px;">
+      <p style="color:var(--muted);white-space:pre-line;">{{ atividade.descricao }}</p>
+    </div>
+  {% elif turma.descricao %}
+    <div class="card" style="margin-top:16px;">
+      <p style="color:var(--muted);white-space:pre-line;">{{ turma.descricao }}</p>
+    </div>
+  {% endif %}
+
+  <div style="margin:24px 0;text-align:center;">
+    {% if disponivel %}
+      <a href="/publica/{{ atividade.id }}/identificar" class="btn-home" style="padding:14px 32px;display:inline-block;">
+        Responder atividade →
+      </a>
+      {% if atividade.max_tentativas and atividade.max_tentativas > 0 %}
+        <p style="color:var(--muted);font-size:.85rem;margin-top:8px;">
+          Limite de {{ atividade.max_tentativas }} tentativa{{ 's' if atividade.max_tentativas != 1 }} por pessoa.
+        </p>
+      {% endif %}
+    {% else %}
+      <div class="card" style="text-align:center;color:var(--muted);">
+        <p>🕐 Esta atividade não está disponível no momento.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if materiais %}
+    <h2 style="font-size:1.05rem;margin:24px 0 12px;">📚 Materiais de apoio</h2>
+    {% for m in materiais %}
+      <div class="material-card">
+        {% if m.tipo == "video" %}
+          {% set vid = m.url | youtube_id %}
+          <div class="material-header">
+            <div class="material-icone">🎬</div>
+            <div class="material-body">
+              <p class="material-titulo">{{ m.titulo }}</p>
+              {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+            </div>
+          </div>
+          {% if vid %}
+            <div class="video-wrapper">
+              <iframe src="https://www.youtube.com/embed/{{ vid }}"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowfullscreen loading="lazy"></iframe>
+            </div>
+          {% endif %}
+        {% elif m.tipo == "pdf" %}
+          <div class="material-header">
+            <div class="material-icone">📄</div>
+            <div class="material-body">
+              <p class="material-titulo">{{ m.titulo }}</p>
+              {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+            </div>
+            {% set pdf_href = m._arquivo_url if m._arquivo_url else m.url %}
+            {% if pdf_href %}
+              <a href="{{ pdf_href }}" target="_blank" rel="noopener" class="material-btn">Abrir PDF</a>
+            {% endif %}
+          </div>
+        {% elif m.tipo == "link" %}
+          <a class="material-header" href="{{ m.url }}" target="_blank" rel="noopener">
+            <div class="material-icone">🔗</div>
+            <div class="material-body">
+              <p class="material-titulo">{{ m.titulo }}</p>
+              {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+            </div>
+            <span class="material-ext">↗</span>
+          </a>
+        {% elif m.tipo == "arquivo" %}
+          <div class="material-header">
+            <div class="material-icone">📎</div>
+            <div class="material-body">
+              <p class="material-titulo">{{ m.titulo }}</p>
+              {% if m.descricao %}<p class="material-desc">{{ m.descricao }}</p>{% endif %}
+            </div>
+            {% if m._arquivo_url %}
+              <a href="{{ m._arquivo_url }}" target="_blank" rel="noopener" class="material-btn">Download</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+</body>
+</html>

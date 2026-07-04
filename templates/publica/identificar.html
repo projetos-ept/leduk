@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Identificação — {{ atividade.titulo }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <span class="topbar-logo">LeDuk</span>
+</nav>
+
+<div class="shell" style="max-width:460px;">
+  <div class="portal-header">
+    <p class="portal-turma">{{ turma.nome }}</p>
+    <h1 class="portal-titulo">{{ atividade.titulo }}</h1>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if erro %}<div class="alerta-bloqueio" style="margin-bottom:14px;"><strong>{{ erro }}</strong></div>{% endif %}
+
+    {% if confirmar %}
+      <div class="alerta-bloqueio" style="margin-bottom:14px;">
+        <strong>Você já respondeu {{ usadas }} vez{{ 'es' if usadas != 1 }}.</strong>
+        <p style="margin:6px 0 0;font-size:.88rem;">Deseja tentar novamente?</p>
+      </div>
+    {% else %}
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:14px;">
+        Identifique-se para responder. Não é necessário criar conta.
+      </p>
+    {% endif %}
+
+    <form method="post" action="/publica/{{ atividade.id }}/identificar" style="display:flex;flex-direction:column;gap:15px;">
+      {% if confirmar %}<input type="hidden" name="confirmar" value="1">{% endif %}
+      <div>
+        <label class="campo-label">Nome completo *</label>
+        <input type="text" name="nome" required value="{{ dados.nome if dados else '' }}"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div>
+        <label class="campo-label">Email *</label>
+        <input type="email" name="email" required value="{{ dados.email if dados else '' }}"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <div>
+        <label class="campo-label">Turma (opcional)</label>
+        <input type="text" name="turma" value="{{ dados.turma if dados else '' }}" placeholder="Ex.: 3º Ano B"
+               style="width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.95rem;">
+      </div>
+      <button type="submit" class="btn-home" style="padding:12px;">
+        {% if confirmar %}Sim, tentar novamente →{% else %}Começar →{% endif %}
+      </button>
+    </form>
+    <p style="text-align:center;margin-top:14px;">
+      <a href="/publica/{{ atividade.id }}" style="color:var(--muted);font-size:.85rem;text-decoration:none;">← Voltar</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>

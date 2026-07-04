@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atividades Públicas — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:860px;">
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">🌐 Atividades Públicas</h1>
+      <p class="qb-subtitulo">Turmas abertas — qualquer pessoa responde sem matrícula.</p>
+    </div>
+  </div>
+
+  <details class="card" style="margin-bottom:20px;">
+    <summary style="cursor:pointer;font-weight:600;">+ Nova turma pública</summary>
+    <form method="post" action="/professor/publico/turma/nova"
+          style="display:flex;flex-direction:column;gap:12px;margin-top:14px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;">
+        <div>
+          <label class="campo-label">Nome *</label>
+          <input type="text" name="nome" required
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Modalidade</label>
+          <input type="text" name="modalidade" placeholder="Aberta"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+        <div>
+          <label class="campo-label">Ano</label>
+          <input type="text" name="ano" placeholder="2026"
+                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+        </div>
+      </div>
+      <div>
+        <label class="campo-label">Descrição</label>
+        <textarea name="descricao" rows="2"
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;resize:vertical;"></textarea>
+      </div>
+      <button type="submit" class="btn-primary" style="align-self:flex-start;">Criar turma pública</button>
+    </form>
+  </details>
+
+  {% if turmas %}
+    <div class="turmas-grid">
+      {% for t in turmas %}
+        <a class="card" href="/professor/publico/turma/{{ t.id }}"
+           style="text-decoration:none;color:inherit;display:block;">
+          <p style="font-weight:700;font-size:1.02rem;margin:0;">🌐 {{ t.nome }}</p>
+          <p style="color:var(--muted);font-size:.85rem;margin:4px 0 0;">
+            {{ t.modalidade or 'Aberta' }}{% if t.ano %} · {{ t.ano }}{% endif %}
+          </p>
+          {% if t.descricao %}
+            <p style="color:var(--muted);font-size:.82rem;margin:8px 0 0;">{{ t.descricao }}</p>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">🌐</p>
+      <p class="qb-empty-msg">Nenhuma turma pública ainda. Crie a primeira acima.</p>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>
