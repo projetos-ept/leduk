@@ -177,6 +177,11 @@
                       {% if ativ.valor_total %}<span>·</span><span class="ativ-badge badge-valor">vale {{ ativ.valor_total | string | replace(".0", "") }} pts</span>{% endif %}
                       {% if ativ._prazo %}<span>·</span><span>Prazo: {{ ativ._prazo }}</span>{% endif %}
                       <span class="ativ-badge badge-disponivel">Disponível</span>
+                      {% if ativ._tentativas_restantes == 1 %}
+                        <span class="ativ-badge badge-tentativas">Última tentativa</span>
+                      {% elif ativ._tentativas_restantes > 1 %}
+                        <span class="ativ-badge badge-tentativas">{{ ativ._tentativas_restantes }} tentativas</span>
+                      {% endif %}
                     </div>
                   </div>
                 </a>
@@ -186,9 +191,10 @@
                   <div class="ativ-body">
                     <p class="ativ-titulo">{{ ativ.titulo }}</p>
                     <div class="ativ-sub">
-                      {% if ativ._max_tentativas > 0 %}
-                        {% set restantes = ativ._max_tentativas - ativ._tentativas_usadas %}
-                        <span class="ativ-badge badge-tentativas">{{ restantes }} tentativa{{ 's' if restantes != 1 }} restante{{ 's' if restantes != 1 }}</span>
+                      {% if ativ._tentativas_restantes == 1 %}
+                        <span class="ativ-badge badge-tentativas">Última tentativa</span>
+                      {% elif ativ._tentativas_restantes > 1 %}
+                        <span class="ativ-badge badge-tentativas">{{ ativ._tentativas_restantes }} tentativa{{ 's' if ativ._tentativas_restantes != 1 }} restante{{ 's' if ativ._tentativas_restantes != 1 }}</span>
                       {% else %}
                         <span class="ativ-badge badge-tentativas">Tentar novamente</span>
                       {% endif %}
