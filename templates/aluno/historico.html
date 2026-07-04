@@ -18,47 +18,42 @@
   {% endif %}
 </nav>
 
-<div class="shell">
+<div class="shell" style="max-width:640px;">
   <div class="portal-header">
     <h1 class="portal-titulo">Meu Histórico</h1>
   </div>
 
-  {% if historico %}
-    {% for grupo in historico %}
-      <section class="historico-section">
-        <h2 class="historico-disc">{{ grupo.disc.nome }}</h2>
-        {% for item in grupo.atividades %}
-          <div class="historico-ativ-bloco">
-            <p class="historico-ativ-nome">{{ item.ativ.titulo or 'Atividade' }}</p>
-            {% for t in item.tentativas %}
-              <div class="historico-tentativa">
-                <span class="historico-num">Tentativa {{ t.numero_tentativa or '—' }}</span>
-                <span class="historico-data">
-                  {{ t.created[:10] if t.created else '—' }}
-                </span>
-                {% if t.nota_liberada %}
-                  <span class="badge-nota">Nota: {{ t.score_percentual | int }}%</span>
-                {% else %}
-                  <span class="badge-correcao">Em correção</span>
-                {% endif %}
-                {% if item.ativ.exibir_feedback_pos != false %}
-                  <a class="historico-btn" href="/aluno/atividade/{{ item.ativ.id }}/revisao/{{ t.id }}">
-                    Ver gabarito
-                  </a>
-                {% endif %}
-              </div>
-            {% endfor %}
+  {% if itens %}
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px;">
+      {% for item in itens %}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;{% if not loop.last %}border-bottom:1px solid var(--borda);{% endif %}">
+          <div style="min-width:0;">
+            <p style="font-weight:600;font-size:.95rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ item.ativ.titulo or 'Atividade' }}</p>
+            <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0;">{{ item.ultima._data_fmt }}</p>
           </div>
-        {% endfor %}
-      </section>
-    {% endfor %}
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:12px;">
+            {% if item.ultima.nota_liberada %}
+              <span class="ativ-badge badge-nota">{{ item.ultima.score_percentual | int }}%</span>
+            {% else %}
+              <span class="ativ-badge badge-correcao">Em correção</span>
+            {% endif %}
+            {% if item.ativ.exibir_feedback_pos != false %}
+              <a class="btn-ghost" style="font-size:.82rem;padding:4px 10px;"
+                 href="/aluno/atividade/{{ item.ativ.id }}/revisao/{{ item.ultima.id }}">
+                Gabarito →
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
   {% else %}
     <div class="card" style="text-align:center;color:var(--muted);margin-top:24px;">
       <p>Nenhuma atividade concluída ainda.</p>
     </div>
   {% endif %}
 
-  <div style="margin-top:32px;text-align:center;">
+  <div style="margin-top:24px;text-align:center;">
     <a class="btn-home" href="/">Voltar ao início</a>
   </div>
 </div>
