@@ -2523,9 +2523,16 @@ def create_app(config: dict | None = None) -> Flask:
         except Exception:
             materiais = []
         disponivel, _ = _atividade_disponivel(ativ)
+        prazo = ""
+        if ativ.get("disponivel_ate"):
+            try:
+                dt = datetime.fromisoformat(ativ["disponivel_ate"].replace("Z", "+00:00"))
+                prazo = dt.strftime("%d/%m/%Y às %H:%M")
+            except Exception:
+                prazo = ""
         return render_template("publica/atividade.html", atividade=ativ, turma=turma,
                                disciplina=disciplina, materiais=materiais,
-                               disponivel=disponivel)
+                               disponivel=disponivel, prazo=prazo)
 
     @app.route("/publica/<ativ_id>/identificar", methods=["GET", "POST"])
     def publica_identificar(ativ_id: str):

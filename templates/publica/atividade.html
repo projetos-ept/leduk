@@ -32,8 +32,13 @@
       <a href="/publica/{{ atividade.id }}/identificar" class="btn-home" style="padding:14px 32px;display:inline-block;">
         Responder atividade →
       </a>
-      {% if atividade.max_tentativas and atividade.max_tentativas > 0 %}
+      {% if prazo %}
         <p style="color:var(--muted);font-size:.85rem;margin-top:8px;">
+          ⏰ Disponível até <strong>{{ prazo }}</strong>
+        </p>
+      {% endif %}
+      {% if atividade.max_tentativas and atividade.max_tentativas > 0 %}
+        <p style="color:var(--muted);font-size:.85rem;margin-top:{{ '4px' if prazo else '8px' }};">
           Limite de {{ atividade.max_tentativas }} tentativa{{ 's' if atividade.max_tentativas != 1 }} por pessoa.
         </p>
       {% endif %}
