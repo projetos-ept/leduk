@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Respostas públicas — {{ atividade.titulo }} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:960px;">
+  <div class="breadcrumb">
+    <a href="/professor/publico">Atividades Públicas</a><span>›</span><span>{{ atividade.titulo }}</span>
+  </div>
+
+  <div class="qb-header">
+    <div>
+      <h1 class="qb-titulo">Respostas — {{ atividade.titulo }}</h1>
+      <p class="qb-subtitulo">{{ tentativas|length }} resposta(s) de respondentes públicos.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="/professor/atividade/{{ atividade.id }}/respostas-publicas.csv" class="btn-ghost">⬇ Exportar Excel (CSV)</a>
+      <a href="/professor/atividade/{{ atividade.id }}/relatorio-publico" class="btn-primary" target="_blank">📄 Relatório geral PDF</a>
+    </div>
+  </div>
+
+  {% if not tentativas %}
+    <div class="qb-empty">
+      <p class="dash-empty-icon">📭</p>
+      <p class="qb-empty-msg">Nenhuma resposta ainda.</p>
+    </div>
+  {% else %}
+    <div class="card" style="overflow-x:auto;">
+      <table class="prof-tabela">
+        <thead>
+          <tr><th>Nome</th><th>Email</th><th>Turma</th><th>Tentativa</th><th>Nota</th><th>Data</th><th>Ações</th></tr>
+        </thead>
+        <tbody>
+          {% for t in tentativas %}
+            <tr>
+              <td style="font-weight:600;">{{ t.aluno_nome or '—' }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ t.aluno_email or '—' }}</td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ t.aluno_turma or '—' }}</td>
+              <td>{{ t.numero_tentativa or '—' }}</td>
+              <td>
+                {% if t.nota_final is not none and atividade.valor_total %}
+                  <span class="ativ-badge badge-nota">{{ (t.nota_final | round(1)) | string | replace(".", ",") }} / {{ atividade.valor_total | string | replace(".0", "") }}</span>
+                {% else %}
+                  <span class="ativ-badge badge-nota">{{ (t.score_percentual or 0) | int }}%</span>
+                {% endif %}
+              </td>
+              <td style="color:var(--muted);font-size:.85rem;">{{ t._data_fmt }}</td>
+              <td>
+                {% if t.aluno_email %}
+                  <a class="btn-ghost" style="font-size:.8rem;padding:3px 9px;" target="_blank"
+                     href="/professor/atividade/{{ atividade.id }}/relatorio-publico/{{ t.aluno_email }}">PDF</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Comprovante — {{ tentativa.aluno_nome }}</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; margin: 32px; font-size: 12px; }
+    h1 { font-size: 18px; margin: 0 0 18px; }
+    .bloco { border: 1px solid #e0e3ee; border-radius: 8px; padding: 14px 18px; margin-bottom: 14px; }
+    .linha { margin: 4px 0; }
+    .rotulo { color: #777; display: inline-block; min-width: 130px; }
+    .nota { font-size: 16px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { text-align: left; background: #f0f2f8; padding: 6px 9px; font-size: 11px; border-bottom: 2px solid #d5d9e6; }
+    td { padding: 5px 9px; border-bottom: 1px solid #e8eaf1; }
+    .ok { color: #1a7f3c; }
+    .erro { color: #b3261e; }
+    .rodape { margin-top: 24px; color: #999; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <h1>LeDuk — Comprovante de Resposta</h1>
+
+  <div class="bloco">
+    <p class="linha"><span class="rotulo">Atividade:</span> <strong>{{ atividade.titulo }}</strong></p>
+    {% if disciplina.nome %}<p class="linha"><span class="rotulo">Disciplina:</span> {{ disciplina.nome }}</p>{% endif %}
+    <p class="linha"><span class="rotulo">Data:</span> {{ data_fmt }}</p>
+  </div>
+
+  <div class="bloco">
+    <p class="linha"><span class="rotulo">Respondente:</span> <strong>{{ tentativa.aluno_nome or '—' }}</strong></p>
+    <p class="linha"><span class="rotulo">Email:</span> {{ tentativa.aluno_email or '—' }}</p>
+    <p class="linha"><span class="rotulo">Turma informada:</span> {{ tentativa.aluno_turma or '—' }}</p>
+    <p class="linha"><span class="rotulo">Tentativa:</span>
+      {{ tentativa.numero_tentativa or total_por_email }}{% if atividade.max_tentativas %} de {{ atividade.max_tentativas }}{% endif %}
+    </p>
+  </div>
+
+  <div class="bloco">
+    <p class="linha nota">
+      {% if tentativa.nota_final is not none and atividade.valor_total %}
+        Nota: {{ (tentativa.nota_final | round(1)) | string | replace(".", ",") }} / {{ atividade.valor_total | string | replace(".0", "") }}
+        &nbsp;·&nbsp; Aproveitamento: {{ (tentativa.score_percentual or 0) | int }}%
+      {% else %}
+        Aproveitamento: {{ (tentativa.score_percentual or 0) | int }}%
+      {% endif %}
+    </p>
+  </div>
+
+  {% if detalhamento %}
+    <div class="bloco">
+      <p style="font-weight:600;margin:0 0 4px;">Detalhamento:</p>
+      <table>
+        <thead><tr><th>Questão</th><th>Peso</th><th>Resultado</th><th>Pontos</th></tr></thead>
+        <tbody>
+          {% for d in detalhamento %}
+            <tr>
+              <td>Q{{ d.num }}</td>
+              <td>{{ d.peso | string | replace(".0", "") }}</td>
+              <td>{% if d.correta %}<span class="ok">✓ Correta</span>{% else %}<span class="erro">✗ Incorreta</span>{% endif %}</td>
+              <td>{{ d.score_raw }} / {{ d.score_max }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <p class="rodape">Documento gerado pelo LeDuk — comprovante de participação em atividade pública.</p>
+</body>
+</html>

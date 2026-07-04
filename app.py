@@ -530,6 +530,27 @@ def _form_to_atividade(form) -> dict:
     }
 
 
+def _resposta_pdf(html: str, filename: str):
+    """Gera PDF via WeasyPrint; sem a lib instalada, devolve o próprio HTML."""
+    try:
+        from weasyprint import HTML  # import tardio: dependência nativa pesada
+    except Exception:
+        return make_response(html)
+    pdf = HTML(string=html).write_pdf()
+    r = make_response(pdf)
+    r.headers["Content-Type"] = "application/pdf"
+    r.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+    return r
+
+
+def _fmt_data_hora(iso: str) -> str:
+    try:
+        dt = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return (iso or "")[:16] or "—"
+
+
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
@@ -626,6 +647,21 @@ def create_app(config: dict | None = None) -> Flask:
             return f(*args, **kwargs)
         return decorated
 
+
+    def requer_login_ou_publico(f):
+        """Permite sessão logada OU sessão pública (respondente sem conta)."""
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not app.config.get("LOGIN_REQUIRED", True):
+                return f(*args, **kwargs)
+            if session.get("token") or session.get("pub_modo"):
+                return f(*args, **kwargs)
+            return redirect(url_for("login"))
+        return decorated
+
+    def _limpar_sessao_publica() -> None:
+        for k in ("pub_modo", "pub_nome", "pub_email", "pub_turma", "pub_ativ_id"):
+            session.pop(k, None)
 
     def requer_professor(f):
         @wraps(f)
@@ -840,29 +876,59 @@ def create_app(config: dict | None = None) -> Flask:
     # Motor de atividades
 
     @app.route("/atividade/<ativ_id>")
-    @requer_login
+    @requer_login_ou_publico
     def atividade(ativ_id: str):
+        # Sessão pública só vale para a atividade identificada; fora dela,
+        # usuário logado segue o fluxo normal e anônimo volta à página pública.
+        pub_modo = bool(session.get("pub_modo"))
+        if pub_modo and session.get("pub_ativ_id") != ativ_id:
+            if session.get("token"):
+                _limpar_sessao_publica()
+                pub_modo = False
+            else:
+                return redirect(url_for("publica_atividade", ativ_id=ativ_id))
+
         ativ = get_pb().buscar_atividade(ativ_id)
 
         disponivel, motivo = _atividade_disponivel(ativ)
         if not disponivel:
             return render_template("auth/atividade_indisponivel.html", atividade=ativ, motivo=motivo)
 
-        aluno_id = session.get("aluno_id", "")
-        aluno_nome = session.get("aluno_nome", "")
         max_tentativas = int(ativ.get("max_tentativas", 0) or 0)
+        extras_tentativa = None
 
-        if max_tentativas > 0 and aluno_id:
-            status = get_pb().status_atividade_aluno(ativ_id, aluno_id, max_tentativas)
-            if not status["pode_tentar"]:
+        if pub_modo:
+            aluno_id = ""
+            aluno_nome = session.get("pub_nome", "")
+            pub_email = session.get("pub_email", "")
+            extras_tentativa = {
+                "aluno_email": pub_email,
+                "aluno_turma": session.get("pub_turma", ""),
+            }
+            tentativas_usadas = 0
+            if pub_email:
+                try:
+                    tentativas_usadas = get_pb().contar_tentativas_por_email(ativ_id, pub_email)
+                except Exception as exc:
+                    log.warning("contar_tentativas_por_email falhou: %s", exc)
+            if max_tentativas > 0 and tentativas_usadas >= max_tentativas:
                 return render_template("auth/atividade_indisponivel.html", atividade=ativ, motivo="esgotada")
+        else:
+            aluno_id = session.get("aluno_id", "")
+            aluno_nome = session.get("aluno_nome", "")
 
-        tentativas_usadas = 0
-        if aluno_id:
-            tentativas_usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
+            if max_tentativas > 0 and aluno_id:
+                status = get_pb().status_atividade_aluno(ativ_id, aluno_id, max_tentativas)
+                if not status["pode_tentar"]:
+                    return render_template("auth/atividade_indisponivel.html", atividade=ativ, motivo="esgotada")
+
+            tentativas_usadas = 0
+            if aluno_id:
+                tentativas_usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
 
         try:
-            tent = get_pb().criar_tentativa(ativ_id, aluno_id, aluno_nome, tentativas_usadas + 1)
+            tent = get_pb().criar_tentativa(ativ_id, aluno_id, aluno_nome, tentativas_usadas + 1,
+                                            extras=extras_tentativa)
             session["tentativa_id"] = tent["id"]
         except Exception as exc:
             log.warning("criar_tentativa falhou: %s", exc)
@@ -899,7 +965,7 @@ def create_app(config: dict | None = None) -> Flask:
         )
 
     @app.route("/htmx/questao/<questao_id>")
-    @requer_login
+    @requer_login_ou_publico
     def htmx_questao(questao_id: str):
         questao = get_pb().buscar_questao(questao_id)
         total = session.get("total", 0)
@@ -907,7 +973,7 @@ def create_app(config: dict | None = None) -> Flask:
         return _render_questao(questao, num, total, session.get("ativ_id", ""))
 
     @app.route("/htmx/responder", methods=["POST"])
-    @requer_login
+    @requer_login_ou_publico
     def htmx_responder():
         tipo = request.form.get("tipo", "")
         questao_id = request.form.get("questao_id", "")
@@ -953,6 +1019,18 @@ def create_app(config: dict | None = None) -> Flask:
         session["respostas"] = respostas_sessao
         session.modified = True
 
+        if session.get("pub_modo"):
+            # respondente público — sem conta
+            r_aluno_id = ""
+            r_aluno_nome = session.get("pub_nome", "")
+            r_aluno_email = session.get("pub_email", "")
+            r_aluno_turma = session.get("pub_turma", "")
+        else:
+            r_aluno_id = session.get("aluno_id", "")
+            r_aluno_nome = session.get("aluno_nome", "")
+            r_aluno_email = ""
+            r_aluno_turma = ""
+
         tentativa_id = session.get("tentativa_id", "")
         try:
             get_pb().registrar_tentativa({
@@ -964,8 +1042,10 @@ def create_app(config: dict | None = None) -> Flask:
                 "score_raw": resultado["score_raw"],
                 "score_max": resultado["score_max"],
                 "duracao_seg": 0,
-                "aluno_id": session.get("aluno_id", ""),
-                "aluno_nome": session.get("aluno_nome", ""),
+                "aluno_id": r_aluno_id,
+                "aluno_nome": r_aluno_nome,
+                "aluno_email": r_aluno_email,
+                "aluno_turma": r_aluno_turma,
                 "tentativa_id": tentativa_id,
             })
         except Exception as exc:
@@ -983,7 +1063,7 @@ def create_app(config: dict | None = None) -> Flask:
         )
 
     @app.route("/htmx/proxima/<ativ_id>")
-    @requer_login
+    @requer_login_ou_publico
     def htmx_proxima(ativ_id: str):
         fila: list = session.get("fila", [])
         total = session.get("total", 0)
@@ -1002,11 +1082,20 @@ def create_app(config: dict | None = None) -> Flask:
                 except Exception as exc:
                     log.warning("concluir_tentativa falhou: %s", exc)
             max_tent = session.get("max_tentativas", 0)
-            aluno_id = session.get("aluno_id", "")
             tentativas_restantes = 0
-            if max_tent > 0 and aluno_id:
-                usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
-                tentativas_restantes = max(0, max_tent - usadas)
+            if session.get("pub_modo"):
+                pub_email = session.get("pub_email", "")
+                if max_tent > 0 and pub_email:
+                    try:
+                        usadas = get_pb().contar_tentativas_por_email(ativ_id, pub_email)
+                        tentativas_restantes = max(0, max_tent - usadas)
+                    except Exception as exc:
+                        log.warning("contar_tentativas_por_email falhou: %s", exc)
+            else:
+                aluno_id = session.get("aluno_id", "")
+                if max_tent > 0 and aluno_id:
+                    usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
+                    tentativas_restantes = max(0, max_tent - usadas)
             exibir_feedback = False
             nota_final = None
             valor_total = None
@@ -1048,7 +1137,7 @@ def create_app(config: dict | None = None) -> Flask:
         return _render_questao(questao, num, total, ativ_id)
 
     @app.route("/htmx/resultado/<ativ_id>")
-    @requer_login
+    @requer_login_ou_publico
     def htmx_resultado(ativ_id: str):
         respostas = session.get("respostas", [])
         score_raw = sum(r.get("score_raw", 0) for r in respostas)
@@ -2184,6 +2273,153 @@ def create_app(config: dict | None = None) -> Flask:
         r.headers["Content-Disposition"] = f'attachment; filename="cadastros_{turma_id}.csv"'
         return r
 
+    # ── Atividades públicas (gestão do professor) ──
+
+    @app.route("/professor/publico")
+    @requer_professor
+    def professor_publico():
+        try:
+            turmas = get_pb().listar_turmas_publicas()
+        except Exception as exc:
+            log.warning("listar_turmas_publicas falhou: %s", exc)
+            turmas = []
+        return render_template("professor/publico/index.html", turmas=turmas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/publico/turma/nova", methods=["POST"])
+    @requer_professor
+    def professor_publico_turma_nova():
+        nome = request.form.get("nome", "").strip()
+        if not nome:
+            return redirect(url_for("professor_publico"))
+        get_pb().criar_turma({
+            "nome": nome,
+            "modalidade": request.form.get("modalidade", ""),
+            "ano": request.form.get("ano", "").strip(),
+            "descricao": request.form.get("descricao", "").strip(),
+            "publica": True,
+            "ativa": True,
+        })
+        return redirect(url_for("professor_publico"))
+
+    @app.route("/professor/publico/turma/<turma_id>")
+    @requer_professor
+    def professor_publico_turma(turma_id: str):
+        turma = get_pb().buscar_turma(turma_id)
+        atividades = get_pb().listar_atividades_por_turma(turma_id)
+        grupos: dict[str, dict] = {}
+        for a in atividades:
+            try:
+                a["_respondentes"] = len(get_pb().listar_tentativas_publicas(a["id"]))
+            except Exception:
+                a["_respondentes"] = 0
+            disc = (a.get("expand") or {}).get("disciplina") or {"id": "_", "nome": "Sem disciplina"}
+            g = grupos.setdefault(disc["id"], {"disc": disc, "atividades": []})
+            g["atividades"].append(a)
+        return render_template("professor/publico/turma.html", turma=turma,
+                               grupos=list(grupos.values()),
+                               base_url=_portal_url(),
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/<ativ_id>/respostas-publicas")
+    @requer_professor
+    def professor_respostas_publicas(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        try:
+            tentativas = get_pb().listar_tentativas_publicas(ativ_id)
+        except Exception as exc:
+            log.warning("listar_tentativas_publicas falhou: %s", exc)
+            tentativas = []
+        for t in tentativas:
+            t["_data_fmt"] = _fmt_data_hora(t.get("created", ""))
+        return render_template("professor/publico/respostas.html", atividade=ativ,
+                               tentativas=tentativas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/atividade/<ativ_id>/respostas-publicas.csv")
+    @requer_professor
+    def professor_respostas_publicas_csv(ativ_id: str):
+        try:
+            tentativas = get_pb().listar_tentativas_publicas(ativ_id)
+        except Exception:
+            tentativas = []
+        linhas = ["nome,email,turma,tentativa,nota_percentual,nota_final,data"]
+        for t in tentativas:
+            campos = [t.get("aluno_nome", ""), t.get("aluno_email", ""),
+                      t.get("aluno_turma", ""), t.get("numero_tentativa", ""),
+                      t.get("score_percentual", ""), t.get("nota_final", ""),
+                      _fmt_data_hora(t.get("created", ""))]
+            linhas.append(",".join('"' + str(c).replace('"', '""') + '"' for c in campos))
+        r = make_response("\n".join(linhas))
+        r.headers["Content-Type"] = "text/csv; charset=utf-8"
+        r.headers["Content-Disposition"] = f'attachment; filename="respostas_publicas_{ativ_id}.csv"'
+        return r
+
+    @app.route("/professor/atividade/<ativ_id>/relatorio-publico")
+    @requer_professor
+    def professor_relatorio_publico(ativ_id: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        try:
+            disciplina = get_pb().buscar_disciplina(ativ.get("disciplina", ""))
+        except Exception:
+            disciplina = {}
+        try:
+            tentativas = get_pb().listar_tentativas_publicas(ativ_id)
+        except Exception:
+            tentativas = []
+        for t in tentativas:
+            t["_data_fmt"] = _fmt_data_hora(t.get("created", ""))
+        html = render_template("professor/publico/relatorio_geral.html", atividade=ativ,
+                               disciplina=disciplina, tentativas=tentativas,
+                               gerado_em=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"))
+        return _resposta_pdf(html, f"relatorio_publico_{ativ_id}.pdf")
+
+    @app.route("/professor/atividade/<ativ_id>/relatorio-publico/<path:email>")
+    @requer_professor
+    def professor_relatorio_publico_individual(ativ_id: str, email: str):
+        ativ = get_pb().buscar_atividade(ativ_id)
+        try:
+            disciplina = get_pb().buscar_disciplina(ativ.get("disciplina", ""))
+        except Exception:
+            disciplina = {}
+        email = email.strip().lower().replace('"', "")
+        try:
+            todas = get_pb().listar_tentativas_publicas(ativ_id)
+        except Exception:
+            todas = []
+        do_email = [t for t in todas if (t.get("aluno_email") or "").lower() == email]
+        if not do_email:
+            return render_template("publica/limite.html", nao_encontrada=True), 404
+        tent = max(do_email, key=lambda t: t.get("created", ""))
+
+        detalhamento = []
+        if not ativ.get("modo_prova"):
+            try:
+                respostas = get_pb().listar_respostas_tentativa(tent["id"])
+                for i, r_ in enumerate(respostas, 1):
+                    peso = 1.0
+                    try:
+                        q = get_pb().buscar_questao(r_.get("questao", ""))
+                        peso = float(q.get("peso") or 1)
+                    except Exception:
+                        pass
+                    detalhamento.append({
+                        "num": i,
+                        "peso": peso,
+                        "correta": bool(r_.get("correta")),
+                        "score_raw": r_.get("score_raw", 0),
+                        "score_max": r_.get("score_max", 0),
+                    })
+            except Exception as exc:
+                log.warning("detalhamento individual falhou: %s", exc)
+
+        html = render_template("professor/publico/relatorio_individual.html",
+                               atividade=ativ, disciplina=disciplina, tentativa=tent,
+                               total_por_email=len(do_email),
+                               data_fmt=_fmt_data_hora(tent.get("created", "")),
+                               detalhamento=detalhamento)
+        return _resposta_pdf(html, f"comprovante_{ativ_id}.pdf")
+
     # ── Cadastro público via link de convite ──
 
     @app.route("/cadastro/<token>", methods=["GET", "POST"])
@@ -2252,6 +2488,108 @@ def create_app(config: dict | None = None) -> Flask:
         except Exception as exc:
             log.warning("email_boas_vindas (formulario) falhou: %s", exc)
         return redirect(url_for("index"))
+
+    # ------------------------------------------------------------------
+    # Modo público de atividades (turmas públicas, sem matrícula)
+
+    def _buscar_atividade_publica(ativ_id: str) -> tuple[dict | None, dict | None]:
+        """Retorna (atividade, turma) apenas se a turma da atividade é pública."""
+        try:
+            ativ = get_pb().buscar_atividade(ativ_id)
+        except Exception:
+            return None, None
+        try:
+            turma = get_pb().buscar_turma(ativ.get("turma", ""))
+        except Exception:
+            return None, None
+        if not turma.get("publica"):
+            return None, None
+        return ativ, turma
+
+    @app.route("/publica/<ativ_id>")
+    def publica_atividade(ativ_id: str):
+        ativ, turma = _buscar_atividade_publica(ativ_id)
+        if not ativ:
+            return render_template("publica/limite.html", nao_encontrada=True), 404
+        try:
+            disciplina = get_pb().buscar_disciplina(ativ.get("disciplina", ""))
+        except Exception:
+            disciplina = {}
+        try:
+            materiais = get_pb().listar_materiais(turma["id"], ativ.get("disciplina", ""))
+            for m in materiais:
+                if m.get("arquivo"):
+                    m["_arquivo_url"] = get_pb().url_arquivo_material(m)
+        except Exception:
+            materiais = []
+        disponivel, _ = _atividade_disponivel(ativ)
+        return render_template("publica/atividade.html", atividade=ativ, turma=turma,
+                               disciplina=disciplina, materiais=materiais,
+                               disponivel=disponivel)
+
+    @app.route("/publica/<ativ_id>/identificar", methods=["GET", "POST"])
+    def publica_identificar(ativ_id: str):
+        ativ, turma = _buscar_atividade_publica(ativ_id)
+        if not ativ:
+            return render_template("publica/limite.html", nao_encontrada=True), 404
+        if request.method == "GET":
+            return render_template("publica/identificar.html", atividade=ativ, turma=turma)
+
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip().lower().replace('"', "")
+        turma_txt = request.form.get("turma", "").strip()
+        if not (nome and email):
+            return render_template("publica/identificar.html", atividade=ativ, turma=turma,
+                                   erro="Preencha nome e email.",
+                                   dados={"nome": nome, "email": email, "turma": turma_txt}), 422
+
+        usadas = 0
+        try:
+            usadas = get_pb().contar_tentativas_por_email(ativ_id, email)
+        except Exception as exc:
+            log.warning("contar_tentativas_por_email falhou: %s", exc)
+        max_tent = int(ativ.get("max_tentativas", 0) or 0)
+
+        if max_tent > 0 and usadas >= max_tent:
+            return render_template("publica/limite.html", atividade=ativ,
+                                   max_tentativas=max_tent), 403
+
+        if usadas > 0 and "confirmar" not in request.form:
+            return render_template("publica/identificar.html", atividade=ativ, turma=turma,
+                                   confirmar=True, usadas=usadas,
+                                   dados={"nome": nome, "email": email, "turma": turma_txt})
+
+        session["pub_modo"] = True
+        session["pub_nome"] = nome
+        session["pub_email"] = email
+        session["pub_turma"] = turma_txt
+        session["pub_ativ_id"] = ativ_id
+        session.modified = True
+        return redirect(url_for("atividade", ativ_id=ativ_id))
+
+    @app.route("/publica/<ativ_id>/resultado")
+    def publica_resultado(ativ_id: str):
+        if not session.get("pub_modo") or session.get("pub_ativ_id") != ativ_id:
+            return redirect(url_for("publica_atividade", ativ_id=ativ_id))
+        ativ, _turma = _buscar_atividade_publica(ativ_id)
+        if not ativ:
+            return render_template("publica/limite.html", nao_encontrada=True), 404
+        respostas = session.get("respostas", [])
+        score_raw = sum(r.get("score_raw", 0) for r in respostas)
+        score_max = sum(r.get("score_max", 0) for r in respostas)
+        pct = round(score_raw / score_max * 100) if score_max > 0 else 0
+        nota_final = None
+        if not ativ.get("modo_prova"):
+            try:
+                nota_final, _ = _build_detalhamento(respostas, ativ)
+            except Exception:
+                nota_final = None
+        return render_template("publica/resultado.html", atividade=ativ,
+                               nome=session.get("pub_nome", ""),
+                               score_raw=score_raw, score_max=score_max, pct=pct,
+                               nota_final=nota_final,
+                               nota_automatica=bool(ativ.get("nota_automatica")),
+                               modo_prova=bool(ativ.get("modo_prova")))
 
     # ------------------------------------------------------------------
     # Status de tentativas (aluno)

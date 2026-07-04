@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if nao_encontrada %}Atividade não encontrada{% else %}Limite de tentativas{% endif %} — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+<nav class="topbar">
+  <span class="topbar-logo">LeDuk</span>
+</nav>
+
+<div class="shell" style="max-width:440px;">
+  <div class="card" style="margin-top:32px;text-align:center;">
+    {% if nao_encontrada %}
+      <p class="dash-empty-icon">🔍</p>
+      <p style="font-weight:600;">Atividade não encontrada.</p>
+      <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
+        O link pode estar incorreto ou a atividade não está mais pública.
+      </p>
+    {% else %}
+      <p class="dash-empty-icon">🔒</p>
+      <p style="font-weight:600;">Limite de {{ max_tentativas }} tentativa{{ 's' if max_tentativas != 1 }} atingido.</p>
+      <p style="color:var(--muted);font-size:.9rem;margin-top:6px;">
+        Você já usou todas as tentativas disponíveis para esta atividade.
+      </p>
+      <a href="/publica/{{ atividade.id }}" class="btn-ghost" style="margin-top:14px;display:inline-block;">← Voltar à atividade</a>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>
