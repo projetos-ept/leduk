@@ -107,11 +107,24 @@ def test_excluir_turma_confirmada_faz_cascade(client):
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
                  json={"totalItems": 1, "items": [{"id": "t1"}]})
 
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/boletins/records",
+                 json={"totalItems": 1, "items": [{"id": "bol1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/unidades/records",
+                 json={"items": [{"id": "un1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/recuperacao_final/records",
+                 json={"items": [{"id": "rec1"}]})
+
     deletados = []
     rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/matriculas/records/m1",
                           callback=lambda r: (deletados.append("m1"), (204, {}, ""))[1])
     rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/turma_disciplina/records/td1",
                           callback=lambda r: (deletados.append("td1"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/unidades/records/un1",
+                          callback=lambda r: (deletados.append("un1"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/recuperacao_final/records/rec1",
+                          callback=lambda r: (deletados.append("rec1"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/boletins/records/bol1",
+                          callback=lambda r: (deletados.append("bol1"), (204, {}, ""))[1])
 
     patches = []
     rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/tentativas/records/t1",
@@ -129,6 +142,10 @@ def test_excluir_turma_confirmada_faz_cascade(client):
     assert resp.status_code in (200, 302)
     assert turma_deletada, "turma deveria ter sido excluída"
     assert "m1" in deletados and "td1" in deletados
+    # boletim: sub-registros deletados ANTES do boletim
+    assert "un1" in deletados and "rec1" in deletados and "bol1" in deletados
+    assert deletados.index("un1") < deletados.index("bol1")
+    assert deletados.index("rec1") < deletados.index("bol1")
     # tentativas e atividades: referência anulada, não deletadas
     assert ("t1", {"turma": None}) in patches
     assert ("a1", {"turma": None}) in patches

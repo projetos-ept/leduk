@@ -647,7 +647,7 @@ class PocketBaseClient:
 
         # 1-3. remove vínculos diretos (pivôs e configs da turma)
         for collection in ("matriculas", "turma_disciplina", "formularios_cadastro",
-                           "turma_materiais", "boletins"):
+                           "turma_materiais"):
             try:
                 r = self._get(f"/api/collections/{collection}/records", params=filtro)
                 for item in r.get("items", []):
@@ -657,6 +657,30 @@ class PocketBaseClient:
                         pass
             except Exception:
                 pass  # collection ausente (pré-migração) ou sem campo turma
+
+        # 3b. boletins: deleta sub-registros (unidades, recuperação final)
+        # antes de cada boletim — relações required bloqueiam o DELETE direto
+        try:
+            r = self._get("/api/collections/boletins/records", params=filtro)
+            for b in r.get("items", []):
+                bid = b["id"]
+                for sub_col in ("unidades", "recuperacao_final"):
+                    try:
+                        rs = self._get(f"/api/collections/{sub_col}/records",
+                                       params={"filter": f'boletim="{bid}"', "perPage": "500"})
+                        for item in rs.get("items", []):
+                            try:
+                                self._delete(f"/api/collections/{sub_col}/records/{item['id']}")
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                try:
+                    self._delete(f"/api/collections/boletins/records/{bid}")
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         # 4. anula referência de turma nas tentativas (não deleta — histórico)
         try:
