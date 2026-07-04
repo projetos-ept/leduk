@@ -766,6 +766,11 @@ def create_app(config: dict | None = None) -> Flask:
                             ativ["_questoes_respondidas"] = prog.get("questoes_respondidas", 0)
                     except Exception as exc:
                         log.warning("progresso_tentativa_atual falhou: %s", exc)
+            if ativ["_status"] == "realizada":
+                ativ["_questoes_respondidas"] = len(ativ.get("questoes", []))
+            ativ["_tentativas_restantes"] = (
+                max(0, max_tent - ativ["_tentativas_usadas"]) if max_tent > 0 else 0
+            )
 
     @app.route("/turma/<turma_id>/<disciplina_id>")
     def portal_turma(turma_id: str, disciplina_id: str):
