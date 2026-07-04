@@ -343,15 +343,78 @@ def test_relatorio_publico_individual_responde(client):
 
 
 @rsps_lib.activate
-def test_placar_publico_usa_email_para_tentativas_restantes(client):
+def test_placar_publico_nao_exibe_tentativas_restantes(client):
     _sessao_publica(client)
     # fila vazia → placar; concluir_tentativa PATCH
     rsps_lib.add(rsps_lib.PATCH, f"{PB}/api/collections/tentativas/records/tent-pub",
                  json={"id": "tent-pub"})
-    # contar_tentativas_por_email → 1 usada de 2
-    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
-                 json={"items": [TENTATIVA_PUBLICA]})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ATIVIDADE)
     resp = client.get("/htmx/proxima/ativ01")
     assert resp.status_code == 200
-    assert "placar" in resp.data.decode()
+    html = resp.data.decode()
+    assert "placar" in html
+    # público não vê badge de tentativas restantes
+    assert "restante" not in html
+
+
+@rsps_lib.activate
+def test_criar_tentativa_publica_fallback_sem_extras(client):
+    """PB sem os campos aluno_email/aluno_turma (migração pendente):
+    primeiro POST falha, retry sem extras cria o registro."""
+    with client.session_transaction() as sess:
+        sess["pub_modo"] = True
+        sess["pub_nome"] = "Visitante Silva"
+        sess["pub_email"] = "visitante@example.com"
+        sess["pub_turma"] = "3º B"
+        sess["pub_ativ_id"] = "ativ01"
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ATIVIDADE)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
+
+    captured = []
+
+    def capture(request):
+        body = json.loads(request.body)
+        captured.append(body)
+        if "aluno_email" in body:
+            return (400, {}, json.dumps({"message": "Failed to create record."}))
+        return (200, {}, json.dumps({"id": "tent-fb", **body}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/tentativas/records",
+                          callback=capture, content_type="application/json")
+
+    resp = client.get("/atividade/ativ01")
+    assert resp.status_code == 200
+    assert len(captured) == 2, "deveria tentar com extras e refazer sem"
+    assert "aluno_email" in captured[0]
+    assert "aluno_email" not in captured[1]
+    with client.session_transaction() as sess:
+        assert sess["tentativa_id"] == "tent-fb"
+
+
+@rsps_lib.activate
+def test_responder_publico_fallback_sem_campos_publicos(client):
+    """Resposta pública não se perde quando PB rejeita aluno_email."""
+    _sessao_publica(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q001", json=QUESTAO_MC)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": QUESTAO_MC["alternativas"]})
+
+    captured = []
+
+    def capture(request):
+        body = json.loads(request.body)
+        captured.append(body)
+        if "aluno_email" in body:
+            return (400, {}, json.dumps({"message": "Failed to create record."}))
+        return (200, {}, json.dumps({"id": "resp-fb", **body}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/tentativas/records",
+                          callback=capture, content_type="application/json")
+    rsps_lib.add(rsps_lib.PATCH, f"{PB}/api/collections/tentativas/records/tent-pub",
+                 json={"id": "tent-pub"})
+
+    resp = client.post("/htmx/responder", data={"tipo": "mc4", "questao_id": "q001", "resposta": "A"})
+    assert resp.status_code == 200
+    assert len(captured) == 2
+    assert "aluno_email" not in captured[1]
+    assert captured[1]["aluno_nome"] == "Visitante Silva"  # identidade preservada

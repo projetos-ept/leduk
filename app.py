@@ -931,8 +931,16 @@ def create_app(config: dict | None = None) -> Flask:
                                             extras=extras_tentativa)
             session["tentativa_id"] = tent["id"]
         except Exception as exc:
-            log.warning("criar_tentativa falhou: %s", exc)
+            log.warning("criar_tentativa falhou: %s", exc, exc_info=True)
             session["tentativa_id"] = ""
+            if extras_tentativa:
+                # PB sem os campos públicos (migração pendente): cria sem extras
+                try:
+                    tent = get_pb().criar_tentativa(ativ_id, aluno_id, aluno_nome,
+                                                    tentativas_usadas + 1)
+                    session["tentativa_id"] = tent["id"]
+                except Exception as exc2:
+                    log.warning("criar_tentativa (fallback sem extras) falhou: %s", exc2)
 
         session["nota_automatica"] = bool(ativ.get("nota_automatica", False))
         session["modo_prova"] = bool(ativ.get("modo_prova", False))
@@ -1019,37 +1027,39 @@ def create_app(config: dict | None = None) -> Flask:
         session["respostas"] = respostas_sessao
         session.modified = True
 
+        tentativa_id = session.get("tentativa_id", "")
+        registro = {
+            "atividade": ativ_id,
+            "questao": questao_id,
+            "tipo_questao": tipo,
+            "resposta_dada": str(resposta_raw),
+            "correta": resultado["correta"],
+            "score_raw": resultado["score_raw"],
+            "score_max": resultado["score_max"],
+            "duracao_seg": 0,
+            "tentativa_id": tentativa_id,
+        }
         if session.get("pub_modo"):
             # respondente público — sem conta
-            r_aluno_id = ""
-            r_aluno_nome = session.get("pub_nome", "")
-            r_aluno_email = session.get("pub_email", "")
-            r_aluno_turma = session.get("pub_turma", "")
+            registro["aluno_id"] = ""
+            registro["aluno_nome"] = session.get("pub_nome", "")
+            registro["aluno_email"] = session.get("pub_email", "")
+            registro["aluno_turma"] = session.get("pub_turma", "")
         else:
-            r_aluno_id = session.get("aluno_id", "")
-            r_aluno_nome = session.get("aluno_nome", "")
-            r_aluno_email = ""
-            r_aluno_turma = ""
-
-        tentativa_id = session.get("tentativa_id", "")
+            registro["aluno_id"] = session.get("aluno_id", "")
+            registro["aluno_nome"] = session.get("aluno_nome", "")
         try:
-            get_pb().registrar_tentativa({
-                "atividade": ativ_id,
-                "questao": questao_id,
-                "tipo_questao": tipo,
-                "resposta_dada": str(resposta_raw),
-                "correta": resultado["correta"],
-                "score_raw": resultado["score_raw"],
-                "score_max": resultado["score_max"],
-                "duracao_seg": 0,
-                "aluno_id": r_aluno_id,
-                "aluno_nome": r_aluno_nome,
-                "aluno_email": r_aluno_email,
-                "aluno_turma": r_aluno_turma,
-                "tentativa_id": tentativa_id,
-            })
+            get_pb().registrar_tentativa(registro)
         except Exception as exc:
-            log.warning("registrar_tentativa falhou: %s", exc)
+            log.warning("registrar_tentativa falhou: %s", exc, exc_info=True)
+            if "aluno_email" in registro:
+                # PB sem os campos públicos (migração pendente): grava sem eles
+                registro.pop("aluno_email", None)
+                registro.pop("aluno_turma", None)
+                try:
+                    get_pb().registrar_tentativa(registro)
+                except Exception as exc2:
+                    log.warning("registrar_tentativa (fallback) falhou: %s", exc2)
 
         if tentativa_id:
             try:
@@ -1083,15 +1093,8 @@ def create_app(config: dict | None = None) -> Flask:
                     log.warning("concluir_tentativa falhou: %s", exc)
             max_tent = session.get("max_tentativas", 0)
             tentativas_restantes = 0
-            if session.get("pub_modo"):
-                pub_email = session.get("pub_email", "")
-                if max_tent > 0 and pub_email:
-                    try:
-                        usadas = get_pb().contar_tentativas_por_email(ativ_id, pub_email)
-                        tentativas_restantes = max(0, max_tent - usadas)
-                    except Exception as exc:
-                        log.warning("contar_tentativas_por_email falhou: %s", exc)
-            else:
+            if not session.get("pub_modo"):
+                # público: placar não exibe tentativas restantes (permanece 0)
                 aluno_id = session.get("aluno_id", "")
                 if max_tent > 0 and aluno_id:
                     usadas = len(get_pb().listar_tentativas_aluno(ativ_id, aluno_id))
