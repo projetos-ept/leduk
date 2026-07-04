@@ -71,7 +71,7 @@ def test_post_senhas_iguais_redefine_e_invalida(client):
 @rsps_lib.activate
 def test_post_senhas_diferentes_erro(client):
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tokens_senha/records", json={"items": [TOKEN_VALIDO]})
-    resp = client.post("/redefinir-senha/abc", data={"senha": "abcdef", "senha_confirmar": "diferente"})
+    resp = client.post("/redefinir-senha/abc", data={"senha": "abcdefgh", "senha_confirmar": "diferente"})
     assert resp.status_code == 200
     assert "não coincidem" in resp.data.decode()
 

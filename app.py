@@ -1994,9 +1994,9 @@ def create_app(config: dict | None = None) -> Flask:
             return render_template("cadastro/redefinir_senha.html", token=token)
         nova = request.form.get("senha", "")
         confirmar = request.form.get("senha_confirmar", "")
-        if len(nova) < 6:
+        if len(nova) < 8:
             return render_template("cadastro/redefinir_senha.html", token=token,
-                                   erro="A senha deve ter pelo menos 6 caracteres.")
+                                   erro="A senha deve ter pelo menos 8 caracteres.")
         if nova != confirmar:
             return render_template("cadastro/redefinir_senha.html", token=token,
                                    erro="As senhas não coincidem.")
@@ -2204,8 +2204,8 @@ def create_app(config: dict | None = None) -> Flask:
 
         if not (nome and email and senha):
             return _erro("Preencha nome, email e senha."), 422
-        if len(senha) < 6:
-            return _erro("A senha deve ter pelo menos 6 caracteres."), 422
+        if len(senha) < 8:
+            return _erro("A senha deve ter pelo menos 8 caracteres."), 422
         if senha != confirmar:
             return _erro("As senhas não coincidem."), 422
         # Cliente sem token: a criação pública deve ser avaliada pela createRule
@@ -2219,21 +2219,28 @@ def create_app(config: dict | None = None) -> Flask:
             if "already in use" in body or "invalid_email" in body:
                 return _erro("Este email já possui uma conta. Faça login ou use outro email."), 422
             return _erro("Não foi possível criar a conta. Tente novamente."), 422
+        # Login primeiro — matriculas.createRule exige auth
         try:
-            pb_pub.criar_matricula(user["id"], form.get("turma", ""),
-                                   origem="formulario", whatsapp=whatsapp)
-        except Exception as exc:
-            log.warning("criar_matricula (formulario) falhou — detalhes: %s", exc, exc_info=True)
-        # login automático
-        try:
-            dados = pb_pub.login_aluno(email, senha)
-            session["token"] = dados["token"]
-            session["aluno_id"] = dados["record"]["id"]
-            session["aluno_nome"] = dados["record"].get("name", nome)
-            session["role"] = dados["record"].get("role", "aluno")
+            dados_login = pb_pub.login_aluno(email, senha)
+            token_aluno = dados_login["token"]
+            pb_aluno = PocketBaseClient(pb_url, token=token_aluno)
+            try:
+                pb_aluno.criar_matricula(user["id"], form.get("turma", ""),
+                                         origem="formulario", whatsapp=whatsapp)
+            except Exception as exc:
+                log.warning("criar_matricula (formulario) falhou — detalhes: %s", exc, exc_info=True)
+            session["token"] = dados_login["token"]
+            session["aluno_id"] = dados_login["record"]["id"]
+            session["aluno_nome"] = dados_login["record"].get("name", nome)
+            session["role"] = dados_login["record"].get("role", "aluno")
             session["ultimo_acesso"] = datetime.now(timezone.utc).isoformat()
         except Exception as exc:
             log.warning("login automático pós-cadastro falhou: %s", exc)
+            try:
+                pb_pub.criar_matricula(user["id"], form.get("turma", ""),
+                                       origem="formulario", whatsapp=whatsapp)
+            except Exception as exc2:
+                log.warning("criar_matricula (fallback sem token) falhou: %s", exc2, exc_info=True)
         # email best-effort
         try:
             email_boas_vindas(email, nome, senha, turma.get("nome", "") if turma else "", _portal_url())
