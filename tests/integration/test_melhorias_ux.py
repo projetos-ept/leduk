@@ -21,7 +21,7 @@ ATIVIDADE = {
 TURMA = {"id": "turma01", "nome": "1º Ano EMI", "modalidade": "EMI", "ano": "2025"}
 TENTATIVA_CONCLUIDA = {
     "id": "tent01",
-    "disciplina": "ativ01",
+    "atividade": "ativ01",
     "aluno_id": "aluno01",
     "aluno_nome": "Lucas",
     "numero_tentativa": 1,
@@ -32,7 +32,7 @@ TENTATIVA_CONCLUIDA = {
 }
 TENTATIVA_EM_ANDAMENTO = {
     "id": "tent02",
-    "disciplina": "ativ01",
+    "atividade": "ativ01",
     "aluno_id": "aluno01",
     "concluida": False,
     "questoes_respondidas": 3,

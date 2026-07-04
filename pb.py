@@ -299,7 +299,8 @@ class PocketBaseClient:
             "/api/collections/tentativas/records",
             params={
                 "filter": f'aluno_id="{aluno_id}"&&concluida=true',
-                "sort": "-created",
+                "sort": "numero_tentativa,created",
+                "perPage": "500",
             },
         )
         return result.get("items", [])
