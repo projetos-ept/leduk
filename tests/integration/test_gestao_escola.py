@@ -73,19 +73,65 @@ def test_excluir_turma_sem_vinculos(client):
 
 
 @rsps_lib.activate
-def test_excluir_turma_com_vinculos_bloqueia(client):
+def test_excluir_turma_com_vinculos_pede_confirmacao(client):
     _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/matriculas/records",
+                 json={"totalItems": 12, "items": []})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turma_disciplina/records",
                  json={"totalItems": 2, "items": []})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
-                 json={"totalItems": 0, "items": []})
+                 json={"totalItems": 3, "items": []})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
                  json={"totalItems": 0, "items": []})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
                  json={"items": [TURMA]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA)
     resp = client.post("/professor/turma/turma01/excluir")
-    assert resp.status_code == 422
-    assert "Não foi possível excluir" in resp.data.decode()
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Excluir mesmo assim" in html
+    assert "12 aluno(s) matriculado(s)" in html
+    assert "3 atividade(s)" in html
+    assert "2 disciplina(s) vinculada(s)" in html
+
+
+@rsps_lib.activate
+def test_excluir_turma_confirmada_faz_cascade(client):
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/matriculas/records",
+                 json={"totalItems": 1, "items": [{"id": "m1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turma_disciplina/records",
+                 json={"totalItems": 1, "items": [{"id": "td1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"totalItems": 1, "items": [{"id": "a1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"totalItems": 1, "items": [{"id": "t1"}]})
+
+    deletados = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/matriculas/records/m1",
+                          callback=lambda r: (deletados.append("m1"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/turma_disciplina/records/td1",
+                          callback=lambda r: (deletados.append("td1"), (204, {}, ""))[1])
+
+    patches = []
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/tentativas/records/t1",
+                          callback=lambda r: (patches.append(("t1", json.loads(r.body))), (200, {}, "{}"))[1],
+                          content_type="application/json")
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/atividades/records/a1",
+                          callback=lambda r: (patches.append(("a1", json.loads(r.body))), (200, {}, "{}"))[1],
+                          content_type="application/json")
+
+    turma_deletada = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/turmas/records/turma01",
+                          callback=lambda r: (turma_deletada.append(1), (204, {}, ""))[1])
+
+    resp = client.post("/professor/turma/turma01/excluir", data={"confirmar": "1"})
+    assert resp.status_code in (200, 302)
+    assert turma_deletada, "turma deveria ter sido excluída"
+    assert "m1" in deletados and "td1" in deletados
+    # tentativas e atividades: referência anulada, não deletadas
+    assert ("t1", {"turma": None}) in patches
+    assert ("a1", {"turma": None}) in patches
 
 
 # ── Disciplinas ───────────────────────────────────────────────────────────────

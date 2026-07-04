@@ -1676,11 +1676,18 @@ def create_app(config: dict | None = None) -> Flask:
     @requer_professor
     def professor_turma_excluir(turma_id: str):
         vinculos = get_pb().contar_vinculos_turma(turma_id)
-        if sum(vinculos.values()) > 0:
+        if sum(vinculos.values()) > 0 and "confirmar" not in request.form:
+            # Há vínculos: pede confirmação explícita antes do cascade
             turmas = get_pb().listar_turmas()
+            try:
+                turma_nome = get_pb().buscar_turma(turma_id).get("nome", "")
+            except Exception:
+                turma_nome = ""
             return render_template(
-                "professor/turmas.html", turmas=turmas, erro_vinculo=vinculos,
-                erro_turma_id=turma_id, aluno_nome=session.get("aluno_nome", "")), 422
+                "professor/turmas.html", turmas=turmas,
+                confirmar_exclusao=vinculos, confirmar_turma_id=turma_id,
+                confirmar_turma_nome=turma_nome,
+                aluno_nome=session.get("aluno_nome", ""))
         get_pb().excluir_turma(turma_id)
         return redirect(url_for("professor_turmas"))
 
