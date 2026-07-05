@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Templates de cabeçalho — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:760px;">
+  <div class="breadcrumb">
+    <a href="/professor/provas">Provas</a><span>›</span><span>Templates de cabeçalho</span>
+  </div>
+  <div class="portal-header"><h1 class="portal-titulo">Templates de cabeçalho</h1></div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 style="font-size:.95rem;margin:0 0 12px;">{% if template_edicao %}Editar template{% else %}Novo template{% endif %}</h2>
+    <form method="post"
+          action="{% if template_edicao %}/professor/provas/templates/{{ template_edicao.id }}/editar{% else %}/professor/provas/templates/novo{% endif %}"
+          style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label class="campo-label">Nome do template *</label>
+        <input type="text" name="nome" required value="{{ template_edicao.nome if template_edicao else '' }}"
+               style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+      </div>
+      <div>
+        <label class="campo-label">Cabeçalho (HTML)</label>
+        <textarea name="cabecalho_html" rows="4"
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.85rem;font-family:monospace;resize:vertical;">{{ template_edicao.cabecalho_html if template_edicao else '' }}</textarea>
+      </div>
+      <div>
+        <label class="campo-label">Instruções padrão</label>
+        <textarea name="instrucoes" rows="4"
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.85rem;resize:vertical;">{{ template_edicao.instrucoes if template_edicao else '' }}</textarea>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn-home" style="flex:1;padding:11px;">
+          {% if template_edicao %}Salvar alterações{% else %}Criar template{% endif %}
+        </button>
+        {% if template_edicao %}
+          <a href="/professor/provas/templates" style="flex:1;text-align:center;padding:11px;background:var(--fundo);border-radius:var(--raio);color:var(--muted);text-decoration:none;font-weight:600;">Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 style="font-size:.95rem;margin:0 0 12px;">Templates salvos</h2>
+    {% if not templates %}
+      <p style="color:var(--muted);font-size:.88rem;">Nenhum template criado ainda.</p>
+    {% else %}
+      <div class="qb-list">
+        {% for t in templates %}
+          <div class="qb-card" style="padding:10px 14px;">
+            <div class="qb-card-body">
+              <p class="qb-card-enunciado">{{ t.nome }}</p>
+            </div>
+            <div class="qb-card-acoes">
+              <a class="btn-ghost btn-sm" href="/professor/provas/templates?editar={{ t.id }}">Editar</a>
+              <form method="post" action="/professor/provas/templates/{{ t.id }}/excluir" style="display:inline;"
+                    onsubmit="return confirm('Excluir o template {{ t.nome | replace("'", "") }}?');">
+                <button type="submit" class="btn-danger btn-sm">Excluir</button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

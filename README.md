@@ -28,7 +28,8 @@ leduk/
 │   ├── migrate_materiais.py               ← cria collection turma_materiais (pivô) + campo assunto + backfill
 │   ├── migrate_turmas_publicas.py         ← cria campos publica/descricao (turmas) + aluno_email/aluno_turma (tentativas) — modo público
 │   ├── migrate_tentativas_questao_optional.py ← torna questao e aluno_id opcionais em tentativas (histórico + modo público)
-│   └── verificar_modo_publico.py          ← diagnóstico + correção (--fix) do modo público: campos, regras e teste real de POST anônimo
+│   ├── verificar_modo_publico.py          ← diagnóstico + correção (--fix) do modo público: campos, regras e teste real de POST anônimo
+│   └── migrate_provas.py                  ← cria collections templates_prova e provas (gerador de provas impressas)
 │
 │   (scripts de correção pontual já aplicados em produção foram removidos do
 │   repositório — ver "Migrações históricas" na seção Collections PocketBase)
@@ -88,6 +89,13 @@ leduk/
 │   │   │   ├── respostas.html      ← tabela de respondentes + exportar CSV + relatórios
 │   │   │   ├── relatorio_geral.html      ← página HTML com todos os respondentes (imprimir/salvar PDF pelo navegador)
 │   │   │   └── relatorio_individual.html ← comprovante individual com detalhamento por questão (imprimir/salvar PDF pelo navegador)
+│   │   ├── provas/                 ← gerador de provas impressas com gabarito
+│   │   │   ├── lista.html          ← lista de provas (editar/preview/imprimir/excluir)
+│   │   │   ├── form.html           ← criação/edição — cabeçalho, instruções, seletor HTMX de questões
+│   │   │   ├── seletor_questoes.html    ← fragmento HTMX: banco filtrado por disciplina/tipo/assunto
+│   │   │   ├── _questoes_selecionadas.html ← fragmento HTMX: questões na prova (reordenar/remover)
+│   │   │   ├── imprimir.html       ← layout de impressão (2 colunas, gabarito com quebra de página)
+│   │   │   └── templates/form.html ← editor de templates de cabeçalho reutilizáveis
 │   │   ├── boletim/                ← configurar/unidades/notas/relatorio do boletim
 │   │   ├── components/
 │   │   │   ├── _seletor_questoes.html ← cards com checkbox (reuso de questões)
@@ -136,7 +144,8 @@ leduk/
         ├── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
         ├── test_cadastro_publico.py  ← auto-cadastro via link + gestão do formulário
         ├── test_materiais.py         ← upload multipart vs JSON, url_arquivo_material()
-        └── test_modo_publico.py      ← turmas públicas: identificação, limite de tentativas, comprovante
+        ├── test_modo_publico.py      ← turmas públicas: identificação, limite de tentativas, comprovante
+        └── test_provas.py            ← gerador de provas: CRUD, HTMX, tipos mistos, impressão, templates
 ```
 
 ---
@@ -191,7 +200,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 280 testes, todos passando.
+**Resultado esperado:** 305 testes, todos passando.
 
 ---
 
@@ -324,6 +333,44 @@ Impressão pelo navegador é mais confiável e elimina uma dependência nativa p
 Turmas públicas exibem um badge `🌐 Pública` (`.badge-publica` em `base.css`) em todas as telas
 que listam turmas no painel do professor.
 
+### Provas impressas (gerador com gabarito)
+
+Monta provas em papel a partir do mesmo banco de questões usado pelas atividades digitais
+(mc4/mc5/vf/associativa/aberta), com cabeçalho reutilizável entre provas e gabarito gerado
+automaticamente.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/professor/provas` | Lista provas salvas |
+| GET/POST | `/professor/provas/nova` | Formulário / criação — título, cabeçalho, instruções (pré-preenchidas) |
+| GET/POST | `/professor/provas/<id>/editar` | Editar dados básicos da prova |
+| POST | `/professor/provas/<id>/excluir` | Excluir prova |
+| GET | `/professor/provas/<id>/preview` · `/imprimir` | Página HTML pronta para impressão — botão "Imprimir / Salvar PDF" via `window.print()` |
+| GET | `/professor/provas/templates` | Lista + formulário de templates de cabeçalho reutilizáveis |
+| POST | `/professor/provas/templates/novo` · `/<id>/editar` · `/<id>/excluir` | CRUD de templates |
+| GET | `/htmx/provas/questoes?prova_id=&disciplina=&tipo=&assunto=` | Fragmento HTMX: banco filtrado, exclui questões já adicionadas |
+| POST | `/htmx/provas/<id>/adicionar-questao/<qid>` · `/remover-questao/<qid>` | Adiciona/remove questão do array `questoes[]` (persiste na hora) e retorna o fragmento atualizado |
+| POST | `/htmx/provas/<id>/reordenar` | Troca a posição de uma questão com a vizinha (`questao_id` + `direcao=cima/baixo`) e retorna o fragmento atualizado |
+
+**Fluxo em duas etapas:** criar a prova (título/cabeçalho/instruções) primeiro; o seletor de
+questões via HTMX só aparece depois de existir um `prova_id` para anexar. Cada clique em
+"+ Adicionar", "✕" ou "↑"/"↓" já persiste no PocketBase e devolve o fragmento
+`_questoes_selecionadas.html` atualizado — não há um botão "salvar questões" separado.
+
+**Impressão (`imprimir.html`):** página HTML autocontida (sem geração de PDF no servidor —
+mesma decisão do modo público, ver acima). Questões em grade CSS de 2 colunas
+(`columns: 2`), questão associativa ocupando a largura total (`column-span: all`), gabarito
+numa página separada (`page-break-before: always`) com grade compacta mostrando a letra
+correta circulada (mc4/mc5), V/F por afirmação (vf), ou apenas `Assoc.`/`Aberta` para os
+tipos que exigem correção manual do professor.
+
+**Embaralhamento:** a flag `embaralhar` da prova sorteia a ORDEM das questões na página,
+com seed determinístico pelo `id` da prova — reimprimir a mesma prova sempre gera a mesma
+sequência (gabarito nunca dessincroniza da folha impressa). Já a coluna B de questões
+associativas é **sempre** embaralhada (independente dessa flag, seed por `prova_id +
+questao_id`) — sem isso, o item certo cairia sempre na mesma linha do item da coluna A,
+entregando a resposta de graça.
+
 ### Relatórios
 
 | Método | Rota | Descrição |
@@ -404,6 +451,11 @@ Collections criadas por migração posterior (sem ID fixo seedado): `boletins`,
 `matriculas` (aluno ↔ turma, com `origem` = `manual`/`formulario`) e
 `formularios_cadastro` (link público por turma). A collection `users` também
 ganhou o campo `matricula` (text, opcional).
+
+`templates_prova` (`nome`, `cabecalho_html`, `instrucoes`, `professor`) e `provas`
+(`titulo`, `template` → templates_prova, `cabecalho_html`, `instrucoes`, `questoes[]` →
+questoes — ordem do array = ordem de impressão —, `professor`, `embaralhar`) dão suporte
+ao gerador de provas impressas (`scripts/migrate_provas.py`).
 
 ### Migrações históricas (já aplicadas, removidas do repositório)
 
@@ -886,6 +938,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
       um POST anônimo real
 - [ ] `users`: `viewRule` aberta a autenticados (`@request.auth.id != ""`) para o `expand=aluno`
       em `matriculas` mostrar nome/email em vez do ID bruto
+- [ ] Collections `templates_prova` e `provas` criadas (`scripts/migrate_provas.py`) — gerador de provas impressas
 - [ ] `RESEND_API_KEY` definido no service (`/etc/systemd/system/leduk.service`) para envio de email
 - [ ] `PB_PUBLIC_URL` definido no service (ex: `https://pb.repoept.duckdns.org`) para URLs públicas de arquivos de materiais
 - [ ] `materiais`: `createRule`/`updateRule` = `@request.auth.id != ""` (necessário para upload multipart)
@@ -917,6 +970,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 15 — Auto-cadastro público | Concluída | Link de convite por turma (`/cadastro/<token>`), auto-cadastro com login automático, relatório + CSV, matrícula editável inline |
 | 16 — Confiabilidade e UX do portal | Concluída | Histórico do aluno simplificado (uma linha por atividade + data da última tentativa), progresso "X de N respondidas" persistido corretamente, badge de tentativas restantes, exclusão de turma com cascade + confirmação explícita em vez de bloqueio simples |
 | 17 — Modo público de atividades | Concluída | Turmas públicas sem matrícula (`/publica/<id>`), respondente identificado por nome/email (sem conta), limite de tentativas por email, gestão dedicada no painel do professor, comprovante individual com detalhamento por questão (mc/vf/associativa/aberta) e relatório geral — ambos impressos/salvos em PDF pelo navegador, badge visual "🌐 Pública" |
+| 18 — Provas impressas | Concluída | Gerador de provas em papel a partir do banco de questões: seletor HTMX (adicionar/remover/reordenar com persistência imediata), templates de cabeçalho reutilizáveis, layout de impressão em 2 colunas com associativa em largura total e gabarito automático numa página separada, embaralhamento de questões e da coluna B de associativas com seed determinístico |
 
 ### Funcionalidades futuras consideradas
 

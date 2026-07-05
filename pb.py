@@ -488,6 +488,40 @@ class PocketBaseClient:
         )
         return result.get("items", [])
 
+    # --- Provas impressas (gerador com gabarito) ---
+
+    def listar_provas(self) -> list:
+        result = self._get("/api/collections/provas/records", params={"sort": "-created", "perPage": 200})
+        return result.get("items", [])
+
+    def buscar_prova(self, prova_id: str) -> dict:
+        return self._get(f"/api/collections/provas/records/{prova_id}")
+
+    def criar_prova(self, data: dict) -> dict:
+        return self._post("/api/collections/provas/records", data)
+
+    def atualizar_prova(self, prova_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/provas/records/{prova_id}", data)
+
+    def excluir_prova(self, prova_id: str) -> None:
+        self._delete(f"/api/collections/provas/records/{prova_id}")
+
+    def listar_templates_prova(self) -> list:
+        result = self._get("/api/collections/templates_prova/records", params={"sort": "nome", "perPage": 200})
+        return result.get("items", [])
+
+    def buscar_template_prova(self, template_id: str) -> dict:
+        return self._get(f"/api/collections/templates_prova/records/{template_id}")
+
+    def criar_template_prova(self, data: dict) -> dict:
+        return self._post("/api/collections/templates_prova/records", data)
+
+    def atualizar_template_prova(self, template_id: str, data: dict) -> dict:
+        return self._patch(f"/api/collections/templates_prova/records/{template_id}", data)
+
+    def excluir_template_prova(self, template_id: str) -> None:
+        self._delete(f"/api/collections/templates_prova/records/{template_id}")
+
     def clonar_questao(self, questao_id: str) -> dict:
         """Duplica uma questão (e seus subitens) como um novo registro independente."""
         orig = self.buscar_questao(questao_id)

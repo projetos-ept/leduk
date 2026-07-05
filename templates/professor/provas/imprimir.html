@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>{{ prova.titulo }} — LeDuk</title>
+  <style>
+    body { font-size: 11pt; font-family: Arial, Helvetica, sans-serif; color: #1a1a2e; margin: 18mm 16mm; }
+    .folha { max-width: 21cm; margin: 0 auto; }
+
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .toolbar a { color: #5b8dee; text-decoration: none; font-size: 12.5px; font-weight: 600; }
+    .btn-imprimir {
+      font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+      background: #5b8dee; color: #fff; border: none; border-radius: 6px; padding: 8px 16px;
+    }
+    .btn-imprimir:hover { background: #4a76d4; }
+
+    .cabecalho { margin-bottom: 14px; }
+    .prova-titulo { text-align: center; font-weight: 700; font-size: 15pt; margin: 10px 0 14px; text-transform: uppercase; }
+    .instrucoes-box { border: 1px solid #999; border-radius: 4px; padding: 10px 14px; margin-bottom: 18px; font-size: 10pt; white-space: pre-line; }
+
+    .questoes-grid { columns: 2; column-gap: 1.2cm; }
+    .questao { break-inside: avoid; page-break-inside: avoid; margin-bottom: 1.1em; }
+    .questao-associativa { column-span: all; -webkit-column-span: all; }
+    .questao-num { font-weight: 700; }
+    .questao-peso { color: #777; font-size: 9pt; font-weight: 400; }
+    .questao-enunciado { margin: 2px 0 6px; }
+
+    .alt-lista-impressao { list-style: none; margin: 0; padding: 0; }
+    .alt-lista-impressao li { margin-bottom: 3px; }
+    .alt-marca { display: inline-block; width: 11px; height: 11px; border: 1px solid #333; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+    .vf-lista { list-style: none; margin: 0; padding: 0; }
+    .vf-lista li { margin-bottom: 4px; }
+    .vf-marcas { white-space: nowrap; margin-right: 8px; font-weight: 600; }
+
+    .assoc-colunas { display: flex; gap: 24px; margin-top: 4px; }
+    .assoc-col { flex: 1; }
+    .assoc-col-titulo { font-weight: 700; font-size: 9.5pt; margin-bottom: 4px; }
+    .assoc-col ul { list-style: none; margin: 0; padding: 0; }
+    .assoc-col li { margin-bottom: 4px; }
+
+    .aberta-linhas { border: 1px solid #ccc; border-radius: 4px; min-height: 3.2cm; margin-top: 4px;
+      background-image: repeating-linear-gradient(transparent, transparent 1.4em, #ddd 1.4em, #ddd calc(1.4em + 1px));
+    }
+
+    .gabarito { page-break-before: always; break-before: page; margin-top: 0; }
+    .gabarito-titulo { text-align: center; font-weight: 700; font-size: 13pt; margin: 0 0 16px; text-transform: uppercase; }
+    .gabarito-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; font-size: 10pt; }
+    .gab-item { border-bottom: 1px dotted #ccc; padding-bottom: 3px; }
+    .gab-marca { display: inline-block; border: 1.5px solid #1a1a2e; border-radius: 50%; padding: 0 4px; font-weight: 700; }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { margin: 12mm; }
+      .questao { break-inside: avoid; margin-bottom: 1em; }
+    }
+  </style>
+</head>
+<body>
+<div class="folha">
+  <div class="toolbar no-print">
+    <a href="/professor/provas/{{ prova.id }}/editar">← Voltar à edição</a>
+    <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+  </div>
+
+  {% if cabecalho_html %}
+    <div class="cabecalho">{{ cabecalho_html | safe }}</div>
+  {% endif %}
+
+  <p class="prova-titulo">{{ prova.titulo }}</p>
+
+  {% if instrucoes %}
+    <div class="instrucoes-box">{{ instrucoes }}</div>
+  {% endif %}
+
+  {% if questoes %}
+    <div class="questoes-grid">
+      {% for q in questoes %}
+        <div class="questao{% if q.tipo == 'associativa' %} questao-associativa{% endif %}">
+          <p class="questao-enunciado">
+            <span class="questao-num">{{ loop.index }}.</span>
+            {{ q.enunciado }}
+            <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
+          </p>
+
+          {% if q.tipo in ("mc4", "mc5") and q.alternativas %}
+            <ul class="alt-lista-impressao">
+              {% for alt in q.alternativas | sort(attribute="letra") %}
+                <li><span class="alt-marca"></span>{{ alt.letra }}) {{ alt.texto }}</li>
+              {% endfor %}
+            </ul>
+
+          {% elif q.tipo == "vf" and q._itens_vf_ordenados %}
+            <ul class="vf-lista">
+              {% for item in q._itens_vf_ordenados %}
+                <li>
+                  <span class="vf-marcas">( V ) ( F )</span>{{ _letra(loop.index0) }}) {{ item.afirmacao }}
+                </li>
+              {% endfor %}
+            </ul>
+
+          {% elif q.tipo == "associativa" and q._coluna_a %}
+            <div class="assoc-colunas">
+              <div class="assoc-col">
+                <p class="assoc-col-titulo">COLUNA A</p>
+                <ul>
+                  {% for item in q._coluna_a %}
+                    <li><span class="alt-marca"></span>{{ item.num }}. {{ item.texto }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+              <div class="assoc-col">
+                <p class="assoc-col-titulo">COLUNA B</p>
+                <ul>
+                  {% for item in q._coluna_b %}
+                    <li>{{ item.letra }}) {{ item.texto }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+
+          {% elif q.tipo == "aberta" %}
+            <div class="aberta-linhas"></div>
+
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if questoes %}
+    <div class="gabarito">
+      <p class="gabarito-titulo">Gabarito — {{ prova.titulo }}</p>
+      <div class="gabarito-grid">
+        {% for q in questoes %}
+          <div class="gab-item">
+            <strong>Q{{ loop.index }}:</strong>
+            {% if q.tipo in ("mc4", "mc5") and q.alternativas %}
+              {% for alt in q.alternativas | sort(attribute="letra") %}
+                {% if alt.correta %}<span class="gab-marca">{{ alt.letra }}</span>{% else %}{{ alt.letra }}{% endif %}
+              {% endfor %}
+            {% elif q.tipo == "vf" and q._itens_vf_ordenados %}
+              {% for item in q._itens_vf_ordenados %}{{ _letra(loop.index0) }}-{{ 'V' if item.gabarito else 'F' }} {% endfor %}
+            {% elif q.tipo == "associativa" %}
+              Assoc.
+            {% elif q.tipo == "aberta" %}
+              Aberta
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

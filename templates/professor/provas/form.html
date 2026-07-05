@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if prova %}Editar{% else %}Nova{% endif %} Prova — LeDuk</title>
+  <link rel="stylesheet" href="/static/css/base.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+{% if session_role in ("professor", "admin") %}{% include "components/_drawer_professor.html" %}{% endif %}
+<nav class="topbar">
+  {% if session_role in ("professor", "admin") %}<label for="nav-toggle" class="nav-toggle-btn" aria-label="Abrir menu">☰</label>{% endif %}
+  <a href="/professor/dashboard" class="topbar-logo">LeDuk</a>
+  {% if aluno_nome %}
+    <span class="topbar-aluno">{{ aluno_nome }}</span>
+    <a href="/logout" class="topbar-sair">Sair</a>
+  {% endif %}
+</nav>
+
+<div class="shell" style="max-width:820px;">
+  <div class="breadcrumb">
+    <a href="/professor/provas">Provas</a><span>›</span><span>{% if prova %}Editar{% else %}Nova{% endif %}</span>
+  </div>
+  <div class="portal-header"><h1 class="portal-titulo">{% if prova %}Editar prova{% else %}Nova prova{% endif %}</h1></div>
+
+  {% if erro %}
+    <div class="card" style="border-left:4px solid var(--erro);color:var(--erro);padding:12px 16px;margin-bottom:16px;">
+      {{ erro }}
+    </div>
+  {% endif %}
+
+  <form method="post" class="card" style="margin-top:16px;display:flex;flex-direction:column;gap:18px;">
+    <div>
+      <label class="campo-label">Template de cabeçalho</label>
+      <div style="display:flex;gap:8px;">
+        <select name="template" style="flex:1;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;"
+                onchange="aplicarTemplate(this)">
+          <option value="">— nenhum / cabeçalho próprio —</option>
+          {% for t in templates %}
+            <option value="{{ t.id }}" data-cabecalho="{{ t.cabecalho_html | e }}" data-instrucoes="{{ t.instrucoes | e }}"
+                    {% if prova and prova.template == t.id %}selected{% endif %}>{{ t.nome }}</option>
+          {% endfor %}
+        </select>
+        <a href="/professor/provas/templates" class="btn-ghost" target="_blank">+ Novo</a>
+      </div>
+    </div>
+
+    <div>
+      <label class="campo-label">Cabeçalho (HTML editável)</label>
+      <textarea name="cabecalho_html" id="cabecalho_html" rows="4" oninput="atualizarPreviewCabecalho()"
+                placeholder="Ex: &lt;h2&gt;Escola Técnica X&lt;/h2&gt;&lt;p&gt;Disciplina: ...&lt;/p&gt;"
+                style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.85rem;font-family:monospace;resize:vertical;">{{ prova.cabecalho_html if prova else '' }}</textarea>
+      <details style="margin-top:6px;">
+        <summary style="cursor:pointer;font-size:.82rem;color:var(--primaria);">Preview do cabeçalho</summary>
+        <div id="preview-cabecalho" style="border:1px dashed var(--borda);border-radius:8px;padding:12px;margin-top:8px;">{{ prova.cabecalho_html | safe if prova and prova.cabecalho_html else '' }}</div>
+      </details>
+    </div>
+
+    <div>
+      <label class="campo-label">Título da prova *</label>
+      <input type="text" name="titulo" required value="{{ prova.titulo if prova else '' }}"
+             style="width:100%;padding:9px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.92rem;">
+    </div>
+
+    <div>
+      <label class="campo-label">Instruções</label>
+      <textarea name="instrucoes" rows="4"
+                style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.88rem;resize:vertical;">{{ prova.instrucoes if prova and prova.instrucoes else instrucoes_padrao }}</textarea>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;">
+      <input type="checkbox" name="embaralhar" {% if prova and prova.embaralhar %}checked{% endif %}>
+      Embaralhar ordem das questões na impressão
+    </label>
+
+    <div style="display:flex;gap:12px;">
+      <button type="submit" class="btn-home" style="flex:1;padding:12px;">
+        {% if prova %}Salvar alterações{% else %}Criar prova{% endif %}
+      </button>
+      {% if prova %}
+        <a href="/professor/provas/{{ prova.id }}/preview" target="_blank"
+           style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--texto);text-decoration:none;font-weight:600;">Preview</a>
+        <a href="/professor/provas/{{ prova.id }}/imprimir" target="_blank"
+           style="flex:1;text-align:center;padding:12px;background:var(--fundo);border-radius:var(--raio);color:var(--texto);text-decoration:none;font-weight:600;">Imprimir PDF</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 style="font-size:1rem;margin:0 0 12px;">Questões</h2>
+
+    {% if not prova %}
+      <p style="color:var(--muted);font-size:.9rem;">Salve a prova primeiro (botão acima) para adicionar questões.</p>
+    {% else %}
+      {% with questoes = questoes_selecionadas %}
+        {% include "professor/provas/_questoes_selecionadas.html" %}
+      {% endwith %}
+
+      <hr class="nav-divider" style="margin:18px 0;">
+
+      <p style="font-weight:600;font-size:.9rem;margin-bottom:8px;">Adicionar do banco de questões</p>
+      <form id="form-filtro-banco" hx-get="/htmx/provas/questoes" hx-target="#seletor-resultado" hx-swap="innerHTML"
+            hx-trigger="load, change, keyup delay:400ms from:input[name='assunto']"
+            style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <input type="hidden" name="prova_id" value="{{ prova.id }}">
+        <select name="disciplina" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:.85rem;">
+          <option value="">Todas as disciplinas</option>
+          {% for d in disciplinas %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+        </select>
+        <select name="tipo" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:.85rem;">
+          <option value="">Todos os tipos</option>
+          <option value="mc4">MC4</option>
+          <option value="mc5">MC5</option>
+          <option value="vf">VF</option>
+          <option value="associativa">Associativa</option>
+          <option value="aberta">Aberta</option>
+        </select>
+        <input type="text" name="assunto" placeholder="Buscar por assunto..."
+               style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:.85rem;flex:1;min-width:160px;">
+      </form>
+
+      <div id="seletor-resultado"></div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function aplicarTemplate(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const cabecalho = opt.getAttribute('data-cabecalho') || '';
+  const instrucoesEl = document.querySelector('textarea[name="instrucoes"]');
+  document.getElementById('cabecalho_html').value = cabecalho;
+  atualizarPreviewCabecalho();
+  const instrucoes = opt.getAttribute('data-instrucoes') || '';
+  if (instrucoes && instrucoesEl) instrucoesEl.value = instrucoes;
+}
+function atualizarPreviewCabecalho() {
+  document.getElementById('preview-cabecalho').innerHTML = document.getElementById('cabecalho_html').value;
+}
+</script>
+</body>
+</html>
