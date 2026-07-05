@@ -41,6 +41,14 @@
     .resposta-marcada.ok { color: #1a7f3c; }
     .resposta-marcada.err { color: #b3261e; }
 
+    .vf-tabela, .assoc-tabela { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .vf-tabela th, .assoc-tabela th { text-align: left; font-size: 10.5px; color: #777; padding: 4px 6px; border-bottom: 1px solid #e0e3ee; }
+    .vf-tabela td, .assoc-tabela td { padding: 5px 6px; border-bottom: 1px solid #eef0f6; vertical-align: top; }
+    .vf-row.ok, .assoc-row.ok { background: #f3fbf6; }
+    .vf-row.err, .assoc-row.err { background: #fdf4f3; }
+    .valor-ok { color: #1a7f3c; font-weight: 600; }
+    .valor-err { color: #b3261e; font-weight: 600; }
+
     .aberta-texto { background: #f7f8fb; border-radius: 6px; padding: 8px 10px; margin-top: 4px; white-space: pre-line; }
     .aberta-nota { margin-top: 6px; font-size: 11px; color: #555; }
 
@@ -139,6 +147,36 @@
               {% if exibir_feedback and r.comentario_professor %}
                 <div class="feedback"><strong>Comentário do professor:</strong> {{ r.comentario_professor }}</div>
               {% endif %}
+            {% elif q.tipo == "vf" and item._vf_detalhe is defined %}
+              <table class="vf-tabela">
+                <thead><tr><th>Afirmação</th><th>Gabarito</th><th>Resposta do aluno</th></tr></thead>
+                <tbody>
+                  {% for vf in item._vf_detalhe %}
+                    {% set vf_ok = (vf.marcada == vf.gabarito) %}
+                    <tr class="vf-row {{ 'ok' if vf_ok else 'err' }}">
+                      <td>{{ vf.afirmacao }}</td>
+                      <td>{{ 'Verdadeiro' if vf.gabarito else 'Falso' }}</td>
+                      <td class="{{ 'valor-ok' if vf_ok else 'valor-err' }}">
+                        {% if vf.marcada is none %}— sem resposta{% else %}{{ 'Verdadeiro' if vf.marcada else 'Falso' }}{% if not vf_ok %} ✗{% else %} ✓{% endif %}{% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% elif q.tipo == "associativa" and item._assoc_detalhe is defined %}
+              <table class="assoc-tabela">
+                <thead><tr><th>Coluna A</th><th>Resposta do aluno</th><th>Correta</th></tr></thead>
+                <tbody>
+                  {% for par in item._assoc_detalhe %}
+                    {% set par_ok = (par.marcada == par.coluna_b) %}
+                    <tr class="assoc-row {{ 'ok' if par_ok else 'err' }}">
+                      <td>{{ par.coluna_a }}</td>
+                      <td class="{{ 'valor-ok' if par_ok else 'valor-err' }}">{{ par.marcada or '— sem resposta' }}{% if par.marcada and not par_ok %} ✗{% elif par_ok %} ✓{% endif %}</td>
+                      <td>{% if not par_ok %}{{ par.coluna_b }}{% endif %}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             {% else %}
               <p class="resposta-label">Resposta assinalada:
                 <span class="resposta-marcada {{ 'ok' if correta else 'err' }}">{{ r.resposta_dada or '—' }}</span>

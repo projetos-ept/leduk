@@ -72,6 +72,32 @@
             </ul>
           {% endif %}
 
+          {% if q.tipo == "vf" and item._vf_detalhe is defined %}
+            <ul class="revisao-alternativas">
+              {% for vf in item._vf_detalhe %}
+                {% set vf_ok = (vf.marcada == vf.gabarito) %}
+                <li class="revisao-alt{% if vf_ok %} revisao-alt-correta{% else %} revisao-alt-errada{% endif %}">
+                  <span class="revisao-texto">{{ vf.afirmacao }} — <strong>gabarito: {{ 'Verdadeiro' if vf.gabarito else 'Falso' }}</strong></span>
+                  <span class="revisao-tag">
+                    {% if vf.marcada is none %}sem resposta{% else %}sua resposta: {{ 'Verdadeiro' if vf.marcada else 'Falso' }}{% if vf_ok %} ✓{% else %} ✗{% endif %}{% endif %}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          {% if q.tipo == "associativa" and item._assoc_detalhe is defined %}
+            <ul class="revisao-alternativas">
+              {% for par in item._assoc_detalhe %}
+                {% set par_ok = (par.marcada == par.coluna_b) %}
+                <li class="revisao-alt{% if par_ok %} revisao-alt-correta{% else %} revisao-alt-errada{% endif %}">
+                  <span class="revisao-texto">{{ par.coluna_a }}{% if not par_ok %} — <strong>correta: {{ par.coluna_b }}</strong>{% endif %}</span>
+                  <span class="revisao-tag">{% if par.marcada %}sua resposta: {{ par.marcada }}{% if par_ok %} ✓{% else %} ✗{% endif %}{% else %}sem resposta{% endif %}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
           {% if q.tipo == "aberta" and r.texto_resposta %}
             <div class="revisao-resposta-aberta">
               <p class="revisao-resposta-label">Sua resposta:</p>
