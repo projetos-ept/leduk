@@ -1,0 +1,32 @@
+<div id="questoes-na-prova">
+  <p style="font-weight:600;font-size:.88rem;margin:0 0 8px;">
+    Questões na prova ({{ questoes | length }})
+  </p>
+  {% if not questoes %}
+    <p style="color:var(--muted);font-size:.85rem;">Nenhuma questão adicionada ainda. Use o banco abaixo para adicionar.</p>
+  {% else %}
+    <ol class="prova-lista-questoes">
+      {% for q in questoes %}
+        <li class="prova-questao-item">
+          <span class="quest-tipo-badge quest-tipo-{{ q.tipo }}">{{ q.tipo | upper }}</span>
+          <span class="prova-questao-texto">{{ q.enunciado[:90] }}{% if q.enunciado|length > 90 %}…{% endif %}</span>
+          <span class="prova-questao-acoes">
+            <button type="button" class="btn-icone" title="Mover para cima"
+                    hx-post="/htmx/provas/{{ prova.id }}/reordenar"
+                    hx-vals='{"questao_id":"{{ q.id }}","direcao":"cima"}'
+                    hx-target="#questoes-na-prova" hx-swap="outerHTML"
+                    {% if loop.first %}disabled{% endif %}>↑</button>
+            <button type="button" class="btn-icone" title="Mover para baixo"
+                    hx-post="/htmx/provas/{{ prova.id }}/reordenar"
+                    hx-vals='{"questao_id":"{{ q.id }}","direcao":"baixo"}'
+                    hx-target="#questoes-na-prova" hx-swap="outerHTML"
+                    {% if loop.last %}disabled{% endif %}>↓</button>
+            <button type="button" class="btn-icone btn-icone-danger" title="Remover"
+                    hx-post="/htmx/provas/{{ prova.id }}/remover-questao/{{ q.id }}"
+                    hx-target="#questoes-na-prova" hx-swap="outerHTML">✕</button>
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+</div>

@@ -116,6 +116,37 @@ def _form_to_disciplina(form) -> dict:
     }
 
 
+_INSTRUCOES_PADRAO = (
+    "É proibido o uso de aparelhos eletrônicos durante a prova.\n"
+    "Marque apenas uma alternativa por questão objetiva.\n"
+    "Rasura e/ou dupla marcação anulam a questão.\n"
+    "Não é permitido consulta ao material didático."
+)
+
+
+def _form_to_prova(form) -> dict:
+    return {
+        "titulo": form.get("titulo", "").strip(),
+        "template": form.get("template", "") or None,
+        "cabecalho_html": form.get("cabecalho_html", ""),
+        "instrucoes": form.get("instrucoes", ""),
+        "embaralhar": "embaralhar" in form,
+    }
+
+
+def _form_to_template_prova(form) -> dict:
+    return {
+        "nome": form.get("nome", "").strip(),
+        "cabecalho_html": form.get("cabecalho_html", ""),
+        "instrucoes": form.get("instrucoes", ""),
+    }
+
+
+def _letra(indice: int) -> str:
+    """Converte índice 0-based em letra (0→a, 1→b, ...) para uso em provas impressas."""
+    return "abcdefghijklmnopqrstuvwxyz"[indice % 26]
+
+
 def _material_campos_comuns(form) -> dict:
     """Campos editáveis comuns a criação e edição de material (sem tipo/disciplina)."""
     return {
@@ -639,6 +670,8 @@ def create_app(config: dict | None = None) -> Flask:
         )
         return m.group(1) if m else ""
 
+    app.jinja_env.globals["_letra"] = _letra
+
     def requer_login(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -811,6 +844,39 @@ def create_app(config: dict | None = None) -> Flask:
             for item in itens:
                 item["_peso"] = float(item["questao"].get("peso") or 1)
         return itens
+
+    def _montar_questoes_prova(prova: dict) -> list:
+        """Expande prova['questoes'] (IDs na ordem de impressão) em questões
+        completas com subitens, para o preview/impressão da prova em papel.
+
+        - `embaralhar` (flag da prova): embaralha a ORDEM das questões na página
+          — seed determinístico pelo id da prova, então preview e impressão do
+          mesmo registro sempre mostram a mesma sequência.
+        - Associativa sempre embaralha a coluna B (independente de `embaralhar`):
+          sem isso, o par certo cairia sempre na mesma linha da coluna A,
+          entregando a resposta de graça. Seed por prova_id + questao_id.
+        """
+        ids = list(prova.get("questoes") or [])
+        if prova.get("embaralhar"):
+            random.Random(prova.get("id", "")).shuffle(ids)
+
+        questoes = get_pb().listar_questoes_atividade(ids)
+        for q in questoes:
+            if q.get("tipo") == "associativa" and q.get("pares_associativos"):
+                pares = sorted(q["pares_associativos"], key=lambda x: x.get("ordem", 0))
+                col_b = list(pares)
+                random.Random(prova.get("id", "") + q.get("id", "")).shuffle(col_b)
+                q["_coluna_a"] = [
+                    {"num": i + 1, "texto": par.get("coluna_a", "")}
+                    for i, par in enumerate(pares)
+                ]
+                q["_coluna_b"] = [
+                    {"letra": _letra(i), "texto": par.get("coluna_b", "")}
+                    for i, par in enumerate(col_b)
+                ]
+            elif q.get("tipo") == "vf" and q.get("itens_vf"):
+                q["_itens_vf_ordenados"] = sorted(q["itens_vf"], key=lambda x: x.get("ordem", 0))
+        return questoes
 
     def _enriquecer_atividades(atividades: list, aluno_id: str) -> None:
         """Calcula status/prazo/tentativas de cada atividade (in-place) para o portal."""
@@ -1707,6 +1773,192 @@ def create_app(config: dict | None = None) -> Flask:
         except Exception as exc:
             log.warning("criar_atividade multidisciplinar falhou: %s", exc)
         return redirect(url_for("professor_turma", turma_id=data.get("turma", "")))
+
+    # ── Provas impressas (gerador com gabarito) ──
+
+    @app.route("/professor/provas")
+    @requer_professor
+    def professor_provas():
+        provas = get_pb().listar_provas()
+        return render_template("professor/provas/lista.html", provas=provas,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/provas/nova", methods=["GET", "POST"])
+    @requer_professor
+    def professor_prova_nova():
+        if request.method == "GET":
+            templates = get_pb().listar_templates_prova()
+            disciplinas = get_pb().listar_disciplinas()
+            return render_template("professor/provas/form.html", prova=None,
+                                   templates=templates, questoes_selecionadas=[],
+                                   disciplinas=disciplinas, instrucoes_padrao=_INSTRUCOES_PADRAO,
+                                   aluno_nome=session.get("aluno_nome", ""))
+        data = _form_to_prova(request.form)
+        if not data["titulo"]:
+            templates = get_pb().listar_templates_prova()
+            disciplinas = get_pb().listar_disciplinas()
+            return render_template("professor/provas/form.html", prova=None,
+                                   templates=templates, questoes_selecionadas=[],
+                                   disciplinas=disciplinas, instrucoes_padrao=_INSTRUCOES_PADRAO,
+                                   erro="Título é obrigatório.",
+                                   aluno_nome=session.get("aluno_nome", "")), 422
+        if not data["instrucoes"]:
+            data["instrucoes"] = _INSTRUCOES_PADRAO
+        nova = get_pb().criar_prova(data)
+        return redirect(url_for("professor_prova_editar", prova_id=nova["id"]))
+
+    @app.route("/professor/provas/<prova_id>/editar", methods=["GET", "POST"])
+    @requer_professor
+    def professor_prova_editar(prova_id: str):
+        if request.method == "POST":
+            data = _form_to_prova(request.form)
+            if data["titulo"]:
+                get_pb().atualizar_prova(prova_id, data)
+            return redirect(url_for("professor_prova_editar", prova_id=prova_id))
+        prova = get_pb().buscar_prova(prova_id)
+        templates = get_pb().listar_templates_prova()
+        disciplinas = get_pb().listar_disciplinas()
+        questoes_selecionadas = get_pb().listar_questoes_atividade(prova.get("questoes") or [])
+        return render_template("professor/provas/form.html", prova=prova,
+                               templates=templates, questoes_selecionadas=questoes_selecionadas,
+                               disciplinas=disciplinas, instrucoes_padrao=_INSTRUCOES_PADRAO,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/provas/<prova_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_prova_excluir(prova_id: str):
+        get_pb().excluir_prova(prova_id)
+        return redirect(url_for("professor_provas"))
+
+    def _renderizar_prova_impressao(prova_id: str):
+        prova = get_pb().buscar_prova(prova_id)
+        cabecalho_html = prova.get("cabecalho_html") or ""
+        instrucoes = prova.get("instrucoes") or ""
+        if prova.get("template"):
+            try:
+                tmpl = get_pb().buscar_template_prova(prova["template"])
+                if not cabecalho_html:
+                    cabecalho_html = tmpl.get("cabecalho_html") or ""
+                if not instrucoes:
+                    instrucoes = tmpl.get("instrucoes") or ""
+            except Exception as exc:
+                log.warning("buscar_template_prova falhou: %s", exc)
+        questoes = _montar_questoes_prova(prova)
+        return render_template("professor/provas/imprimir.html", prova=prova,
+                               cabecalho_html=cabecalho_html, instrucoes=instrucoes,
+                               questoes=questoes)
+
+    # /preview e /imprimir renderizam a mesma página impressa (com o botão
+    # "Imprimir / Salvar PDF" via window.print(), sem geração de PDF no
+    # servidor — ver decisão em relatorio_individual.html/relatorio_geral.html).
+    # Duas rotas distintas por clareza de navegação (botões separados no form).
+    @app.route("/professor/provas/<prova_id>/imprimir")
+    @requer_professor
+    def professor_prova_imprimir(prova_id: str):
+        return _renderizar_prova_impressao(prova_id)
+
+    @app.route("/professor/provas/<prova_id>/preview")
+    @requer_professor
+    def professor_prova_preview(prova_id: str):
+        return _renderizar_prova_impressao(prova_id)
+
+    # ── Templates de cabeçalho de prova (reutilizáveis entre provas) ──
+
+    @app.route("/professor/provas/templates")
+    @requer_professor
+    def professor_templates_prova():
+        templates = get_pb().listar_templates_prova()
+        editar_id = request.args.get("editar", "")
+        template_edicao = None
+        if editar_id:
+            try:
+                template_edicao = get_pb().buscar_template_prova(editar_id)
+            except Exception:
+                template_edicao = None
+        return render_template("professor/provas/templates/form.html",
+                               templates=templates, template_edicao=template_edicao,
+                               aluno_nome=session.get("aluno_nome", ""))
+
+    @app.route("/professor/provas/templates/novo", methods=["POST"])
+    @requer_professor
+    def professor_template_prova_novo():
+        get_pb().criar_template_prova(_form_to_template_prova(request.form))
+        return redirect(url_for("professor_templates_prova"))
+
+    @app.route("/professor/provas/templates/<template_id>/editar", methods=["POST"])
+    @requer_professor
+    def professor_template_prova_editar(template_id: str):
+        get_pb().atualizar_template_prova(template_id, _form_to_template_prova(request.form))
+        return redirect(url_for("professor_templates_prova"))
+
+    @app.route("/professor/provas/templates/<template_id>/excluir", methods=["POST"])
+    @requer_professor
+    def professor_template_prova_excluir(template_id: str):
+        get_pb().excluir_template_prova(template_id)
+        return redirect(url_for("professor_templates_prova"))
+
+    # ── HTMX: seletor de questões e montagem da prova ──
+
+    @app.route("/htmx/provas/questoes")
+    @requer_professor
+    def htmx_provas_questoes():
+        prova_id = request.args.get("prova_id", "")
+        disciplina_id = request.args.get("disciplina", "")
+        filtros = {c: request.args.get(c, "") for c in ("tipo", "assunto")}
+        if disciplina_id:
+            questoes = get_pb().listar_questoes_disciplina(disciplina_id, filtros)
+        else:
+            questoes = get_pb().listar_questoes(filtros)
+        ja_incluidas: set = set()
+        if prova_id:
+            try:
+                ja_incluidas = set(get_pb().buscar_prova(prova_id).get("questoes") or [])
+            except Exception:
+                pass
+        disponiveis = [q for q in questoes if q["id"] not in ja_incluidas]
+        disciplinas = get_pb().listar_disciplinas()
+        return render_template("professor/provas/seletor_questoes.html",
+                               questoes=disponiveis, prova_id=prova_id,
+                               disciplinas=disciplinas, disciplina_id=disciplina_id,
+                               filtros=filtros)
+
+    def _questoes_selecionadas_fragment(prova_id: str, prova: dict):
+        questoes = get_pb().listar_questoes_atividade(prova.get("questoes") or [])
+        return render_template("professor/provas/_questoes_selecionadas.html",
+                               prova=prova, questoes=questoes)
+
+    @app.route("/htmx/provas/<prova_id>/adicionar-questao/<questao_id>", methods=["POST"])
+    @requer_professor
+    def htmx_prova_adicionar_questao(prova_id: str, questao_id: str):
+        prova = get_pb().buscar_prova(prova_id)
+        atual = list(prova.get("questoes") or [])
+        if questao_id not in atual:
+            atual.append(questao_id)
+            prova = get_pb().atualizar_prova(prova_id, {"questoes": atual})
+        return _questoes_selecionadas_fragment(prova_id, prova)
+
+    @app.route("/htmx/provas/<prova_id>/remover-questao/<questao_id>", methods=["POST"])
+    @requer_professor
+    def htmx_prova_remover_questao(prova_id: str, questao_id: str):
+        prova = get_pb().buscar_prova(prova_id)
+        atual = [qid for qid in (prova.get("questoes") or []) if qid != questao_id]
+        prova = get_pb().atualizar_prova(prova_id, {"questoes": atual})
+        return _questoes_selecionadas_fragment(prova_id, prova)
+
+    @app.route("/htmx/provas/<prova_id>/reordenar", methods=["POST"])
+    @requer_professor
+    def htmx_prova_reordenar(prova_id: str):
+        questao_id = request.form.get("questao_id", "")
+        direcao = request.form.get("direcao", "")
+        prova = get_pb().buscar_prova(prova_id)
+        atual = list(prova.get("questoes") or [])
+        if questao_id in atual:
+            i = atual.index(questao_id)
+            j = i - 1 if direcao == "cima" else i + 1
+            if 0 <= j < len(atual):
+                atual[i], atual[j] = atual[j], atual[i]
+                prova = get_pb().atualizar_prova(prova_id, {"questoes": atual})
+        return _questoes_selecionadas_fragment(prova_id, prova)
 
     # ── Gestão de turmas ──
 

@@ -1071,6 +1071,49 @@ a.ativ-card .ativ-icon {
   letter-spacing: .05em;
 }
 
+/* Provas impressas: lista de questões selecionadas (form de montagem) */
+.prova-lista-questoes {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prova-questao-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+}
+.prova-questao-texto {
+  flex: 1;
+  font-size: .85rem;
+  color: var(--texto);
+}
+.prova-questao-acoes {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.btn-icone {
+  border: 1px solid var(--borda);
+  background: var(--card);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: .85rem;
+  line-height: 1;
+  color: var(--texto);
+}
+.btn-icone:hover { background: var(--fundo); }
+.btn-icone:disabled { opacity: .35; cursor: default; }
+.btn-icone-danger { color: var(--erro); }
+
 .badge-novo {
   display: inline-flex;
   align-items: center;
