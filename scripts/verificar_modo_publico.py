@@ -102,6 +102,36 @@ def checar_campos(token: str, col_nome: str, esperados: list) -> None:
         print(f"[FALHA] '{col_nome}': campos AUSENTES → {nomes}")
 
 
+def checar_aluno_id_opcional(token: str) -> None:
+    """aluno_id="" é como o modo público identifica um respondente sem conta.
+    Se o campo for required, o PocketBase recusa toda tentativa pública."""
+    col = get_collection(token, "tentativas")
+    if not col:
+        return  # já reportado por checar_campos
+    schema = col.get("schema", [])
+    campo = next((f for f in schema if f.get("name") == "aluno_id"), None)
+    if not campo:
+        problemas.append("campo 'aluno_id' não encontrado em 'tentativas'")
+        print("[FALHA] 'tentativas': campo 'aluno_id' não encontrado.")
+        return
+    if not campo.get("required", False):
+        print("[OK] 'tentativas.aluno_id': já é opcional (aceita respondente público).")
+        return
+    if FIX:
+        campo["required"] = False
+        r = requests.patch(f"{PB_URL}/api/collections/tentativas",
+                           headers=_headers(token), json={"schema": schema})
+        if r.ok:
+            print("[CORRIGIDO] 'tentativas.aluno_id': agora é opcional.")
+        else:
+            problemas.append(f"falha ao tornar aluno_id opcional: {r.text[:200]}")
+            print(f"[FALHA] não foi possível corrigir aluno_id: {r.text[:200]}")
+    else:
+        problemas.append("'tentativas.aluno_id' é required=True — bloqueia o modo público")
+        print("[FALHA] 'tentativas.aluno_id' é required=True — todo POST anônimo "
+              "(aluno_id=\"\") é rejeitado pelo PocketBase.")
+
+
 def checar_regras_tentativas(token: str) -> None:
     col = get_collection(token, "tentativas")
     if not col:
@@ -166,9 +196,11 @@ def main() -> None:
     checar_campos(token, "turmas", CAMPOS_TURMAS)
     print("\n── 2/4 Campos de 'tentativas' ──")
     checar_campos(token, "tentativas", CAMPOS_TENTATIVAS)
-    print("\n── 3/4 Regras de 'tentativas' ──")
+    print("\n── 3/5 Campo 'tentativas.aluno_id' opcional ──")
+    checar_aluno_id_opcional(token)
+    print("\n── 4/5 Regras de 'tentativas' ──")
     checar_regras_tentativas(token)
-    print("\n── 4/4 Teste real de criação anônima ──")
+    print("\n── 5/5 Teste real de criação anônima ──")
     teste_real_criacao_anonima(token)
 
     print()

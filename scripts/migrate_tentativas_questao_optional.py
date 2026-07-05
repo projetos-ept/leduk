@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Migração: torna o campo `questao` da collection `tentativas` opcional.
+"""Migração: torna `questao` e `aluno_id` opcionais na collection `tentativas`.
 
-Quando uma questão é excluída, o campo `questao` das tentativas vinculadas é
-anulado (set to null) para preservar o histórico do aluno. Isso requer que o
-campo `questao` não seja obrigatório (required: false).
+- `questao`: quando uma questão é excluída, o campo das tentativas vinculadas
+  é anulado (set to null) para preservar o histórico do aluno — exige
+  required: false.
+- `aluno_id`: o modo público (atividades respondidas por visitantes sem
+  conta) grava tentativas com aluno_id="" e identifica o respondente por
+  aluno_email/aluno_turma. Se aluno_id for required, o PocketBase rejeita
+  toda tentativa pública com validation_required, mesmo enviando "" — nada
+  é gravado, e o formulário público falha silenciosamente para quem responde.
 
 Idempotente: pode ser executado múltiplas vezes sem efeitos colaterais.
 
@@ -59,28 +64,36 @@ def main() -> None:
         sys.exit(1)
 
     schema = col.get("schema", [])
-    questao_field = next((f for f in schema if f.get("name") == "questao"), None)
+    campos_alvo = ("questao", "aluno_id")
+    alterados = []
 
-    if not questao_field:
-        print("[AVISO] Campo 'questao' não encontrado na collection 'tentativas'.")
+    for nome_campo in campos_alvo:
+        campo = next((f for f in schema if f.get("name") == nome_campo), None)
+        if not campo:
+            print(f"[AVISO] Campo '{nome_campo}' não encontrado na collection 'tentativas'.")
+            continue
+        if not campo.get("required", False):
+            print(f"[OK] Campo '{nome_campo}' já é opcional — nada a fazer.")
+            continue
+        print(f"  Campo '{nome_campo}': required={campo['required']}  →  required=false")
+        campo["required"] = False
+        alterados.append(nome_campo)
+
+    if not alterados:
+        print("[OK] Nenhuma alteração necessária.")
         return
-
-    if not questao_field.get("required", False):
-        print("[OK] Campo 'questao' já é opcional — nada a fazer.")
-        return
-
-    print(f"  Campo 'questao': required={questao_field['required']}  →  required=false")
-
-    questao_field["required"] = False
-    updated_schema = [f if f.get("name") != "questao" else questao_field for f in schema]
 
     resp = requests.patch(
         f"{PB_URL}/api/collections/tentativas",
         headers=_headers(token),
-        json={"schema": updated_schema},
+        json={"schema": schema},
     )
     resp.raise_for_status()
-    print("[OK] Campo 'questao' agora é opcional. Exclusão de questões com tentativas vinculadas funciona.")
+    print(f"[OK] Campo(s) {', '.join(alterados)} agora são opcionais.")
+    if "questao" in alterados:
+        print("     Exclusão de questões com tentativas vinculadas funciona.")
+    if "aluno_id" in alterados:
+        print("     Modo público (respondentes sem conta) agora grava tentativas corretamente.")
 
 
 if __name__ == "__main__":

@@ -197,3 +197,37 @@ ou `ordem` já explícito no JSON nunca é sobrescrito.
 `pb.criar_item_vf`) — nunca o inverso. Renomear o campo correto para o alias
 por engano reintroduziria o mesmo erro de "campo obrigatório ausente" que a
 normalização deveria resolver.
+
+---
+
+## 10. Campos usados em fluxos anônimos/opcionais nunca devem ser `required: True`
+
+**Sintoma real (2026-07):** o modo público (visitante responde uma atividade
+sem criar conta) gravava tentativas com `aluno_id=""` para identificar o
+respondente por email em vez de conta. Se `aluno_id` estivesse `required:
+True` no schema de `tentativas`, o PocketBase rejeitava **toda** tentativa
+pública com `validation_required` — nada era gravado, e a falha era
+silenciosa do ponto de vista do visitante (a rota não crasha, só não
+persiste nada).
+
+**Causa:** esta é a mesma classe de bug da lição 1 (bool `required: True`
+rejeita `false` por tratá-lo como "vazio"), mas generalizada: qualquer campo
+que o fluxo de aplicação legitimamente preenche com um "valor vazio"
+(`""`, `False`, `None`/relation não selecionada) para representar "não se
+aplica aqui" quebra se o schema exigir presença.
+
+**Regra:** ao desenhar um campo que serve tanto o fluxo autenticado quanto
+um fluxo anônimo/opcional (relation para o usuário, bool de flag, texto de
+identificação alternativa), o campo é **sempre** `required: False` no
+schema do PocketBase — a obrigatoriedade condicional (“obrigatório só para
+alunos com conta”) fica na camada de aplicação (Flask), nunca no PocketBase.
+Isso estende a lição 1 (que cobria só `bool`) para **qualquer tipo de
+campo** — `relation`, `text`, `number` — sempre que o campo puder ser
+legitimamente vazio em algum fluxo suportado.
+
+**Correção aplicada:** `scripts/migrate_tentativas_questao_optional.py`
+agora torna `questao` **e** `aluno_id` opcionais na mesma migração (script
+idempotente, roda em qualquer instalação nova ou já existente).
+`scripts/verificar_modo_publico.py` inclui uma checagem dedicada
+(`checar_aluno_id_opcional`) que detecta e corrige (`--fix`) o campo antes
+mesmo de tentar o POST anônimo de teste.
