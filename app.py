@@ -2460,16 +2460,15 @@ def create_app(config: dict | None = None) -> Flask:
         if not tentativas:
             return render_template("publica/limite.html", nao_encontrada=True), 404
 
-        modo_prova = bool(ativ.get("modo_prova"))
-        exibir_feedback = bool(ativ.get("exibir_feedback_pos", True))
-
+        # Este relatório é a devolutiva que o PROFESSOR decide gerar e entregar —
+        # modo_prova/exibir_feedback_pos só regulam o que o aluno vê sozinho
+        # (durante a prova e no placar automático). Aqui sempre mostra tudo.
         for t in tentativas:
             t["_data_fmt"] = _fmt_data_hora(t.get("created", ""))
-            t["_questoes_revisao"] = [] if modo_prova else _montar_questoes_revisao(ativ, t["id"])
+            t["_questoes_revisao"] = _montar_questoes_revisao(ativ, t["id"])
 
         return render_template("professor/publico/relatorio_individual.html",
-                               atividade=ativ, disciplina=disciplina, tentativas=tentativas,
-                               modo_prova=modo_prova, exibir_feedback=exibir_feedback)
+                               atividade=ativ, disciplina=disciplina, tentativas=tentativas)
 
     # ── Cadastro público via link de convite ──
 
