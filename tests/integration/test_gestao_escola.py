@@ -151,6 +151,42 @@ def test_excluir_turma_confirmada_faz_cascade(client):
     assert ("a1", {"turma": None}) in patches
 
 
+@rsps_lib.activate
+def test_excluir_turma_remove_materiais_legados_e_pivos(client):
+    """Materiais do modelo legado (campo turma direto, required) não podem ser
+    anulados — precisam ser removidos junto com qualquer vínculo turma_materiais
+    que aponte para eles, senão a exclusão da turma falha com 400."""
+    _sess_prof(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/matriculas/records",
+                 json={"totalItems": 0, "items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turma_disciplina/records",
+                 json={"totalItems": 0, "items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records",
+                 json={"totalItems": 0, "items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"totalItems": 0, "items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/materiais/records",
+                 json={"totalItems": 1, "items": [{"id": "mat1"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turma_materiais/records",
+                 json={"items": [{"id": "tm1"}]})
+
+    deletados = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/turma_materiais/records/tm1",
+                          callback=lambda r: (deletados.append("tm1"), (204, {}, ""))[1])
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/materiais/records/mat1",
+                          callback=lambda r: (deletados.append("mat1"), (204, {}, ""))[1])
+    turma_deletada = []
+    rsps_lib.add_callback(rsps_lib.DELETE, f"{PB}/api/collections/turmas/records/turma01",
+                          callback=lambda r: (turma_deletada.append(1), (204, {}, ""))[1])
+
+    resp = client.post("/professor/turma/turma01/excluir", data={"confirmar": "1"})
+    assert resp.status_code in (200, 302)
+    assert turma_deletada, "turma deveria ter sido excluída"
+    assert "mat1" in deletados, "material legado deveria ter sido removido"
+    assert "tm1" in deletados, "vínculo turma_materiais deveria ter sido removido"
+    assert deletados.index("tm1") < deletados.index("mat1"), "pivô antes do material"
+
+
 # ── Disciplinas ───────────────────────────────────────────────────────────────
 
 @rsps_lib.activate

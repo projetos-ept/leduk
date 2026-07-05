@@ -231,3 +231,40 @@ idempotente, roda em qualquer instalação nova ou já existente).
 `scripts/verificar_modo_publico.py` inclui uma checagem dedicada
 (`checar_aluno_id_opcional`) que detecta e corrige (`--fix`) o campo antes
 mesmo de tentar o POST anônimo de teste.
+
+---
+
+## 11. Cascade de exclusão precisa cobrir *todas* as gerações de schema de um recurso, não só a atual
+
+**Sintoma real (2026-07, produção):** `excluir_turma` já fazia cascade de
+matrículas, `turma_disciplina`, formulários de cadastro, `turma_materiais` e
+boletins (lições 8 e correções anteriores), mas a exclusão de turma ainda
+falhava com `400 Bad Request` no `DELETE .../turmas/records/<id>` — sem
+nenhuma mensagem de qual coleção bloqueava, porque cada etapa do cascade
+engolia a exceção com `except: pass`, sem logar nada.
+
+**Causa:** a collection `materiais` tem **dois modelos de dados coexistindo**
+(ver `pb.listar_materiais`): o pivô novo `turma_materiais` (many-to-many,
+compartilhável entre turmas) e um campo legado `materiais.turma` **direto e
+`required: True`** (`scripts/migrate_materiais.py`), usado como fallback para
+registros criados antes do modelo de pivô existir. O cascade cobria o pivô
+mas nunca tocava o campo legado — qualquer turma com materiais antigos
+(pré-pivô) ficava com um `materiais` ainda apontando para ela via relation
+obrigatória, e o PocketBase recusa o `DELETE` da turma nessa condição (mesma
+mecânica da lição 8, agora numa collection diferente).
+
+**Regra:** ao adicionar um recurso vinculado a uma entidade, verificar se
+existe mais de uma "geração" de schema para esse vínculo (pivô novo +
+campo direto legado, por exemplo) e cobrir **todas** no cascade de exclusão
+— não só o modelo atualmente usado pela maioria dos registros. Como
+`materiais.turma` é `required: True`, não pode ser anulado por `PATCH`
+(lição 10 se aplica ao inverso: campo obrigatório não aceita `null`); o
+registro-filho precisa ser removido (e qualquer pivô que aponte para ele,
+para não deixar `turma_materiais` órfão) antes do `DELETE` do pai.
+
+**Regra de diagnosticabilidade:** todo `except Exception: pass` dentro de um
+cascade de exclusão deve virar `except Exception as exc: log.warning(...)`
+com o nome da collection/registro envolvido. Um cascade "silencioso" transforma
+qualquer vínculo não previsto em um `400` opaco no passo final, sem pista de
+qual coleção causou — o log é o que permite diagnosticar em produção sem
+precisar reproduzir localmente.

@@ -656,9 +656,16 @@ class PocketBaseClient:
         """Exclui a turma com cascade manual dos vínculos.
 
         Vínculos removidos: matrículas, turma_disciplina, formulários de
-        cadastro, turma_materiais e boletins. Atividades e tentativas são
+        cadastro, turma_materiais, boletins (com sub-registros) e materiais
+        legados (modelo antigo, campo `turma` direto e required — não pode
+        ser anulado, então o material é removido junto com qualquer vínculo
+        turma_materiais que aponte para ele). Atividades e tentativas são
         preservadas (histórico) — apenas a referência de turma é anulada.
         Mesmo padrão de apagar_subitens_questao.
+
+        Cada falha de sub-etapa é logada (não apenas engolida) — se o DELETE
+        final da turma ainda assim retornar 400, os logs mostram exatamente
+        qual coleção/registro impediu a exclusão.
         """
         filtro = {"filter": f'turma="{turma_id}"', "perPage": "500"}
 
@@ -670,10 +677,12 @@ class PocketBaseClient:
                 for item in r.get("items", []):
                     try:
                         self._delete(f"/api/collections/{collection}/records/{item['id']}")
-                    except Exception:
-                        pass
-            except Exception:
-                pass  # collection ausente (pré-migração) ou sem campo turma
+                    except Exception as exc:
+                        log.warning("excluir_turma: falha ao apagar %s/%s: %s",
+                                    collection, item.get("id"), exc)
+            except Exception as exc:
+                log.warning("excluir_turma: falha ao listar %s (turma=%s): %s",
+                            collection, turma_id, exc)
 
         # 3b. boletins: deleta sub-registros (unidades, recuperação final)
         # antes de cada boletim — relações required bloqueiam o DELETE direto
@@ -688,16 +697,45 @@ class PocketBaseClient:
                         for item in rs.get("items", []):
                             try:
                                 self._delete(f"/api/collections/{sub_col}/records/{item['id']}")
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
+                            except Exception as exc:
+                                log.warning("excluir_turma: falha ao apagar %s/%s: %s",
+                                            sub_col, item.get("id"), exc)
+                    except Exception as exc:
+                        log.warning("excluir_turma: falha ao listar %s (boletim=%s): %s",
+                                    sub_col, bid, exc)
                 try:
                     self._delete(f"/api/collections/boletins/records/{bid}")
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as exc:
+                    log.warning("excluir_turma: falha ao apagar boletins/%s: %s", bid, exc)
+        except Exception as exc:
+            log.warning("excluir_turma: falha ao listar boletins (turma=%s): %s", turma_id, exc)
+
+        # 3c. materiais legados (modelo antigo: campo `turma` direto e required
+        # — não pode ser anulado via PATCH, o material precisa ser removido).
+        # Antes de apagar, remove qualquer vínculo turma_materiais que aponte
+        # para esse material (em qualquer turma) para não deixar pivô órfão.
+        try:
+            r = self._get("/api/collections/materiais/records", params=filtro)
+            for mat in r.get("items", []):
+                mid = mat["id"]
+                try:
+                    rv = self._get("/api/collections/turma_materiais/records",
+                                   params={"filter": f'material="{mid}"', "perPage": "500"})
+                    for vinc in rv.get("items", []):
+                        try:
+                            self._delete(f"/api/collections/turma_materiais/records/{vinc['id']}")
+                        except Exception as exc:
+                            log.warning("excluir_turma: falha ao apagar turma_materiais/%s: %s",
+                                        vinc.get("id"), exc)
+                except Exception as exc:
+                    log.warning("excluir_turma: falha ao listar turma_materiais (material=%s): %s",
+                                mid, exc)
+                try:
+                    self._delete(f"/api/collections/materiais/records/{mid}")
+                except Exception as exc:
+                    log.warning("excluir_turma: falha ao apagar materiais/%s: %s", mid, exc)
+        except Exception as exc:
+            log.warning("excluir_turma: falha ao listar materiais (turma=%s): %s", turma_id, exc)
 
         # 4. anula referência de turma nas tentativas (não deleta — histórico)
         try:
@@ -706,10 +744,11 @@ class PocketBaseClient:
                 try:
                     self._patch(f"/api/collections/tentativas/records/{item['id']}",
                                 {"turma": None})
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as exc:
+                    log.warning("excluir_turma: falha ao anular turma em tentativas/%s: %s",
+                                item.get("id"), exc)
+        except Exception as exc:
+            log.warning("excluir_turma: falha ao listar tentativas (turma=%s): %s", turma_id, exc)
 
         # 5. anula referência de turma nas atividades
         try:
@@ -718,10 +757,11 @@ class PocketBaseClient:
                 try:
                     self._patch(f"/api/collections/atividades/records/{item['id']}",
                                 {"turma": None})
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as exc:
+                    log.warning("excluir_turma: falha ao anular turma em atividades/%s: %s",
+                                item.get("id"), exc)
+        except Exception as exc:
+            log.warning("excluir_turma: falha ao listar atividades (turma=%s): %s", turma_id, exc)
 
         # 6. deleta a turma
         self._delete(f"/api/collections/turmas/records/{turma_id}")
@@ -740,6 +780,7 @@ class PocketBaseClient:
             "turma_disciplina": _total("turma_disciplina", f'turma="{turma_id}"'),
             "atividades": _total("atividades", f'turma="{turma_id}"'),
             "tentativas": _total("tentativas", f'turma="{turma_id}"'),
+            "materiais": _total("materiais", f'turma="{turma_id}"'),
         }
 
     # --- Disciplinas (gestão) ---

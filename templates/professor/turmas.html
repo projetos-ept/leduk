@@ -38,11 +38,13 @@
       {%- if confirmar_exclusao.matriculas %}{% set _ = partes.append(confirmar_exclusao.matriculas ~ " aluno(s) matriculado(s)") %}{% endif -%}
       {%- if confirmar_exclusao.atividades %}{% set _ = partes.append(confirmar_exclusao.atividades ~ " atividade(s)") %}{% endif -%}
       {%- if confirmar_exclusao.turma_disciplina %}{% set _ = partes.append(confirmar_exclusao.turma_disciplina ~ " disciplina(s) vinculada(s)") %}{% endif -%}
-      {%- if confirmar_exclusao.tentativas %}{% set _ = partes.append(confirmar_exclusao.tentativas ~ " tentativa(s) de aluno") %}{% endif %}
+      {%- if confirmar_exclusao.tentativas %}{% set _ = partes.append(confirmar_exclusao.tentativas ~ " tentativa(s) de aluno") %}{% endif -%}
+      {%- if confirmar_exclusao.materiais %}{% set _ = partes.append(confirmar_exclusao.materiais ~ " material(is) legado(s)") %}{% endif %}
       {{ partes | join(", ") }}.
       <p style="margin:8px 0;">
         Todos os vínculos serão removidos. As tentativas e atividades serão preservadas,
-        mas desvinculadas da turma. Excluir mesmo assim?
+        mas desvinculadas da turma. Materiais legados vinculados diretamente à turma
+        também serão removidos. Excluir mesmo assim?
       </p>
       <div style="display:flex;gap:10px;margin-top:10px;">
         <form method="post" action="/professor/turma/{{ confirmar_turma_id }}/excluir" style="display:inline;">
