@@ -20,17 +20,18 @@ leduk/
 ├── pytest.ini
 ├── IDENTIDADE-VISUAL.md    ← design system: paleta, componentes, responsividade
 │
-├── scripts/
-│   ├── migrate_tentativas.py    ← migração: adiciona campo atividade ao schema
-│   ├── add_assunto_questoes.py  ← migração: adiciona campo assunto às questões
-│   ├── migrate_materiais.py     ← migração: assunto + collection turma_materiais + backfill
-│   ├── add_multidisciplinar_atividades.py ← migração: campo multidisciplinar em atividades
-│   ├── migrate_boletim.py       ← migração: collections boletins/unidades/recuperacao_final
-│   ├── migrate_tokens_senha.py  ← migração: collection tokens_senha (reset de senha)
-│   ├── migrate_matriculas.py    ← migração: collection matriculas (aluno ↔ turma)
-│   ├── migrate_formulario_cadastro.py ← migração: formularios_cadastro + campo matricula em users
-│   ├── cleanup_questoes_duplicadas.py ← relata/remove questões duplicadas ou órfãs (apaga subitens antes; dry-run/--apply)
-│   └── migrate_materiais_rules.py     ← corrige createRule/updateRule de `materiais` para permitir upload de arquivos
+├── scripts/                      ← migrações idempotentes (criam collection ou verificam antes de alterar)
+│   ├── migrate_boletim.py                 ← cria collections boletins/unidades/recuperacao_final
+│   ├── migrate_tokens_senha.py            ← cria collection tokens_senha (reset de senha)
+│   ├── migrate_matriculas.py              ← cria collection matriculas (aluno ↔ turma)
+│   ├── migrate_formulario_cadastro.py     ← cria formularios_cadastro + campo matricula em users
+│   ├── migrate_materiais.py               ← cria collection turma_materiais (pivô) + campo assunto + backfill
+│   ├── migrate_turmas_publicas.py         ← cria campos publica/descricao (turmas) + aluno_email/aluno_turma (tentativas) — modo público
+│   ├── migrate_tentativas_questao_optional.py ← torna questao e aluno_id opcionais em tentativas (histórico + modo público)
+│   └── verificar_modo_publico.py          ← diagnóstico + correção (--fix) do modo público: campos, regras e teste real de POST anônimo
+│
+│   (scripts de correção pontual já aplicados em produção foram removidos do
+│   repositório — ver "Migrações históricas" na seção Collections PocketBase)
 │
 ├── templates/
 │   ├── index.html
@@ -54,6 +55,11 @@ leduk/
 │   │   ├── redefinir_senha.html  ← formulário público de nova senha (via token)
 │   │   ├── formulario.html       ← auto-cadastro público via link de convite
 │   │   └── inativo.html          ← link de cadastro desativado / não encontrado
+│   ├── publica/                  ← modo público (turmas sem matrícula, sem login)
+│   │   ├── atividade.html        ← página pública da atividade (materiais + botão responder)
+│   │   ├── identificar.html      ← nome/email/turma + confirmação de re-tentativa
+│   │   ├── limite.html           ← limite de tentativas atingido / atividade não encontrada
+│   │   └── resultado.html        ← placar do respondente público
 │   ├── turma/
 │   │   └── portal.html
 │   ├── professor/
@@ -76,6 +82,12 @@ leduk/
 │   │   ├── turma_materiais.html    ← materiais vinculados a uma turma
 │   │   ├── alunos.html / aluno_form.html ← gestão de alunos da turma (cadastro manual)
 │   │   ├── formulario_relatorio.html ← cadastros via link público (+ exportar CSV)
+│   │   ├── publico/                ← gestão de turmas/atividades públicas (modo público)
+│   │   │   ├── index.html          ← lista turmas públicas + form de criação
+│   │   │   ├── turma.html          ← atividades por disciplina + link público + contagem de respostas
+│   │   │   ├── respostas.html      ← tabela de respondentes + exportar CSV + PDFs
+│   │   │   ├── relatorio_geral.html      ← PDF com todos os respondentes (WeasyPrint)
+│   │   │   └── relatorio_individual.html ← PDF comprovante individual com detalhamento por questão
 │   │   ├── boletim/                ← configurar/unidades/notas/relatorio do boletim
 │   │   ├── components/
 │   │   │   ├── _seletor_questoes.html ← cards com checkbox (reuso de questões)
@@ -123,7 +135,8 @@ leduk/
         ├── test_boletim_rotas.py     ← rotas do boletim (config, toggles, notas, acesso)
         ├── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
         ├── test_cadastro_publico.py  ← auto-cadastro via link + gestão do formulário
-        └── test_materiais.py         ← upload multipart vs JSON, url_arquivo_material()
+        ├── test_materiais.py         ← upload multipart vs JSON, url_arquivo_material()
+        └── test_modo_publico.py      ← turmas públicas: identificação, limite de tentativas, comprovante PDF
 ```
 
 ---
@@ -178,7 +191,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 250 testes, todos passando.
+**Resultado esperado:** 280 testes, todos passando.
 
 ---
 
@@ -206,7 +219,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/htmx/responder` | Valida resposta e retorna feedback |
 | GET | `/htmx/proxima/<ativ_id>` | Fragmento da próxima questão |
 | GET | `/htmx/resultado/<ativ_id>` | Placar final |
-| GET | `/aluno/historico` | Histórico de tentativas do aluno |
+| GET | `/aluno/historico` | Histórico — uma linha por atividade concluída, com data/hora da última tentativa |
 | GET | `/aluno/atividade/<id>/revisao/<tent_id>` | Revisão detalhada com gabarito |
 
 ### Professor (requer role `professor` ou `admin`)
@@ -240,7 +253,7 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | POST | `/professor/questao-aberta/<tent_id>/avaliar` | Gravar nota de questão aberta |
 | GET | `/professor/turmas` | Gerenciar turmas (CRUD) |
 | GET/POST | `/professor/turma/nova` · `/professor/turma/<id>/editar` | Criar/editar turma |
-| POST | `/professor/turma/<id>/excluir` | Excluir turma (bloqueado se houver vínculos) |
+| POST | `/professor/turma/<id>/excluir` | Excluir turma — se houver vínculos, pede confirmação explícita e então faz cascade (matrículas, disciplinas, formulário, materiais/boletim; tentativas e atividades são preservadas e desvinculadas) |
 | GET | `/professor/disciplinas` | Gerenciar disciplinas (CRUD) |
 | GET/POST | `/professor/disciplina/nova` · `/professor/disciplina/<id>/editar` | Criar/editar disciplina |
 | POST | `/professor/disciplina/<id>/excluir` | Excluir disciplina (bloqueado se houver vínculos) |
@@ -273,6 +286,36 @@ tests/integration/ → rotas Flask com PocketBase mockado
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/aluno/boletim/<turma_id>` | Boletim do aluno logado (403 se não liberado) |
+
+### Modo público (turmas sem matrícula)
+
+Rotas públicas, sem login — qualquer pessoa acessa via link direto:
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/publica/<ativ_id>` | Página da atividade (materiais + botão "Responder"); 404 se a turma não for pública |
+| GET/POST | `/publica/<ativ_id>/identificar` | Nome/email/turma; confirma re-tentativa se o email já respondeu; bloqueia no limite de `max_tentativas` |
+| GET | `/publica/<ativ_id>/resultado` | Placar do respondente público |
+
+O fluxo de questões (`/atividade/<id>`, `/htmx/questao`, `/htmx/responder`, `/htmx/proxima`) é o
+mesmo do aluno logado — o decorator `requer_login_ou_publico` aceita sessão autenticada **ou**
+sessão pública (`session["pub_modo"]`), e as tentativas são gravadas com `aluno_id=""` +
+`aluno_email`/`aluno_turma` para identificar o respondente sem conta.
+
+Gestão do professor (requer role `professor`/`admin`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/professor/publico` | Lista turmas públicas + formulário de criação |
+| POST | `/professor/publico/turma/nova` | Cria turma com `publica=true`, `ativa=true` |
+| GET | `/professor/publico/turma/<id>` | Atividades por disciplina, link público e contagem de respondentes |
+| GET | `/professor/atividade/<id>/respostas-publicas` | Tabela de respondentes (nome, email, turma, nota, data) |
+| GET | `/professor/atividade/<id>/respostas-publicas.csv` | Exportação CSV |
+| GET | `/professor/atividade/<id>/relatorio-publico` | PDF com todos os respondentes (WeasyPrint) |
+| GET | `/professor/atividade/<id>/relatorio-publico/<email>` | Comprovante PDF individual, com detalhamento por questão (enunciado, alternativas marcadas, feedback) |
+
+Turmas públicas exibem um badge `🌐 Pública` (`.badge-publica` em `base.css`) em todas as telas
+que listam turmas no painel do professor.
 
 ### Relatórios
 
@@ -333,16 +376,16 @@ Questões abertas sem correção contribuem 0 até o professor avaliar.
 | Collection | ID | Descrição |
 |---|---|---|
 | users | `_pb_users_auth_` | Alunos e professores |
-| turmas | `0xiasmpkvxqig9c` | Turmas (EMI / PROEJA / FIC / EJA) |
+| turmas | `0xiasmpkvxqig9c` | Turmas (EMI / PROEJA / FIC / EJA) + `publica` (bool) e `descricao` (text) para o modo público |
 | disciplinas | `m7urzbvhokcqdz0` | Disciplinas com cor e ícone por tema |
 | turma_disciplina | `503sn0usao2qvp9` | Pivô N:N turma ↔ disciplina |
-| questoes | `sdtq4w1im9dunfw` | Banco central de questões + imagem |
+| questoes | `sdtq4w1im9dunfw` | Banco central de questões + imagem + `assunto` |
 | alternativas | `jf69g6b4qr80hq3` | Opções mc4/mc5 com feedback e imagem |
 | itens_vf | `dkc5b8csbsus7es` | Afirmações V/F ordenadas |
 | pares_associativos | `8okcm31re6gxm4p` | Coluna A : Coluna B com imagens |
-| tentativas | `2cgvat5j77ne31y` | Log completo de respostas por aluno |
-| atividades | `44qehlo0jku49lq` | Agrupa `questoes[]` por turma/disciplina (campo `multidisciplinar`) |
-| materiais | `izszkyi16wtznur` | Vídeos/PDFs/links/arquivos do banco da disciplina (+ `assunto` + `arquivo`) |
+| tentativas | `2cgvat5j77ne31y` | Log de respostas + registro-pai da tentativa (campos: `atividade`, `aluno_id` opcional, `aluno_email`/`aluno_turma` para respondente público, `numero_tentativa`, `questoes_respondidas`, `nota_final`) |
+| atividades | `44qehlo0jku49lq` | Agrupa `questoes[]` por turma/disciplina (`multidisciplinar`, `max_tentativas`, `tempo_limite`, `valor_total`, `disponivel_de/ate`, `nota_automatica`, `exibir_feedback_pos`, `embaralhar`, `modo_prova`, `ativa`) |
+| materiais | `izszkyi16wtznur` | Vídeos/PDFs/links/arquivos do banco da disciplina (+ `assunto` + `arquivo`); campo legado `turma` (direto, required) coexiste com o pivô `turma_materiais` |
 | turma_materiais | — | Pivô N:N turma ↔ material — criada por `scripts/migrate_materiais.py` |
 
 > `turma_materiais` não tem ID fixo seedado aqui: é criada dinamicamente pela
@@ -354,6 +397,27 @@ Collections criadas por migração posterior (sem ID fixo seedado): `boletins`,
 `matriculas` (aluno ↔ turma, com `origem` = `manual`/`formulario`) e
 `formularios_cadastro` (link público por turma). A collection `users` também
 ganhou o campo `matricula` (text, opcional).
+
+### Migrações históricas (já aplicadas, removidas do repositório)
+
+Os scripts abaixo corrigiam campos/regras em collections que já existiam
+antes deste código (seedadas fora dos scripts deste repo — ver nota acima).
+Cada um já foi executado com sucesso na produção atual; como o único
+propósito era sincronizar o schema existente com o que o código passou a
+exigir, foram removidos do repositório após a confirmação. O código-fonte
+de cada um continua disponível no histórico do git (`git log --all --oneline
+-- scripts/<nome>`), caso uma instalação futura precise reaplicá-los.
+
+| Script removido | O que fazia |
+|---|---|
+| `migrate_tentativas.py` | Adicionou o campo `atividade` (relation) em `tentativas` e migrou registros legados que usavam o campo `disciplina` |
+| `add_assunto_questoes.py` | Adicionou o campo `assunto` em `questoes` |
+| `add_multidisciplinar_atividades.py` | Adicionou o campo bool `multidisciplinar` em `atividades` |
+| `migrate_atividades_campos.py` | Adicionou os campos de configuração faltantes em `atividades` (`max_tentativas`, `tempo_limite`, `valor_total`, `disponivel_de/ate`, `nota_automatica`, `exibir_feedback_pos`, `embaralhar`, `modo_prova`, `ativa`) |
+| `migrate_tentativas_progresso.py` | Adicionou `questoes_respondidas`, `numero_tentativa` e `nota_final` em `tentativas` |
+| `migrate_materiais_rules.py` | Corrigiu `createRule`/`updateRule` de `materiais` para permitir upload multipart |
+| `migrate_users_viewrule.py` | Corrigiu `viewRule` de `users` para professores/admins verem nome e email do aluno via `expand` |
+| `cleanup_questoes_duplicadas.py` | Ferramenta de limpeza pontual para questões duplicadas/órfãs de um bug histórico já corrigido no código (ver `LESSONS-LEARNED.md` §5 e §7) |
 
 ### Tipos de questão
 
@@ -372,14 +436,12 @@ A collection `tentativas` armazena dois tipos de registro:
 - **Registro-pai da tentativa** — criado em `/atividade/<id>` com `atividade`, `aluno_id`, `aluno_nome`, `numero_tentativa`, `concluida`, `nota_liberada`, `questoes_respondidas`
 - **Registro de resposta** — criado em `/htmx/responder` com `atividade`, `questao`, `tipo_questao`, `resposta_dada`, `correta`, `score_raw`, `score_max`, `tentativa_id`
 
-O campo `atividade` (relation → `atividades`) é obrigatório em ambos. Para migrar registros legados que usavam o campo `disciplina`:
+O campo `atividade` (relation → `atividades`) é obrigatório em ambos; registros legados que
+usavam o campo `disciplina` já foram migrados em produção (ver "Migrações históricas" acima).
 
-```bash
-PB_URL=https://pb.repoept.duckdns.org \
-PB_ADMIN_EMAIL=admin@exemplo.com \
-PB_ADMIN_PASSWORD=senha \
-  python scripts/migrate_tentativas.py
-```
+Os campos `questao` (registro de resposta) e `aluno_id` (ambos os tipos) são **opcionais**:
+`questao` é anulado quando a questão referenciada é excluída (preserva o histórico do aluno);
+`aluno_id=""` identifica um respondente do modo público, sem conta — ver "Modo público" abaixo.
 
 ### Banco de questões reutilizável (campo `assunto`)
 
@@ -388,14 +450,7 @@ atividade específica. Uma atividade apenas referencia IDs em `atividades.questo
 então a mesma questão pode ser reusada em várias atividades sem duplicar o registro.
 
 O campo livre `assunto` (text, opcional) organiza e filtra as questões dentro da
-disciplina (ex: "Fases do LIS", "Imunoglobulinas"). Para adicioná-lo ao schema:
-
-```bash
-PB_URL=https://pb.repoept.duckdns.org \
-PB_ADMIN_EMAIL=admin@exemplo.com \
-PB_ADMIN_PASSWORD=senha \
-  python scripts/add_assunto_questoes.py
-```
+disciplina (ex: "Fases do LIS", "Imunoglobulinas").
 
 Operações sobre o banco (em `pb.py`): `listar_questoes_disciplina` (filtros por
 tipo/assunto/dificuldade), `clonar_questao` (duplica questão + subitens como
@@ -432,8 +487,12 @@ existir (pré-migração) ou a consulta falhar, cai no filtro legado
 confia no pivô (mesmo vazio) para não exibir dados legados defasados.
 
 Exclusão de material faz **cascade manual** em `turma_materiais` antes de apagar
-o registro; gestão de turmas/disciplinas **bloqueia exclusão** quando há vínculos
-(turma_disciplina, atividades, tentativas, questões, materiais), com aviso explícito.
+o registro. Exclusão de **disciplina** continua **bloqueada** quando há vínculos
+(turma_disciplina, questões, materiais), com aviso explícito na tela. Exclusão de
+**turma** funciona diferente: com vínculos, pede confirmação explícita e então faz
+o cascade completo — remove matrículas, `turma_disciplina`, formulário de cadastro,
+`turma_materiais` e materiais legados; anula (não deleta) a referência em tentativas
+e atividades, preservando o histórico.
 
 **Upload de arquivo (campo `arquivo`, tipo `file`):** materiais dos tipos `pdf` e
 `arquivo` aceitam upload direto. O formulário usa `XMLHttpRequest` com evento
@@ -448,14 +507,9 @@ ainda aceita URL externa como alternativa ao upload.
 ela, o método usa `base_url` (interno `127.0.0.1:8090`, não acessível pelo aluno).
 
 A collection `materiais` precisa de `createRule`/`updateRule` = `@request.auth.id != ""`
-para permitir o upload multipart. Se uploads retornarem 403:
-
-```bash
-PB_URL=http://127.0.0.1:8090 \
-PB_ADMIN_EMAIL=admin@exemplo.com \
-PB_ADMIN_PASSWORD=senha \
-  python scripts/migrate_materiais_rules.py
-```
+para permitir o upload multipart (já corrigido em produção — ver "Migrações históricas").
+Se um ambiente novo apresentar 403 no upload, confirme essas regras em `/_/` → Collections →
+materiais → API Rules.
 
 ### Embaralhamento de alternativas
 
@@ -516,10 +570,10 @@ alternativas — ver `LESSONS-LEARNED.md` § 5. Falhas de permissão (HTTP 403)
 são reportadas de forma explícita ("permissão negada — verifique as regras de
 acesso da collection") em vez de uma mensagem genérica.
 
-Se você já tem questões duplicadas/órfãs no banco (de uma importação anterior
-a essa correção), rode `scripts/cleanup_questoes_duplicadas.py` (dry-run por
-padrão; `--apply` remove de fato, mantendo a cópia mais completa de cada
-grupo).
+Questões duplicadas/órfãs de importações anteriores a essa correção já foram
+limpas em produção com `scripts/cleanup_questoes_duplicadas.py` (removido do
+repositório — ver "Migrações históricas"; disponível no histórico do git se
+for necessário reaplicar).
 
 **Seleção e exclusão em massa:** o banco por disciplina (`banco_questoes.html`)
 tem checkbox por questão + "Selecionar todas" + "Excluir selecionadas", que
@@ -587,7 +641,7 @@ acompanha os cadastros em um relatório com exportação CSV.
 
 `/cadastro/<token>` (público, sem login):
 - token inexistente → **404**; formulário inativo → página "não está mais disponível"
-- valida nome/email/senha (mín. 6, com confirmação); email duplicado → erro inline
+- valida nome/email/senha (mín. 8 caracteres, com confirmação); email duplicado → erro inline
 - cria `user` (role=aluno) + `matricula` (origem=`formulario`), faz **login
   automático** (grava sessão) e redireciona ao portal; email de boas-vindas
   best-effort (não reverte o cadastro se falhar)
@@ -657,8 +711,9 @@ scripts); se algum script futuro precisar tocar essas collections, os campos
 | itens_vf | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
 | pares_associativos | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
 | atividades | `""` | `""` | `@request.auth.id != ""` | leitura pública, escrita autenticada |
-| materiais | `""` | `""` | `@request.auth.id != ""` | obrigatório para upload multipart; corrigir com `migrate_materiais_rules.py` se 403 |
-| tentativas | restrito | restrito | `""` | apenas escrita pública |
+| materiais | `""` | `""` | `@request.auth.id != ""` | obrigatório para upload multipart |
+| users | admin-only | `@request.auth.id != ""` | — | `viewRule` aberta a qualquer usuário autenticado — necessária para o `expand=aluno` em `matriculas` mostrar nome/email em vez do ID bruto |
+| tentativas | `""` | `""` | `""` | `listRule`/`createRule`/`updateRule` abertos — o modo público grava/lê tentativas sem login (`aluno_id=""`); ver `scripts/verificar_modo_publico.py` |
 
 **Convenção das migrações:** todo `scripts/migrate_*.py` que cria uma collection
 **já inclui as regras de acesso no payload de criação** — nunca depende de um
@@ -672,24 +727,21 @@ mão a cada migração). O padrão para collections novas é:
 "deleteRule": '@request.auth.id != ""',
 ```
 
-Exceções com regras próprias: `tentativas` (escrita pública para o aluno) e
-`tokens_senha` (create/update públicos para o fluxo de redefinição de senha).
+Exceções com regras próprias: `tentativas` (totalmente aberta — o modo público
+grava/lê sem login), `users` (viewRule aberta a autenticados, mas create/update
+admin-only) e `tokens_senha` (create/update públicos para o fluxo de redefinição
+de senha).
 
-> **⚠️ Ação necessária (auditoria de 2026-07):** `turmas`, `disciplinas`,
-> `questoes`, `itens_vf`, `pares_associativos` e `atividades` foram seedadas
-> **antes** de existir este código (não por um `scripts/migrate_*.py` deste
-> repositório), então este documento não pode confirmar o `createRule` real
-> delas na instância de produção. O app cria/edita registros nessas collections
-> usando o token de sessão do professor (`users`, role=`professor`) — **nunca**
-> autentica como admin do PocketBase — então, para tudo funcionar, o
-> `createRule`/`updateRule` real precisa aceitar esse token (equivalente a
-> `@request.auth.id != ""`, e não um "admin only" literal do PocketBase).
-> Se questões de um tipo específico (ex: `itens_vf` para V/F) falharem ao
-> criar com erro 403 mas `alternativas` funcionar, é sinal de que essa
-> collection ficou com uma regra mais restritiva do que as demais. Confirme em
-> `/_/` → Collections → (nome) → API Rules, comparando com a linha
-> `alternativas` (que sabidamente funciona). A importação de JSON agora expõe
-> esse erro de forma legível (`_erro_http` em `app.py`): "permissão negada
+> **Nota histórica:** `turmas`, `disciplinas`, `questoes`, `itens_vf`,
+> `pares_associativos` e `atividades` foram seedadas **antes** de existir este
+> código (não por um `scripts/migrate_*.py` deste repositório). O app cria/edita
+> registros nessas collections usando o token de sessão do professor (nunca
+> autentica como admin do PocketBase), então o `createRule`/`updateRule` real
+> precisa aceitar esse token (equivalente a `@request.auth.id != ""`). Se uma
+> collection especifica (ex: `itens_vf` para V/F) falhar com 403 enquanto
+> `alternativas` funciona, é sinal de que ficou com uma regra mais restritiva —
+> confirme em `/_/` → Collections → (nome) → API Rules. A importação de JSON
+> expõe esse erro de forma legível (`_erro_http` em `app.py`): "permissão negada
 > (403) — verifique as regras de acesso (createRule) da collection" em vez de
 > uma exceção genérica.
 
@@ -813,17 +865,23 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 
 - [ ] PocketBase respondendo: `curl http://127.0.0.1:8090/api/health`
 - [ ] Flask respondendo: `curl http://127.0.0.1:8091/health`
-- [ ] Collections existem com `listRule`/`viewRule` vazias nas públicas
-- [ ] Campo `atividade` existe na collection `tentativas` (relation → atividades)
-- [ ] Campo `assunto` existe em `questoes` e `materiais` (migração)
+- [ ] Collections existem com `listRule`/`viewRule` vazias nas públicas (ver "Regras de acesso")
+- [ ] Campo `atividade` existe em `tentativas`; campos `assunto` em `questoes`/`materiais`;
+      campo `multidisciplinar` em `atividades` — já garantidos em produção (ver "Migrações históricas")
 - [ ] Collection `turma_materiais` criada e com backfill rodado (`scripts/migrate_materiais.py`)
-- [ ] Campo `multidisciplinar` (bool) existe em `atividades` (`scripts/add_multidisciplinar_atividades.py`)
 - [ ] Collections `boletins`, `unidades`, `recuperacao_final` criadas (`scripts/migrate_boletim.py`)
 - [ ] Collections `tokens_senha` e `matriculas` criadas (`scripts/migrate_tokens_senha.py`, `scripts/migrate_matriculas.py`)
 - [ ] Collection `formularios_cadastro` criada + campo `matricula` em `users` (`scripts/migrate_formulario_cadastro.py`)
+- [ ] **Modo público:** campos `publica`/`descricao` em `turmas` e `aluno_email`/`aluno_turma`
+      em `tentativas` (`scripts/migrate_turmas_publicas.py`); `questao` e `aluno_id` opcionais
+      em `tentativas` (`scripts/migrate_tentativas_questao_optional.py`); rodar
+      `python scripts/verificar_modo_publico.py --fix` para conferir campos + regras + testar
+      um POST anônimo real
+- [ ] `users`: `viewRule` aberta a autenticados (`@request.auth.id != ""`) para o `expand=aluno`
+      em `matriculas` mostrar nome/email em vez do ID bruto
 - [ ] `RESEND_API_KEY` definido no service (`/etc/systemd/system/leduk.service`) para envio de email
 - [ ] `PB_PUBLIC_URL` definido no service (ex: `https://pb.repoept.duckdns.org`) para URLs públicas de arquivos de materiais
-- [ ] `materiais`: `createRule`/`updateRule` = `@request.auth.id != ""` (rodar `migrate_materiais_rules.py` se uploads retornarem 403)
+- [ ] `materiais`: `createRule`/`updateRule` = `@request.auth.id != ""` (necessário para upload multipart)
 - [ ] Campo `correta` em `alternativas` com `required: false`
 - [ ] Cada questão mc tem pelo menos uma alternativa com `correta: true`
 - [ ] Gunicorn usando `app:create_app()` e não `app:app`
@@ -844,12 +902,14 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 7 — Banco de questões | Concluída | CRUD completo mc4/mc5/vf/aberta/associativa + upload de imagem |
 | 8 — Banco reutilizável | Concluída | Questões compartilhadas por disciplina: campo `assunto`, filtros, clonar, reclassificar, seletor para reuso entre atividades |
 | 9 — Navegação do professor | Concluída | Menu hambúrguer dedicado (turmas + disciplinas + atalho ao banco), atalhos ao banco no dashboard e na turma |
-| 10 — Gestão escolar completa | Concluída | CRUD de turmas/disciplinas (com bloqueio de exclusão), vínculo turma↔disciplina, banco de materiais reutilizável por disciplina (`turma_materiais`) |
+| 10 — Gestão escolar completa | Concluída | CRUD de turmas/disciplinas (exclusão com confirmação + cascade), vínculo turma↔disciplina, banco de materiais reutilizável por disciplina (`turma_materiais`) |
 | 11 — Banco geral e multidisciplinar | Concluída | Banco geral de questões (filtros cross-disciplina), montagem de atividade multidisciplinar e aba dedicada "Multidisciplinar" no portal do aluno |
 | 12 — Importação JSON | Concluída | Importar questões via JSON (colar ou arquivo .json), com imagens por URL ou base64; arquivo de exemplo cobrindo todos os tipos |
 | 13 — Boletim | Concluída | Boletim por turma: unidades por disciplina, recuperação de unidade e final, mapa de calor, relatório, situação (aprovado/recuperação/reprovado) e visão liberável ao aluno |
 | 14 — Email + reset de senha | Concluída | Envio via Resend (boas-vindas, redefinição), token seguro (`secrets`, expira 24h, uso único), gestão e cadastro manual de alunos por turma |
 | 15 — Auto-cadastro público | Concluída | Link de convite por turma (`/cadastro/<token>`), auto-cadastro com login automático, relatório + CSV, matrícula editável inline |
+| 16 — Confiabilidade e UX do portal | Concluída | Histórico do aluno simplificado (uma linha por atividade + data da última tentativa), progresso "X de N respondidas" persistido corretamente, badge de tentativas restantes, exclusão de turma com cascade + confirmação explícita em vez de bloqueio simples |
+| 17 — Modo público de atividades | Concluída | Turmas públicas sem matrícula (`/publica/<id>`), respondente identificado por nome/email (sem conta), limite de tentativas por email, gestão dedicada no painel do professor, comprovante PDF individual com detalhamento por questão e relatório geral, badge visual "🌐 Pública" |
 
 ### Funcionalidades futuras consideradas
 
