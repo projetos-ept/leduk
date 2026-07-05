@@ -108,9 +108,7 @@
         </p>
       </div>
 
-      {% if modo_prova %}
-        <p style="color:#777;font-size:11px;">Detalhamento não disponível — atividade em modo prova.</p>
-      {% elif tent._questoes_revisao %}
+      {% if tent._questoes_revisao %}
         <p style="font-weight:600;margin:14px 0 8px;">Detalhamento:</p>
         {% for item in tent._questoes_revisao %}
           {% set q = item.questao %}
@@ -155,10 +153,10 @@
               <div class="aberta-texto">{{ r.resposta_dada or '—' }}</div>
               {% if r.score_max %}
                 <p class="aberta-nota">Nota atribuída: {{ r.score_raw }} / {{ r.score_max }}</p>
-              {% elif exibir_feedback %}
+              {% else %}
                 <p class="aberta-nota">Aguardando correção do professor.</p>
               {% endif %}
-              {% if exibir_feedback and r.comentario_professor %}
+              {% if r.comentario_professor %}
                 <div class="feedback"><strong>Comentário do professor:</strong> {{ r.comentario_professor }}</div>
               {% endif %}
             {% elif q.tipo == "vf" and item._vf_detalhe is defined %}
@@ -197,7 +195,7 @@
               </p>
             {% endif %}
 
-            {% if exibir_feedback and q.explicacao %}
+            {% if q.explicacao %}
               <div class="feedback">💡 {{ q.explicacao }}</div>
             {% endif %}
           </div>

@@ -428,18 +428,28 @@ def test_relatorio_publico_individual_mostra_gabarito_associativa(client):
 
 
 @rsps_lib.activate
-def test_relatorio_publico_individual_modo_prova_oculta_detalhamento(client):
+def test_relatorio_publico_individual_mostra_detalhamento_mesmo_em_modo_prova(client):
+    """Este relatório é a devolutiva que o PROFESSOR gera manualmente para
+    entregar ao aluno — modo_prova regula o que o aluno vê sozinho durante a
+    prova, não deve esconder o detalhamento do professor aqui."""
     _sessao_professor(client)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
                  json={**ATIVIDADE, "modo_prova": True})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
                  json={"items": [TENTATIVA_PUBLICA]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [{"id": "r1", "questao": "q001", "correta": True,
+                                  "resposta_dada": "A", "score_raw": 1, "score_max": 1,
+                                  "tipo_questao": "mc4"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q001", json=QUESTAO_MC)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": QUESTAO_MC["alternativas"]})
     resp = client.get("/professor/atividade/ativ01/relatorio-publico/visitante@example.com")
     assert resp.status_code == 200
     html = resp.data.decode()
-    assert "Qual alternativa correta?" not in html
-    assert "modo prova" in html.lower()
+    assert "Qual alternativa correta?" in html
+    assert "modo prova" not in html.lower()
 
 
 @rsps_lib.activate
