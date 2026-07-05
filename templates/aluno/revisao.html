@@ -91,7 +91,7 @@
               {% for par in item._assoc_detalhe %}
                 {% set par_ok = (par.marcada == par.coluna_b) %}
                 <li class="revisao-alt{% if par_ok %} revisao-alt-correta{% else %} revisao-alt-errada{% endif %}">
-                  <span class="revisao-texto">{{ par.coluna_a }}{% if not par_ok %} — <strong>correta: {{ par.coluna_b }}</strong>{% endif %}</span>
+                  <span class="revisao-texto">{{ par.coluna_a }} — <strong>correta: {{ par.coluna_b }}</strong></span>
                   <span class="revisao-tag">{% if par.marcada %}sua resposta: {{ par.marcada }}{% if par_ok %} ✓{% else %} ✗{% endif %}{% else %}sem resposta{% endif %}</span>
                 </li>
               {% endfor %}

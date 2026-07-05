@@ -425,6 +425,9 @@ def test_relatorio_publico_individual_mostra_gabarito_associativa(client):
     assert "Leucócito" in html
     assert "Defesa" in html  # gabarito correto do par errado precisa aparecer
     assert "Transporte de O2" in html  # resposta (errada) do aluno para esse par
+    # par 1 (Hemácia) foi acertado — a coluna "Correta" deve mostrar o gabarito
+    # mesmo assim, não só nos pares errados (bug relatado: só aparecia nos errados)
+    assert html.count("Transporte de O2") == 3
 
 
 @rsps_lib.activate
