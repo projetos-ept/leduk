@@ -145,6 +145,39 @@ def test_revisao_retorna_200_quando_habilitada(client):
 
 
 @rsps_lib.activate
+def test_revisao_mostra_gabarito_vf(client):
+    """Revisão do aluno precisa mostrar afirmação, gabarito e resposta marcada
+    para questões V/F — não só para múltipla escolha."""
+    with client.session_transaction() as sess:
+        sess["token"] = "tok"
+        sess["aluno_id"] = "aluno01"
+    ativ_vf = {**ATIVIDADE, "questoes": ["qvf1"]}
+    questao_vf = {
+        "id": "qvf1", "tipo": "vf", "enunciado": "Julgue os itens", "peso": 1,
+        "itens_vf": [
+            {"id": "i1", "ordem": 1, "afirmacao": "O plasma é líquido", "gabarito": True},
+            {"id": "i2", "ordem": 2, "afirmacao": "Plaquetas são núcleos", "gabarito": False},
+        ],
+    }
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ativ_vf)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records/tent01", json=TENTATIVA_CONCLUIDA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [{"id": "r1", "questao": "qvf1", "correta": False,
+                                  "resposta_dada": "{'1': True, '2': True}",
+                                  "score_raw": 1, "score_max": 2, "tipo_questao": "vf"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/qvf1", json=questao_vf)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records",
+                 json={"items": questao_vf["itens_vf"]})
+    resp = client.get("/aluno/atividade/ativ01/revisao/tent01")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "O plasma é líquido" in html
+    assert "Plaquetas são núcleos" in html
+    assert "Falso" in html
+    assert "Verdadeiro" in html
+
+
+@rsps_lib.activate
 def test_revisao_retorna_403_quando_desabilitada(client):
     with client.session_transaction() as sess:
         sess["token"] = "tok"

@@ -1,3 +1,4 @@
+import ast
 import base64
 import binascii
 import json
@@ -436,6 +437,20 @@ def _importar_questoes(pb_inst, disciplina_id: str, questoes: list) -> tuple[int
     return criadas, duplicadas, erros
 
 
+def _parse_resposta_composta(resposta_dada: str) -> dict:
+    """Faz o parse de respostas vf/associativa, gravadas como str({str(ordem): valor}).
+
+    htmx_responder grava `resposta_raw = str(respostas)` (repr Python, não JSON) para
+    vf/associativa — usa ast.literal_eval em vez de json.loads. Nunca propaga exceção:
+    resposta corrompida/ausente vira detalhamento vazio em vez de derrubar a página.
+    """
+    try:
+        valor = ast.literal_eval(resposta_dada or "")
+        return valor if isinstance(valor, dict) else {}
+    except (ValueError, SyntaxError):
+        return {}
+
+
 def _build_detalhamento(respostas: list, atividade: dict) -> tuple[float | None, list]:
     """Returns (nota_final, detalhamento) from session respostas and atividade record."""
     nota_final = calcular_nota_final(respostas, atividade)
@@ -767,7 +782,29 @@ def create_app(config: dict | None = None) -> Flask:
                 q = get_pb().buscar_questao(qid)
             except Exception:
                 continue
-            itens.append({"questao": q, "resposta": respostas_por_questao.get(qid, {})})
+            item = {"questao": q, "resposta": respostas_por_questao.get(qid, {})}
+            resposta_dada = item["resposta"].get("resposta_dada", "")
+            if q.get("tipo") == "vf" and q.get("itens_vf"):
+                marcadas = _parse_resposta_composta(resposta_dada)
+                item["_vf_detalhe"] = [
+                    {
+                        "afirmacao": vf.get("afirmacao", ""),
+                        "gabarito": bool(vf.get("gabarito")),
+                        "marcada": marcadas.get(str(vf.get("ordem"))),
+                    }
+                    for vf in sorted(q["itens_vf"], key=lambda x: x.get("ordem", 0))
+                ]
+            elif q.get("tipo") == "associativa" and q.get("pares_associativos"):
+                marcadas = _parse_resposta_composta(resposta_dada)
+                item["_assoc_detalhe"] = [
+                    {
+                        "coluna_a": par.get("coluna_a", ""),
+                        "coluna_b": par.get("coluna_b", ""),
+                        "marcada": marcadas.get(str(par.get("ordem"))),
+                    }
+                    for par in sorted(q["pares_associativos"], key=lambda x: x.get("ordem", 0))
+                ]
+            itens.append(item)
 
         valor_total = ativ.get("valor_total") or None
         if valor_total and itens:

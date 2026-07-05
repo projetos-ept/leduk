@@ -350,6 +350,83 @@ def test_relatorio_publico_individual_mostra_detalhamento(client):
     assert "resposta assinalada" in html
 
 
+QUESTAO_VF = {
+    "id": "q002",
+    "tipo": "vf",
+    "enunciado": "Julgue as afirmações",
+    "peso": 1,
+    "itens_vf": [
+        {"id": "vf1", "ordem": 1, "afirmacao": "O sangue é vermelho", "gabarito": True},
+        {"id": "vf2", "ordem": 2, "afirmacao": "Leucócitos são hemácias", "gabarito": False},
+    ],
+}
+
+
+@rsps_lib.activate
+def test_relatorio_publico_individual_mostra_gabarito_vf(client):
+    """Bug relatado: comprovante não mostrava resposta do aluno nem gabarito
+    para questões V/F — resposta_dada é str(dict), não uma letra simples."""
+    _sessao_professor(client)
+    ativ_vf = {**ATIVIDADE, "questoes": ["q002"]}
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ativ_vf)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [TENTATIVA_PUBLICA]})
+    # aluno marcou item 1 certo (True) e item 2 errado (marcou True, gabarito é False)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [{"id": "r1", "questao": "q002", "correta": False,
+                                  "resposta_dada": "{'1': True, '2': True}",
+                                  "score_raw": 1, "score_max": 2, "tipo_questao": "vf"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q002", json=QUESTAO_VF)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/itens_vf/records",
+                 json={"items": QUESTAO_VF["itens_vf"]})
+    resp = client.get("/professor/atividade/ativ01/relatorio-publico/visitante@example.com")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "O sangue é vermelho" in html
+    assert "Leucócitos são hemácias" in html
+    # item 2: aluno respondeu Verdadeiro mas gabarito é Falso — ambos precisam aparecer
+    assert "Falso" in html  # gabarito do item 2
+    assert "Verdadeiro" in html  # resposta do aluno no item 2
+
+
+QUESTAO_ASSOC = {
+    "id": "q003",
+    "tipo": "associativa",
+    "enunciado": "Associe as colunas",
+    "peso": 1,
+    "pares_associativos": [
+        {"id": "p1", "ordem": 1, "coluna_a": "Hemácia", "coluna_b": "Transporte de O2"},
+        {"id": "p2", "ordem": 2, "coluna_a": "Leucócito", "coluna_b": "Defesa"},
+    ],
+}
+
+
+@rsps_lib.activate
+def test_relatorio_publico_individual_mostra_gabarito_associativa(client):
+    _sessao_professor(client)
+    ativ_assoc = {**ATIVIDADE, "questoes": ["q003"]}
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ativ_assoc)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [TENTATIVA_PUBLICA]})
+    # aluno errou o par 2 (associou Leucócito com "Transporte de O2" em vez de "Defesa")
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [{"id": "r1", "questao": "q003", "correta": False,
+                                  "resposta_dada": "{'1': 'Transporte de O2', '2': 'Transporte de O2'}",
+                                  "score_raw": 1, "score_max": 2, "tipo_questao": "associativa"}]})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q003", json=QUESTAO_ASSOC)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/pares_associativos/records",
+                 json={"items": QUESTAO_ASSOC["pares_associativos"]})
+    resp = client.get("/professor/atividade/ativ01/relatorio-publico/visitante@example.com")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Hemácia" in html
+    assert "Leucócito" in html
+    assert "Defesa" in html  # gabarito correto do par errado precisa aparecer
+    assert "Transporte de O2" in html  # resposta (errada) do aluno para esse par
+
+
 @rsps_lib.activate
 def test_relatorio_publico_individual_modo_prova_oculta_detalhamento(client):
     _sessao_professor(client)
