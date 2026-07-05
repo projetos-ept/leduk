@@ -85,9 +85,9 @@ leduk/
 │   │   ├── publico/                ← gestão de turmas/atividades públicas (modo público)
 │   │   │   ├── index.html          ← lista turmas públicas + form de criação
 │   │   │   ├── turma.html          ← atividades por disciplina + link público + contagem de respostas
-│   │   │   ├── respostas.html      ← tabela de respondentes + exportar CSV + PDFs
-│   │   │   ├── relatorio_geral.html      ← PDF com todos os respondentes (WeasyPrint)
-│   │   │   └── relatorio_individual.html ← PDF comprovante individual com detalhamento por questão
+│   │   │   ├── respostas.html      ← tabela de respondentes + exportar CSV + relatórios
+│   │   │   ├── relatorio_geral.html      ← página HTML com todos os respondentes (imprimir/salvar PDF pelo navegador)
+│   │   │   └── relatorio_individual.html ← comprovante individual com detalhamento por questão (imprimir/salvar PDF pelo navegador)
 │   │   ├── boletim/                ← configurar/unidades/notas/relatorio do boletim
 │   │   ├── components/
 │   │   │   ├── _seletor_questoes.html ← cards com checkbox (reuso de questões)
@@ -136,7 +136,7 @@ leduk/
         ├── test_senha_alunos.py      ← reset de senha (público/professor) + cadastro manual
         ├── test_cadastro_publico.py  ← auto-cadastro via link + gestão do formulário
         ├── test_materiais.py         ← upload multipart vs JSON, url_arquivo_material()
-        └── test_modo_publico.py      ← turmas públicas: identificação, limite de tentativas, comprovante PDF
+        └── test_modo_publico.py      ← turmas públicas: identificação, limite de tentativas, comprovante
 ```
 
 ---
@@ -148,7 +148,7 @@ leduk/
 | API + banco + auth | PocketBase 0.22.20 (SQLite embutido) |
 | Backend | Flask 3.x + Gunicorn (2 workers) |
 | Frontend | HTMX 1.9.12 (fragmentos HTML, sem SPA) |
-| PDF | WeasyPrint |
+| Relatórios/PDF | HTML + `@media print` — impressão/"Salvar como PDF" pelo navegador (sem lib nativa) |
 | Proxy reverso | Nginx + Let's Encrypt |
 | Linguagem | Python 3.11 |
 
@@ -311,8 +311,15 @@ Gestão do professor (requer role `professor`/`admin`):
 | GET | `/professor/publico/turma/<id>` | Atividades por disciplina, link público e contagem de respondentes |
 | GET | `/professor/atividade/<id>/respostas-publicas` | Tabela de respondentes (nome, email, turma, nota, data) |
 | GET | `/professor/atividade/<id>/respostas-publicas.csv` | Exportação CSV |
-| GET | `/professor/atividade/<id>/relatorio-publico` | PDF com todos os respondentes (WeasyPrint) |
-| GET | `/professor/atividade/<id>/relatorio-publico/<email>` | Comprovante PDF individual, com detalhamento por questão (enunciado, alternativas marcadas, feedback) |
+| GET | `/professor/atividade/<id>/relatorio-publico` | Página HTML com todos os respondentes — botão "Imprimir / Salvar PDF" usa o navegador |
+| GET | `/professor/atividade/<id>/relatorio-publico/<email>` | Comprovante individual (devolutiva), com detalhamento por questão — enunciado, alternativas/afirmações/pares marcados vs. gabarito, feedback; mesmo botão de impressão |
+
+Ambos os relatórios são páginas HTML normais (não geram PDF no servidor): o botão
+"🖨️ Imprimir / Salvar PDF" chama `window.print()` e o navegador do professor faz a
+conversão via "Salvar como PDF" no diálogo de impressão. A versão anterior gerava o PDF
+no servidor com WeasyPrint — removido porque o suporte a flexbox da lib é limitado e
+falhava silenciosamente em produção, cortando conteúdo do detalhamento sem erro visível.
+Impressão pelo navegador é mais confiável e elimina uma dependência nativa pesada.
 
 Turmas públicas exibem um badge `🌐 Pública` (`.badge-publica` em `base.css`) em todas as telas
 que listam turmas no painel do professor.
@@ -909,7 +916,7 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 | 14 — Email + reset de senha | Concluída | Envio via Resend (boas-vindas, redefinição), token seguro (`secrets`, expira 24h, uso único), gestão e cadastro manual de alunos por turma |
 | 15 — Auto-cadastro público | Concluída | Link de convite por turma (`/cadastro/<token>`), auto-cadastro com login automático, relatório + CSV, matrícula editável inline |
 | 16 — Confiabilidade e UX do portal | Concluída | Histórico do aluno simplificado (uma linha por atividade + data da última tentativa), progresso "X de N respondidas" persistido corretamente, badge de tentativas restantes, exclusão de turma com cascade + confirmação explícita em vez de bloqueio simples |
-| 17 — Modo público de atividades | Concluída | Turmas públicas sem matrícula (`/publica/<id>`), respondente identificado por nome/email (sem conta), limite de tentativas por email, gestão dedicada no painel do professor, comprovante PDF individual com detalhamento por questão e relatório geral, badge visual "🌐 Pública" |
+| 17 — Modo público de atividades | Concluída | Turmas públicas sem matrícula (`/publica/<id>`), respondente identificado por nome/email (sem conta), limite de tentativas por email, gestão dedicada no painel do professor, comprovante individual com detalhamento por questão (mc/vf/associativa/aberta) e relatório geral — ambos impressos/salvos em PDF pelo navegador, badge visual "🌐 Pública" |
 
 ### Funcionalidades futuras consideradas
 
