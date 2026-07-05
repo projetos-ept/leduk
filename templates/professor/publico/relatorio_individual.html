@@ -184,7 +184,7 @@
                     <tr class="assoc-row {{ 'ok' if par_ok else 'err' }}">
                       <td>{{ par.coluna_a }}</td>
                       <td class="{{ 'valor-ok' if par_ok else 'valor-err' }}">{{ par.marcada or '— sem resposta' }}{% if par.marcada and not par_ok %} ✗{% elif par_ok %} ✓{% endif %}</td>
-                      <td>{% if not par_ok %}{{ par.coluna_b }}{% endif %}</td>
+                      <td>{{ par.coluna_b }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
