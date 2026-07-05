@@ -56,13 +56,27 @@
 
     .rodape { margin-top: 24px; color: #999; font-size: 10px; }
 
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .toolbar a { color: #5b8dee; text-decoration: none; font-size: 12.5px; font-weight: 600; }
+    .btn-imprimir {
+      font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+      background: #5b8dee; color: #fff; border: none; border-radius: 6px; padding: 8px 16px;
+    }
+    .btn-imprimir:hover { background: #4a76d4; }
+
     @media print {
       body { margin: 12mm; }
       .questao-card { break-inside: avoid; }
+      .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
+  <div class="toolbar no-print">
+    <a href="/professor/atividade/{{ atividade.id }}/respostas-publicas">← Voltar às respostas</a>
+    <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+  </div>
+
   <h1>LeDuk — Comprovante de Resposta</h1>
 
   <div class="bloco">

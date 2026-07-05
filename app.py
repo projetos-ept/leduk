@@ -545,19 +545,6 @@ def _form_to_atividade(form) -> dict:
     }
 
 
-def _resposta_pdf(html: str, filename: str):
-    """Gera PDF via WeasyPrint; sem a lib instalada, devolve o próprio HTML."""
-    try:
-        from weasyprint import HTML  # import tardio: dependência nativa pesada
-    except Exception:
-        return make_response(html)
-    pdf = HTML(string=html).write_pdf()
-    r = make_response(pdf)
-    r.headers["Content-Type"] = "application/pdf"
-    r.headers["Content-Disposition"] = f'inline; filename="{filename}"'
-    return r
-
-
 def _fmt_data_hora(iso: str) -> str:
     try:
         dt = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
@@ -2453,10 +2440,9 @@ def create_app(config: dict | None = None) -> Flask:
             tentativas = []
         for t in tentativas:
             t["_data_fmt"] = _fmt_data_hora(t.get("created", ""))
-        html = render_template("professor/publico/relatorio_geral.html", atividade=ativ,
+        return render_template("professor/publico/relatorio_geral.html", atividade=ativ,
                                disciplina=disciplina, tentativas=tentativas,
                                gerado_em=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"))
-        return _resposta_pdf(html, f"relatorio_publico_{ativ_id}.pdf")
 
     @app.route("/professor/atividade/<ativ_id>/relatorio-publico/<path:email>")
     @requer_professor
@@ -2481,10 +2467,9 @@ def create_app(config: dict | None = None) -> Flask:
             t["_data_fmt"] = _fmt_data_hora(t.get("created", ""))
             t["_questoes_revisao"] = [] if modo_prova else _montar_questoes_revisao(ativ, t["id"])
 
-        html = render_template("professor/publico/relatorio_individual.html",
+        return render_template("professor/publico/relatorio_individual.html",
                                atividade=ativ, disciplina=disciplina, tentativas=tentativas,
                                modo_prova=modo_prova, exibir_feedback=exibir_feedback)
-        return _resposta_pdf(html, f"comprovante_{ativ_id}.pdf")
 
     # ── Cadastro público via link de convite ──
 

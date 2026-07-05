@@ -29,7 +29,7 @@
     </div>
     <div style="display:flex;gap:8px;">
       <a href="/professor/atividade/{{ atividade.id }}/respostas-publicas.csv" class="btn-ghost">⬇ Exportar Excel (CSV)</a>
-      <a href="/professor/atividade/{{ atividade.id }}/relatorio-publico" class="btn-primary" target="_blank">📄 Relatório geral PDF</a>
+      <a href="/professor/atividade/{{ atividade.id }}/relatorio-publico" class="btn-primary" target="_blank">📄 Relatório geral</a>
     </div>
   </div>
 
@@ -62,7 +62,7 @@
               <td>
                 {% if t.aluno_email %}
                   <a class="btn-ghost" style="font-size:.8rem;padding:3px 9px;" target="_blank"
-                     href="/professor/atividade/{{ atividade.id }}/relatorio-publico/{{ t.aluno_email }}">PDF</a>
+                     href="/professor/atividade/{{ atividade.id }}/relatorio-publico/{{ t.aluno_email }}">Ver relatório</a>
                 {% endif %}
               </td>
             </tr>
