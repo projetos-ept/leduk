@@ -282,6 +282,18 @@ class PocketBaseClient:
         )
         return result.get("items", [])
 
+    def listar_tentativas_publicas_por_email(self, ativ_id: str, email: str) -> list:
+        """Todas as tentativas concluídas de um respondente público, mais antiga primeiro."""
+        result = self._get(
+            "/api/collections/tentativas/records",
+            params={
+                "filter": f'atividade="{ativ_id}"&&aluno_email="{email}"&&concluida=true',
+                "sort": "numero_tentativa,created",
+                "perPage": "500",
+            },
+        )
+        return result.get("items", [])
+
     def contar_tentativas_por_email(self, ativ_id: str, email: str) -> int:
         """Controle de tentativas para respondentes públicos (sem conta)."""
         result = self._get(

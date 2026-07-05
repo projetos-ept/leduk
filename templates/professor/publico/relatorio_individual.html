@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Comprovante — {{ tentativa.aluno_nome }}</title>
+  <title>Comprovante — {{ tentativas[0].aluno_nome if tentativas else '' }}</title>
   <style>
     body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; margin: 32px; font-size: 12px; }
     h1 { font-size: 18px; margin: 0 0 18px; }
@@ -10,12 +10,48 @@
     .linha { margin: 4px 0; }
     .rotulo { color: #777; display: inline-block; min-width: 130px; }
     .nota { font-size: 16px; font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th { text-align: left; background: #f0f2f8; padding: 6px 9px; font-size: 11px; border-bottom: 2px solid #d5d9e6; }
-    td { padding: 5px 9px; border-bottom: 1px solid #e8eaf1; }
-    .ok { color: #1a7f3c; }
-    .erro { color: #b3261e; }
+
+    .tentativa-titulo { font-size: 14px; font-weight: 700; margin: 22px 0 10px; }
+    .tentativa-titulo:first-of-type { margin-top: 0; }
+    .tentativa-bloco + .tentativa-bloco { page-break-before: always; }
+
+    .questao-card { border: 1px solid #e0e3ee; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; page-break-inside: avoid; }
+    .questao-card.correta { border-left: 4px solid #1a7f3c; }
+    .questao-card.errada { border-left: 4px solid #b3261e; }
+    .questao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .questao-num { font-weight: 700; font-size: 12.5px; }
+    .questao-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .questao-badge.ok { color: #1a7f3c; background: #e7f6ec; }
+    .questao-badge.err { color: #b3261e; background: #fbe9e7; }
+    .questao-badge.neutro { color: #777; background: #f0f0f0; }
+    .questao-peso { color: #999; font-size: 10.5px; margin-left: 8px; }
+    .questao-enunciado { margin: 0 0 10px; }
+
+    .alt-lista { list-style: none; margin: 0; padding: 0; }
+    .alt-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; margin-bottom: 3px; }
+    .alt-item.alt-correta { background: #e7f6ec; }
+    .alt-item.alt-marcada-errada { background: #fbe9e7; }
+    .alt-letra { font-weight: 700; min-width: 16px; }
+    .alt-tag { margin-left: auto; font-size: 10.5px; font-weight: 600; }
+    .alt-tag.ok { color: #1a7f3c; }
+    .alt-tag.err { color: #b3261e; }
+
+    .resposta-label { color: #777; font-size: 11px; margin: 6px 0 2px; }
+    .resposta-marcada { font-weight: 600; }
+    .resposta-marcada.ok { color: #1a7f3c; }
+    .resposta-marcada.err { color: #b3261e; }
+
+    .aberta-texto { background: #f7f8fb; border-radius: 6px; padding: 8px 10px; margin-top: 4px; white-space: pre-line; }
+    .aberta-nota { margin-top: 6px; font-size: 11px; color: #555; }
+
+    .feedback { margin-top: 8px; background: #fff8e1; border-radius: 6px; padding: 8px 10px; font-size: 11.5px; }
+
     .rodape { margin-top: 24px; color: #999; font-size: 10px; }
+
+    @media print {
+      body { margin: 12mm; }
+      .questao-card { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
@@ -24,47 +60,99 @@
   <div class="bloco">
     <p class="linha"><span class="rotulo">Atividade:</span> <strong>{{ atividade.titulo }}</strong></p>
     {% if disciplina.nome %}<p class="linha"><span class="rotulo">Disciplina:</span> {{ disciplina.nome }}</p>{% endif %}
-    <p class="linha"><span class="rotulo">Data:</span> {{ data_fmt }}</p>
   </div>
 
-  <div class="bloco">
-    <p class="linha"><span class="rotulo">Respondente:</span> <strong>{{ tentativa.aluno_nome or '—' }}</strong></p>
-    <p class="linha"><span class="rotulo">Email:</span> {{ tentativa.aluno_email or '—' }}</p>
-    <p class="linha"><span class="rotulo">Turma informada:</span> {{ tentativa.aluno_turma or '—' }}</p>
-    <p class="linha"><span class="rotulo">Tentativa:</span>
-      {{ tentativa.numero_tentativa or total_por_email }}{% if atividade.max_tentativas %} de {{ atividade.max_tentativas }}{% endif %}
-    </p>
-  </div>
+  {% for tent in tentativas %}
+    <div class="tentativa-bloco">
+      <p class="tentativa-titulo">
+        Tentativa {{ tent.numero_tentativa or loop.index }}{% if atividade.max_tentativas %} de {{ atividade.max_tentativas }}{% endif %}
+      </p>
 
-  <div class="bloco">
-    <p class="linha nota">
-      {% if tentativa.nota_final is not none and atividade.valor_total %}
-        Nota: {{ (tentativa.nota_final | round(1)) | string | replace(".", ",") }} / {{ atividade.valor_total | string | replace(".0", "") }}
-        &nbsp;·&nbsp; Aproveitamento: {{ (tentativa.score_percentual or 0) | int }}%
-      {% else %}
-        Aproveitamento: {{ (tentativa.score_percentual or 0) | int }}%
+      <div class="bloco">
+        <p class="linha"><span class="rotulo">Respondente:</span> <strong>{{ tent.aluno_nome or '—' }}</strong></p>
+        <p class="linha"><span class="rotulo">Email:</span> {{ tent.aluno_email or '—' }}</p>
+        <p class="linha"><span class="rotulo">Turma informada:</span> {{ tent.aluno_turma or '—' }}</p>
+        <p class="linha"><span class="rotulo">Data:</span> {{ tent._data_fmt }}</p>
+      </div>
+
+      <div class="bloco">
+        <p class="linha nota">
+          {% if tent.nota_final is not none and atividade.valor_total %}
+            Nota: {{ (tent.nota_final | round(1)) | string | replace(".", ",") }} / {{ atividade.valor_total | string | replace(".0", "") }}
+            &nbsp;·&nbsp; Aproveitamento: {{ (tent.score_percentual or 0) | int }}%
+          {% else %}
+            Aproveitamento: {{ (tent.score_percentual or 0) | int }}%
+          {% endif %}
+        </p>
+      </div>
+
+      {% if modo_prova %}
+        <p style="color:#777;font-size:11px;">Detalhamento não disponível — atividade em modo prova.</p>
+      {% elif tent._questoes_revisao %}
+        <p style="font-weight:600;margin:14px 0 8px;">Detalhamento:</p>
+        {% for item in tent._questoes_revisao %}
+          {% set q = item.questao %}
+          {% set r = item.resposta %}
+          {% set correta = r.correta if r else none %}
+          <div class="questao-card{% if correta == true %} correta{% elif correta == false %} errada{% endif %}">
+            <div class="questao-header">
+              <span class="questao-num">
+                Questão {{ loop.index }}
+                <span class="questao-peso">peso {{ item._peso | int if item._peso == item._peso | int else item._peso }}</span>
+              </span>
+              {% if correta == true %}
+                <span class="questao-badge ok">✓ Correta</span>
+              {% elif correta == false %}
+                <span class="questao-badge err">✗ Incorreta</span>
+              {% else %}
+                <span class="questao-badge neutro">Sem resposta</span>
+              {% endif %}
+            </div>
+
+            <p class="questao-enunciado">{{ q.enunciado }}</p>
+
+            {% if q.tipo in ("mc4", "mc5") and q.alternativas %}
+              <ul class="alt-lista">
+                {% for alt in q.alternativas %}
+                  {% set eh_resposta = (r.resposta_dada == alt.letra) %}
+                  <li class="alt-item{% if alt.correta %} alt-correta{% elif eh_resposta %} alt-marcada-errada{% endif %}">
+                    <span class="alt-letra">{{ alt.letra }}</span>
+                    <span>{{ alt.texto }}</span>
+                    {% if eh_resposta and alt.correta %}
+                      <span class="alt-tag ok">← resposta assinalada ✓</span>
+                    {% elif eh_resposta and not alt.correta %}
+                      <span class="alt-tag err">← resposta assinalada ✗</span>
+                    {% elif alt.correta %}
+                      <span class="alt-tag ok">← correta ✓</span>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% elif q.tipo == "aberta" %}
+              <p class="resposta-label">Resposta:</p>
+              <div class="aberta-texto">{{ r.resposta_dada or '—' }}</div>
+              {% if r.score_max %}
+                <p class="aberta-nota">Nota atribuída: {{ r.score_raw }} / {{ r.score_max }}</p>
+              {% elif exibir_feedback %}
+                <p class="aberta-nota">Aguardando correção do professor.</p>
+              {% endif %}
+              {% if exibir_feedback and r.comentario_professor %}
+                <div class="feedback"><strong>Comentário do professor:</strong> {{ r.comentario_professor }}</div>
+              {% endif %}
+            {% else %}
+              <p class="resposta-label">Resposta assinalada:
+                <span class="resposta-marcada {{ 'ok' if correta else 'err' }}">{{ r.resposta_dada or '—' }}</span>
+              </p>
+            {% endif %}
+
+            {% if exibir_feedback and q.explicacao %}
+              <div class="feedback">💡 {{ q.explicacao }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
       {% endif %}
-    </p>
-  </div>
-
-  {% if detalhamento %}
-    <div class="bloco">
-      <p style="font-weight:600;margin:0 0 4px;">Detalhamento:</p>
-      <table>
-        <thead><tr><th>Questão</th><th>Peso</th><th>Resultado</th><th>Pontos</th></tr></thead>
-        <tbody>
-          {% for d in detalhamento %}
-            <tr>
-              <td>Q{{ d.num }}</td>
-              <td>{{ d.peso | string | replace(".0", "") }}</td>
-              <td>{% if d.correta %}<span class="ok">✓ Correta</span>{% else %}<span class="erro">✗ Incorreta</span>{% endif %}</td>
-              <td>{{ d.score_raw }} / {{ d.score_max }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
     </div>
-  {% endif %}
+  {% endfor %}
 
   <p class="rodape">Documento gerado pelo LeDuk — comprovante de participação em atividade pública.</p>
 </body>
