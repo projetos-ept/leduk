@@ -42,6 +42,19 @@ def test_criar_turma(client):
 
 
 @rsps_lib.activate
+def test_lista_turmas_exibe_badge_publica(client):
+    _sess_prof(client)
+    turma_publica = {**TURMA, "id": "turma02", "nome": "Curso Aberto", "publica": True}
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
+                 json={"items": [TURMA, turma_publica]})
+    resp = client.get("/professor/turmas")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert html.count("badge-publica") == 1  # só a turma pública recebe o badge
+    assert "🌐 Pública" in html
+
+
+@rsps_lib.activate
 def test_editar_turma(client):
     _sess_prof(client)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA)

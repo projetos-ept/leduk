@@ -43,7 +43,10 @@
 
           <!-- Card header -->
           <div class="prof-card-head">
-            <p class="prof-card-titulo">{{ turma.nome }}</p>
+            <p class="prof-card-titulo">
+              {{ turma.nome }}
+              {% if turma.publica %}<span class="badge-publica" style="margin-left:8px;">🌐 Pública</span>{% endif %}
+            </p>
             {% if td.pendentes_count > 0 %}
               <span class="prof-pending-badge">{{ td.pendentes_count }} pendente{% if td.pendentes_count != 1 %}s{% endif %}</span>
             {% endif %}

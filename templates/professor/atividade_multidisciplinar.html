@@ -68,7 +68,7 @@
           <label class="campo-label">Turma *</label>
           <select name="turma" required style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
             <option value="">Selecione…</option>
-            {% for t in turmas %}<option value="{{ t.id }}">{{ t.nome }}{% if t.modalidade %} · {{ t.modalidade }}{% endif %}</option>{% endfor %}
+            {% for t in turmas %}<option value="{{ t.id }}">{{ t.nome }}{% if t.modalidade %} · {{ t.modalidade }}{% endif %}{% if t.publica %} 🌐{% endif %}</option>{% endfor %}
           </select>
         </div>
         <div>

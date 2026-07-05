@@ -55,7 +55,7 @@
           <select name="turma" style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
             <option value="">— selecione —</option>
             {% for t in turmas %}
-              <option value="{{ t.id }}" {% if (atividade and atividade.turma == t.id) or (not atividade and turma_id == t.id) %}selected{% endif %}>{{ t.nome }}</option>
+              <option value="{{ t.id }}" {% if (atividade and atividade.turma == t.id) or (not atividade and turma_id == t.id) %}selected{% endif %}>{{ t.nome }}{% if t.publica %} 🌐{% endif %}</option>
             {% endfor %}
           </select>
         </div>
