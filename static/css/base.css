@@ -1055,6 +1055,22 @@ a.ativ-card .ativ-icon {
 .badge-nota        { background: #e6faf5; color: #007a5a; font-weight: 700; }
 .badge-correcao    { background: #fff8e1; color: #9a6000; }
 .badge-valor       { background: #f0f4ff; color: #3b5bdb; }
+
+.badge-publica {
+  display: inline-flex;
+  align-items: center;
+  font-family: monospace;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .2rem .6rem;
+  border-radius: 4px;
+  background: rgba(91, 141, 238, .15);
+  color: var(--primaria);
+  border: 1px solid rgba(91, 141, 238, .3);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
 .badge-novo {
   display: inline-flex;
   align-items: center;

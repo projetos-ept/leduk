@@ -60,9 +60,10 @@
       {% for t in turmas %}
         <a class="card" href="/professor/publico/turma/{{ t.id }}"
            style="text-decoration:none;color:inherit;display:block;">
-          <p style="font-weight:700;font-size:1.02rem;margin:0;">🌐 {{ t.nome }}</p>
-          <p style="color:var(--muted);font-size:.85rem;margin:4px 0 0;">
+          <p style="font-weight:700;font-size:1.02rem;margin:0;">{{ t.nome }}</p>
+          <p style="color:var(--muted);font-size:.85rem;margin:4px 0 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             {{ t.modalidade or 'Aberta' }}{% if t.ano %} · {{ t.ano }}{% endif %}
+            <span class="badge-publica">🌐 Pública</span>
           </p>
           {% if t.descricao %}
             <p style="color:var(--muted);font-size:.82rem;margin:8px 0 0;">{{ t.descricao }}</p>
