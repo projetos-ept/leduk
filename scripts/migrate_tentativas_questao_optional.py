@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-"""Migração: torna `questao` e `aluno_id` opcionais na collection `tentativas`.
+"""Migração: corrige o schema de `tentativas` para o que o código já assume.
 
-- `questao`: quando uma questão é excluída, o campo das tentativas vinculadas
-  é anulado (set to null) para preservar o histórico do aluno — exige
-  required: false.
-- `aluno_id`: o modo público (atividades respondidas por visitantes sem
-  conta) grava tentativas com aluno_id="" e identifica o respondente por
-  aluno_email/aluno_turma. Se aluno_id for required, o PocketBase rejeita
-  toda tentativa pública com validation_required, mesmo enviando "" — nada
-  é gravado, e o formulário público falha silenciosamente para quem responde.
+- `tentativa_id` (text, NOVO CAMPO): liga cada registro de resposta
+  (criado em /htmx/responder) ao registro-pai da tentativa. Esse campo
+  nunca foi adicionado ao schema por nenhuma migração — o PocketBase
+  silenciosamente ignora campos não declarados em POST/PATCH, então toda
+  resposta gravada em produção perdia esse vínculo. O sintoma só aparece
+  na LEITURA: `GET .../tentativas/records?filter=tentativa_id="..."`
+  retorna 400 Bad Request ("invalid filter") porque o campo não existe
+  de fato no schema — não porque a query esteja errada. Isso quebra
+  silenciosamente qualquer tela de revisão/gabarito/comprovante que
+  dependa de listar as respostas de uma tentativa específica.
+- `questao` (opcional): quando uma questão é excluída, o campo das
+  tentativas vinculadas é anulado (set to null) para preservar o
+  histórico do aluno — exige required: false.
+- `aluno_id` (opcional): o modo público (atividades respondidas por
+  visitantes sem conta) grava tentativas com aluno_id="" e identifica o
+  respondente por aluno_email/aluno_turma. Se aluno_id for required, o
+  PocketBase rejeita toda tentativa pública com validation_required,
+  mesmo enviando "" — nada é gravado, e o formulário público falha
+  silenciosamente para quem responde.
 
 Idempotente: pode ser executado múltiplas vezes sem efeitos colaterais.
 
@@ -64,10 +75,18 @@ def main() -> None:
         sys.exit(1)
 
     schema = col.get("schema", [])
-    campos_alvo = ("questao", "aluno_id")
     alterados = []
 
-    for nome_campo in campos_alvo:
+    # 1. tentativa_id: campo NOVO, precisa ser criado se ausente
+    if not any(f.get("name") == "tentativa_id" for f in schema):
+        schema.append({"name": "tentativa_id", "type": "text", "required": False})
+        alterados.append("tentativa_id (novo campo)")
+        print("  + tentativa_id (text, required=false) — campo criado")
+    else:
+        print("[OK] Campo 'tentativa_id' já existe — nada a fazer.")
+
+    # 2. questao / aluno_id: campos existentes que precisam virar opcionais
+    for nome_campo in ("questao", "aluno_id"):
         campo = next((f for f in schema if f.get("name") == nome_campo), None)
         if not campo:
             print(f"[AVISO] Campo '{nome_campo}' não encontrado na collection 'tentativas'.")
@@ -89,7 +108,9 @@ def main() -> None:
         json={"schema": schema},
     )
     resp.raise_for_status()
-    print(f"[OK] Campo(s) {', '.join(alterados)} agora são opcionais.")
+    print(f"[OK] Campo(s) alterado(s): {', '.join(alterados)}.")
+    if any("tentativa_id" in a for a in alterados):
+        print("     Revisão/gabarito/comprovante agora conseguem listar as respostas de uma tentativa.")
     if "questao" in alterados:
         print("     Exclusão de questões com tentativas vinculadas funciona.")
     if "aluno_id" in alterados:
