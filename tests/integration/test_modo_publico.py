@@ -326,20 +326,63 @@ def test_relatorio_publico_geral_responde(client):
 
 
 @rsps_lib.activate
-def test_relatorio_publico_individual_responde(client):
+def test_relatorio_publico_individual_mostra_detalhamento(client):
     _sessao_professor(client)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ATIVIDADE)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
-    # listar_tentativas_publicas
+    # listar_tentativas_publicas_por_email
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
                  json={"items": [TENTATIVA_PUBLICA]})
-    # listar_respostas_tentativa (detalhamento)
+    # _montar_questoes_revisao → listar_respostas_tentativa
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
                  json={"items": [{"id": "r1", "questao": "q001", "correta": True,
-                                  "score_raw": 1, "score_max": 1, "tipo_questao": "mc4"}]})
+                                  "resposta_dada": "A", "score_raw": 1, "score_max": 1,
+                                  "tipo_questao": "mc4"}]})
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q001", json=QUESTAO_MC)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": QUESTAO_MC["alternativas"]})
     resp = client.get("/professor/atividade/ativ01/relatorio-publico/visitante@example.com")
     assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Questão 1" in html
+    assert "Correta" in html
+    assert "Qual alternativa correta?" in html
+    assert "resposta assinalada" in html
+
+
+@rsps_lib.activate
+def test_relatorio_publico_individual_modo_prova_oculta_detalhamento(client):
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={**ATIVIDADE, "modo_prova": True})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [TENTATIVA_PUBLICA]})
+    resp = client.get("/professor/atividade/ativ01/relatorio-publico/visitante@example.com")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Qual alternativa correta?" not in html
+    assert "modo prova" in html.lower()
+
+
+@rsps_lib.activate
+def test_relatorio_publico_individual_multiplas_tentativas_com_quebra_pagina(client):
+    _sessao_professor(client)
+    segunda = {**TENTATIVA_PUBLICA, "id": "tp2", "numero_tentativa": 2,
+               "created": "2026-07-02T10:00:00Z"}
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01", json=ATIVIDADE)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/disciplinas/records/disc01", json=DISCIPLINA)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records",
+                 json={"items": [TENTATIVA_PUBLICA, segunda]})
+    # respostas para cada uma das 2 tentativas
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
+    resp = client.get("/professor/atividade/ativ01/relatorio-publico/visitante@example.com")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Tentativa 1" in html
+    assert "Tentativa 2" in html
+    assert "page-break-before" in html  # CSS de impressão presente
 
 
 @rsps_lib.activate

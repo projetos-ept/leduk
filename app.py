@@ -751,6 +751,43 @@ def create_app(config: dict | None = None) -> Flask:
     # ------------------------------------------------------------------
     # Portal de turma/disciplina
 
+    def _montar_questoes_revisao(ativ: dict, tentativa_id: str) -> list:
+        """Monta a lista de questões+resposta de uma tentativa para revisão/comprovante.
+
+        Cada item: {"questao": q, "resposta": r, "_peso": float, "_pts": float|None}.
+        Usado tanto pela revisão do aluno logado quanto pelo comprovante público —
+        mesma lógica, mesmos campos, para o template não precisar de dois formatos.
+        """
+        respostas_list = get_pb().listar_respostas_tentativa(tentativa_id)
+        respostas_por_questao = {r["questao"]: r for r in respostas_list if r.get("questao")}
+
+        itens = []
+        for qid in ativ.get("questoes", []):
+            try:
+                q = get_pb().buscar_questao(qid)
+            except Exception:
+                continue
+            itens.append({"questao": q, "resposta": respostas_por_questao.get(qid, {})})
+
+        valor_total = ativ.get("valor_total") or None
+        if valor_total and itens:
+            soma_pesos = sum(float(item["questao"].get("peso") or 1) for item in itens)
+            valor_ponto = float(valor_total) / soma_pesos if soma_pesos > 0 else None
+            if valor_ponto:
+                for item in itens:
+                    peso = float(item["questao"].get("peso") or 1)
+                    r = item["resposta"]
+                    raw = r.get("score_raw", 0) or 0
+                    mx = r.get("score_max", 0) or 0
+                    item["_peso"] = peso
+                    item["_pts"] = round((raw / mx) * peso * valor_ponto, 2) if mx > 0 else 0.0
+        else:
+            # sem valor_total: _pts fica indefinido (não "None") — o template
+            # de revisão do aluno usa `_pts is defined` para decidir se exibe.
+            for item in itens:
+                item["_peso"] = float(item["questao"].get("peso") or 1)
+        return itens
+
     def _enriquecer_atividades(atividades: list, aluno_id: str) -> None:
         """Calcula status/prazo/tentativas de cada atividade (in-place) para o portal."""
         for ativ in atividades:
@@ -2394,40 +2431,22 @@ def create_app(config: dict | None = None) -> Flask:
             disciplina = {}
         email = email.strip().lower().replace('"', "")
         try:
-            todas = get_pb().listar_tentativas_publicas(ativ_id)
+            tentativas = get_pb().listar_tentativas_publicas_por_email(ativ_id, email)
         except Exception:
-            todas = []
-        do_email = [t for t in todas if (t.get("aluno_email") or "").lower() == email]
-        if not do_email:
+            tentativas = []
+        if not tentativas:
             return render_template("publica/limite.html", nao_encontrada=True), 404
-        tent = max(do_email, key=lambda t: t.get("created", ""))
 
-        detalhamento = []
-        if not ativ.get("modo_prova"):
-            try:
-                respostas = get_pb().listar_respostas_tentativa(tent["id"])
-                for i, r_ in enumerate(respostas, 1):
-                    peso = 1.0
-                    try:
-                        q = get_pb().buscar_questao(r_.get("questao", ""))
-                        peso = float(q.get("peso") or 1)
-                    except Exception:
-                        pass
-                    detalhamento.append({
-                        "num": i,
-                        "peso": peso,
-                        "correta": bool(r_.get("correta")),
-                        "score_raw": r_.get("score_raw", 0),
-                        "score_max": r_.get("score_max", 0),
-                    })
-            except Exception as exc:
-                log.warning("detalhamento individual falhou: %s", exc)
+        modo_prova = bool(ativ.get("modo_prova"))
+        exibir_feedback = bool(ativ.get("exibir_feedback_pos", True))
+
+        for t in tentativas:
+            t["_data_fmt"] = _fmt_data_hora(t.get("created", ""))
+            t["_questoes_revisao"] = [] if modo_prova else _montar_questoes_revisao(ativ, t["id"])
 
         html = render_template("professor/publico/relatorio_individual.html",
-                               atividade=ativ, disciplina=disciplina, tentativa=tent,
-                               total_por_email=len(do_email),
-                               data_fmt=_fmt_data_hora(tent.get("created", "")),
-                               detalhamento=detalhamento)
+                               atividade=ativ, disciplina=disciplina, tentativas=tentativas,
+                               modo_prova=modo_prova, exibir_feedback=exibir_feedback)
         return _resposta_pdf(html, f"comprovante_{ativ_id}.pdf")
 
     # ── Cadastro público via link de convite ──
@@ -2754,32 +2773,8 @@ def create_app(config: dict | None = None) -> Flask:
         if tentativa.get("aluno_id") and tentativa.get("aluno_id") != aluno_id:
             return redirect(url_for("index"))
 
-        respostas_list = get_pb().listar_respostas_tentativa(tentativa_id)
-        respostas_por_questao = {r["questao"]: r for r in respostas_list if r.get("questao")}
-
-        questoes_revisao = []
-        for qid in ativ.get("questoes", []):
-            try:
-                q = get_pb().buscar_questao(qid)
-            except Exception:
-                continue
-            questoes_revisao.append({
-                "questao": q,
-                "resposta": respostas_por_questao.get(qid, {}),
-            })
-
+        questoes_revisao = _montar_questoes_revisao(ativ, tentativa_id)
         valor_total = ativ.get("valor_total") or None
-        if valor_total and questoes_revisao:
-            soma_pesos = sum(float(item["questao"].get("peso") or 1) for item in questoes_revisao)
-            valor_ponto = float(valor_total) / soma_pesos if soma_pesos > 0 else None
-            if valor_ponto:
-                for item in questoes_revisao:
-                    peso = float(item["questao"].get("peso") or 1)
-                    r = item["resposta"]
-                    raw = r.get("score_raw", 0) or 0
-                    mx = r.get("score_max", 0) or 0
-                    item["_peso"] = peso
-                    item["_pts"] = round((raw / mx) * peso * valor_ponto, 2) if mx > 0 else 0.0
 
         return render_template(
             "aluno/revisao.html",
