@@ -13,9 +13,13 @@ anônimas:
 Checagens executadas:
   1. Campos em `turmas`: publica, descricao
   2. Campos em `tentativas`: aluno_email, aluno_turma, questoes_respondidas,
-     numero_tentativa, nota_final, atividade
-  3. Regras de `tentativas` (create/update/list/view abertas)
-  4. Teste real: POST anônimo em tentativas (cria e apaga registro de teste)
+     numero_tentativa, nota_final, tentativa_id
+  3. Campo `aluno_id` opcional em `tentativas`
+  4. Regras de `tentativas` (create/update/list/view abertas)
+  5. Teste real: POST anônimo em tentativas + registro de resposta com
+     tentativa_id + GET com filter=tentativa_id="..." (cria e apaga os
+     registros de teste) — reproduz exatamente o que quebrou em produção
+     quando tentativa_id não existia no schema (400 "invalid filter")
 
 Modo somente-leitura por padrão. Com --fix (ou FIX=1), adiciona os campos
 ausentes e abre as regras necessárias.
@@ -47,6 +51,7 @@ CAMPOS_TENTATIVAS = [
      "options": {"min": None, "max": None}},
     {"name": "nota_final", "type": "number", "required": False,
      "options": {"min": None, "max": None}},
+    {"name": "tentativa_id", "type": "text", "required": False},
 ]
 REGRAS_ABERTAS = ("listRule", "viewRule", "createRule", "updateRule")
 
@@ -163,24 +168,50 @@ def teste_real_criacao_anonima(token_admin: str) -> None:
     payload = {"aluno_id": "", "aluno_nome": "__teste_modo_publico__",
                "concluida": False, "nota_liberada": False}
     r = requests.post(f"{PB_URL}/api/collections/tentativas/records", json=payload)
-    if r.ok:
-        rec_id = r.json().get("id", "")
-        print("[OK] Teste real: criação anônima de tentativa funcionou.")
-        # PATCH anônimo (progresso/conclusão usam updateRule)
-        p = requests.patch(f"{PB_URL}/api/collections/tentativas/records/{rec_id}",
-                           json={"questoes_respondidas": 1})
-        if p.ok:
-            print("[OK] Teste real: atualização anônima (progresso) funcionou.")
-        else:
-            problemas.append(f"PATCH anônimo falhou: {p.status_code} {p.text[:200]}")
-            print(f"[FALHA] PATCH anônimo: {p.status_code} — {p.text[:200]}")
-        requests.delete(f"{PB_URL}/api/collections/tentativas/records/{rec_id}",
-                        headers=_headers(token_admin))
-        print("     (registro de teste removido)")
-    else:
+    if not r.ok:
         problemas.append(f"POST anônimo falhou: {r.status_code} {r.text[:200]}")
         print(f"[FALHA] Teste real: POST anônimo recusado — {r.status_code}")
         print(f"        Resposta do PocketBase: {r.text[:300]}")
+        return
+
+    rec_id = r.json().get("id", "")
+    print("[OK] Teste real: criação anônima de tentativa funcionou.")
+
+    # PATCH anônimo (progresso/conclusão usam updateRule)
+    p = requests.patch(f"{PB_URL}/api/collections/tentativas/records/{rec_id}",
+                       json={"questoes_respondidas": 1})
+    if p.ok:
+        print("[OK] Teste real: atualização anônima (progresso) funcionou.")
+    else:
+        problemas.append(f"PATCH anônimo falhou: {p.status_code} {p.text[:200]}")
+        print(f"[FALHA] PATCH anônimo: {p.status_code} — {p.text[:200]}")
+
+    # Registro de resposta (o que /htmx/responder grava) + filtro por tentativa_id
+    # (exatamente o que listar_respostas_tentativa faz — sintoma real já visto em
+    # produção: 400 "invalid filter" quando o campo não existe no schema)
+    resp_payload = {"atividade": "", "questao": "", "tipo_questao": "mc4",
+                    "resposta_dada": "A", "correta": True, "score_raw": 1,
+                    "score_max": 1, "tentativa_id": rec_id}
+    rp = requests.post(f"{PB_URL}/api/collections/tentativas/records", json=resp_payload)
+    if rp.ok:
+        resp_id = rp.json().get("id", "")
+        g = requests.get(f"{PB_URL}/api/collections/tentativas/records",
+                         params={"filter": f'tentativa_id="{rec_id}"'})
+        if g.ok:
+            print("[OK] Teste real: filtro por tentativa_id funcionou (revisão/comprovante ok).")
+        else:
+            problemas.append(f"filtro tentativa_id falhou: {g.status_code} {g.text[:200]}")
+            print(f"[FALHA] GET com filter=tentativa_id: {g.status_code} — {g.text[:300]}")
+            print("        (é esta a causa de revisão/comprovante não mostrar respostas)")
+        requests.delete(f"{PB_URL}/api/collections/tentativas/records/{resp_id}",
+                        headers=_headers(token_admin))
+    else:
+        problemas.append(f"POST de resposta falhou: {rp.status_code} {rp.text[:200]}")
+        print(f"[FALHA] POST de registro de resposta: {rp.status_code} — {rp.text[:300]}")
+
+    requests.delete(f"{PB_URL}/api/collections/tentativas/records/{rec_id}",
+                    headers=_headers(token_admin))
+    print("     (registros de teste removidos)")
 
 
 def main() -> None:
@@ -192,15 +223,15 @@ def main() -> None:
     token = autenticar_admin()
     print("[OK] Admin autenticado.\n")
 
-    print("── 1/4 Campos de 'turmas' ──")
+    print("── 1/5 Campos de 'turmas' ──")
     checar_campos(token, "turmas", CAMPOS_TURMAS)
-    print("\n── 2/4 Campos de 'tentativas' ──")
+    print("\n── 2/5 Campos de 'tentativas' ──")
     checar_campos(token, "tentativas", CAMPOS_TENTATIVAS)
     print("\n── 3/5 Campo 'tentativas.aluno_id' opcional ──")
     checar_aluno_id_opcional(token)
     print("\n── 4/5 Regras de 'tentativas' ──")
     checar_regras_tentativas(token)
-    print("\n── 5/5 Teste real de criação anônima ──")
+    print("\n── 5/5 Teste real de criação anônima + filtro tentativa_id ──")
     teste_real_criacao_anonima(token)
 
     print()
