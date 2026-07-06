@@ -298,6 +298,19 @@ def test_imprimir_associativa_ocupa_coluna_unica(client):
 
 
 @rsps_lib.activate
+def test_imprimir_associativa_coluna_b_usa_letra_maiuscula(client):
+    """Coluna B da associativa segue o mesmo padrão de mc4/mc5: letra em
+    caixa alta (A), B)...), não minúscula."""
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
+    _mock_questoes_mistas()
+    resp = client.get("/professor/provas/prova01/imprimir")
+    html = resp.data.decode()
+    assert '<div class="assoc-item">A) Defesa</div>' in html
+    assert '<div class="assoc-item">B) Transporte de O2</div>' in html
+
+
+@rsps_lib.activate
 def test_imprimir_gabarito_com_quebra_de_pagina(client):
     _sessao_professor(client)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)

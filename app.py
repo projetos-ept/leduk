@@ -871,7 +871,7 @@ def create_app(config: dict | None = None) -> Flask:
                     for i, par in enumerate(pares)
                 ]
                 q["_coluna_b"] = [
-                    {"letra": _letra(i), "texto": par.get("coluna_b", "")}
+                    {"letra": _letra(i).upper(), "texto": par.get("coluna_b", "")}
                     for i, par in enumerate(col_b)
                 ]
             elif q.get("tipo") == "vf" and q.get("itens_vf"):
