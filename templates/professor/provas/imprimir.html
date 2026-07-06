@@ -32,11 +32,11 @@
     .questao-inteira { break-inside: avoid; }
     .questao-associativa { break-inside: avoid; column-span: none; }
     .questao-num { font-weight: 700; }
-    .questao-peso { color: #777; font-size: 9pt; font-weight: 400; }
     .questao-enunciado { margin: 2px 0 6px; }
 
-    /* marca de resposta impressa: parênteses em branco para o estudante
-       preencher à mão — nada de bolinha/checkbox (isso é UI de tela) */
+    /* mc4/mc5 começam direto pela letra (A), B)...); associativa usa
+       parênteses em branco na coluna A para o estudante escrever a letra
+       correspondente — nada de bolinha/checkbox (isso é UI de tela) */
     .alternativa, .assoc-item { margin-bottom: 3px; }
     .vf-item { margin-bottom: 4px; }
     .vf-marcas { white-space: nowrap; margin-right: 8px; font-weight: 600; }
@@ -101,14 +101,13 @@
               <p class="questao-enunciado">
                 <span class="questao-num">{{ loop.index }}.</span>
                 {{ q.enunciado }}
-                <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
               </p>
               {% for alt in alts_ordenadas[:2] %}
-                <div class="alternativa">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;) {{ alt.letra }}) {{ alt.texto }}</div>
+                <div class="alternativa">{{ alt.letra }}) {{ alt.texto }}</div>
               {% endfor %}
             </div>
             {% for alt in alts_ordenadas[2:] %}
-              <div class="alternativa">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;) {{ alt.letra }}) {{ alt.texto }}</div>
+              <div class="alternativa">{{ alt.letra }}) {{ alt.texto }}</div>
             {% endfor %}
 
           {% elif q.tipo == "vf" and q._itens_vf_ordenados %}
@@ -116,7 +115,6 @@
               <p class="questao-enunciado">
                 <span class="questao-num">{{ loop.index }}.</span>
                 {{ q.enunciado }}
-                <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
               </p>
               {% for item in q._itens_vf_ordenados[:2] %}
                 <div class="vf-item"><span class="vf-marcas">( V ) ( F )</span>{{ _letra(loop.index0) }}) {{ item.afirmacao }}</div>
@@ -130,7 +128,6 @@
             <p class="questao-enunciado">
               <span class="questao-num">{{ loop.index }}.</span>
               {{ q.enunciado }}
-              <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
             </p>
 
             {% if q.tipo == "associativa" and q._coluna_a %}
