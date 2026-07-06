@@ -1,0 +1,163 @@
+<!--
+  Exemplo de cabeçalho personalizado para provas — LeDuk
+
+  Como usar: copie todo este conteúdo (estilo + marcação) e cole no campo
+  "Cabeçalho (HTML editável)" do formulário de prova ou de template de
+  cabeçalho, trocando a logo, a disciplina, a turma e o professor pelos
+  dados reais. O preview do próprio formulário mostra o resultado.
+
+  Este trecho é inserido dentro de <div class="cabecalho">...</div> na
+  folha de impressão (templates/professor/provas/imprimir.html), que já
+  define margens, fonte e tamanho da página — por isso aqui só há estilos
+  do próprio cabeçalho (sem @page, sem reset "*", sem regra em "body",
+  que afetariam a prova inteira em vez de só esta área).
+-->
+<style>
+  .cabecalho-prova {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4cm;
+    padding-bottom: 0.25cm;
+    border-bottom: 1.5pt solid #000;
+    margin-bottom: 0.3cm;
+  }
+
+  .cabecalho-logo {
+    flex-shrink: 0;
+    width: 2.2cm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .cabecalho-logo img {
+    width: 100%;
+    height: auto;
+  }
+
+  /* alternativa sem logo: troque a <img> abaixo por
+     <div class="logo-placeholder"><strong>CETEP</strong>LNAB</div> */
+  .logo-placeholder {
+    width: 2.2cm;
+    height: 1.5cm;
+    border: 1pt solid #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 6pt;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .logo-placeholder strong {
+    font-size: 7pt;
+    letter-spacing: 0.03em;
+  }
+
+  .cabecalho-dados {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.12cm;
+  }
+
+  .cabecalho-linha {
+    display: flex;
+    align-items: baseline;
+    gap: 0.2cm;
+    font-size: 8.5pt;
+    border-bottom: 0.5pt dotted #aaa;
+    padding-bottom: 0.06cm;
+  }
+
+  .cabecalho-linha:last-child {
+    border-bottom: none;
+  }
+
+  .cabecalho-label {
+    font-weight: bold;
+    white-space: nowrap;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .cabecalho-valor {
+    flex: 1;
+    border-bottom: 0.75pt solid #000;
+    min-height: 0.35cm;
+    font-size: 8.5pt;
+  }
+
+  .cabecalho-valor.preenchido {
+    border-bottom: none;
+    font-weight: normal;
+  }
+
+  /* linha dupla (ex: disciplina + data) na mesma row */
+  .cabecalho-row {
+    display: flex;
+    gap: 0.4cm;
+    align-items: baseline;
+  }
+
+  .cabecalho-row .cabecalho-linha {
+    flex: 1;
+  }
+
+  .cabecalho-row .cabecalho-linha.data {
+    flex: 0 0 auto;
+    min-width: 3.5cm;
+  }
+
+  /* estudante — linha que se estende até a margem */
+  .cabecalho-estudante {
+    display: flex;
+    align-items: baseline;
+    gap: 0.2cm;
+  }
+
+  .cabecalho-estudante .linha-extensivel {
+    flex: 1;
+    border-bottom: 0.75pt solid #000;
+    min-height: 0.35cm;
+  }
+</style>
+
+<div class="cabecalho-prova">
+  <div class="cabecalho-logo">
+    <img src="https://repoept.duckdns.org/repo/logo.png" alt="Logotipo da instituição">
+  </div>
+
+  <div class="cabecalho-dados">
+    <div class="cabecalho-row">
+      <div class="cabecalho-linha">
+        <span class="cabecalho-label">Disciplina:</span>
+        <span class="cabecalho-valor preenchido">Imunologia Clínica</span>
+      </div>
+      <div class="cabecalho-linha data">
+        <span class="cabecalho-label">Data:</span>
+        <span class="cabecalho-valor">_____ / __________ / 2026</span>
+      </div>
+    </div>
+
+    <div class="cabecalho-row">
+      <div class="cabecalho-linha">
+        <span class="cabecalho-label">Turma:</span>
+        <span class="cabecalho-valor preenchido">5TACN1 — PROEJA</span>
+      </div>
+      <div class="cabecalho-linha">
+        <span class="cabecalho-label">Professor:</span>
+        <span class="cabecalho-valor preenchido">Lucas Batista</span>
+      </div>
+    </div>
+
+    <div class="cabecalho-estudante">
+      <span class="cabecalho-label">Estudante:</span>
+      <span class="linha-extensivel"></span>
+    </div>
+  </div>
+</div>
