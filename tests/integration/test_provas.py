@@ -314,6 +314,45 @@ def test_imprimir_gabarito_com_quebra_de_pagina(client):
 
 
 @rsps_lib.activate
+def test_imprimir_gabarito_mc_mostra_so_a_letra_correta(client):
+    """Gabarito de questão objetiva mostra só a letra correta, sem listar
+    as demais alternativas ao lado."""
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
+    _mock_questoes_mistas()
+    resp = client.get("/professor/provas/prova01/imprimir")
+    html = resp.data.decode()
+    trecho_q1 = html.split("Q1:</strong>")[1].split("Q2:</strong>")[0]
+    assert 'class="gab-marca">A' in trecho_q1
+    assert "B" not in trecho_q1
+
+
+@rsps_lib.activate
+def test_imprimir_marca_de_resposta_e_parenteses_em_branco(client):
+    """Alternativas (mc) e coluna A da associativa usam parênteses em branco
+    para o estudante marcar à mão — não a bolinha/checkbox de UI de tela."""
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
+    _mock_questoes_mistas()
+    resp = client.get("/professor/provas/prova01/imprimir")
+    html = resp.data.decode()
+    assert "alt-marca" not in html
+    assert "(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;) A) Certa" in html
+    assert "(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;) 1. Hemácia" in html
+
+
+@rsps_lib.activate
+def test_imprimir_mensagem_final_apos_ultima_questao(client):
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
+    _mock_questoes_mistas()
+    resp = client.get("/professor/provas/prova01/imprimir")
+    html = resp.data.decode()
+    assert 'class="mensagem-final">Sucesso!' in html
+    assert html.index("mensagem-final") > html.index("questoes-grid")
+
+
+@rsps_lib.activate
 def test_preview_e_imprimir_geram_o_mesmo_conteudo(client):
     """Preview e Imprimir PDF mostram a mesma prova (mesma fonte de verdade)."""
     _sessao_professor(client)
