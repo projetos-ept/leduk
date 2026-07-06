@@ -12,7 +12,7 @@
           </div>
           <p class="qb-card-enunciado">{{ q.enunciado }}</p>
         </div>
-        <div class="qb-card-acoes">
+        <div class="qb-card-acoes" id="qb-acoes-{{ q.id }}">
           <button type="button" class="btn-primary btn-sm"
                   hx-post="/htmx/provas/{{ prova_id }}/adicionar-questao/{{ q.id }}"
                   hx-target="#questoes-na-prova" hx-swap="outerHTML">+ Adicionar</button>

@@ -204,7 +204,37 @@ def test_htmx_adicionar_questao_persiste_e_retorna_fragmento(client):
     resp = client.post("/htmx/provas/prova01/adicionar-questao/q001")
     assert resp.status_code == 200
     assert captured[0]["questoes"] == ["q001"]
-    assert "Qual alternativa correta?" in resp.data.decode()
+    html = resp.data.decode()
+    assert "Qual alternativa correta?" in html
+    # troca o botão "+ Adicionar" do card na lista do banco por um badge verde
+    # via out-of-band swap, sem precisar recarregar o seletor nem guardar esse
+    # estado no banco (basta checar se o id já está em prova.questoes)
+    assert 'id="qb-acoes-q001"' in html
+    assert "hx-swap-oob" in html
+    assert "Adicionada" in html
+
+
+@rsps_lib.activate
+def test_htmx_adicionar_questao_ja_incluida_nao_duplica(client):
+    """Clicar duas vezes seguidas (ex.: antes do badge trocar) não duplica
+    a questão na prova."""
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01",
+                 json={**PROVA, "questoes": ["q001"]})
+    captura_patch = {"chamado": False}
+
+    def cb(request):
+        captura_patch["chamado"] = True
+        return (200, {}, json.dumps(PROVA))
+
+    rsps_lib.add_callback(rsps_lib.PATCH, f"{PB}/api/collections/provas/records/prova01",
+                          callback=cb, content_type="application/json")
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/questoes/records/q001", json=QUESTAO_MC)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/alternativas/records",
+                 json={"items": QUESTAO_MC["alternativas"]})
+    resp = client.post("/htmx/provas/prova01/adicionar-questao/q001")
+    assert resp.status_code == 200
+    assert captura_patch["chamado"] is False  # já estava incluída, não regrava
 
 
 @rsps_lib.activate

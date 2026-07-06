@@ -1883,6 +1883,13 @@ a.material-header:hover {
   flex-shrink: 0; align-items: stretch; min-width: 90px;
 }
 
+.badge-adicionada {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 7px 12px; border-radius: 8px;
+  font-size: .8rem; font-weight: 700;
+  background: #e6faf5; color: #007a5a;
+}
+
 /* Empty state */
 .qb-empty {
   text-align: center; padding: 48px 24px;

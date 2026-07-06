@@ -200,7 +200,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 310 testes, todos passando.
+**Resultado esperado:** 311 testes, todos passando.
 
 ---
 
@@ -356,6 +356,14 @@ automaticamente.
 questões via HTMX só aparece depois de existir um `prova_id` para anexar. Cada clique em
 "+ Adicionar", "✕" ou "↑"/"↓" já persiste no PocketBase e devolve o fragmento
 `_questoes_selecionadas.html` atualizado — não há um botão "salvar questões" separado.
+
+Ao clicar em "+ Adicionar", a resposta HTMX carrega dois elementos: o fragmento normal
+(troca `#questoes-na-prova`, via `hx-target`/`hx-swap` do botão) e um segundo elemento com
+`hx-swap-oob="true"` que troca só o card daquela questão específica no seletor
+(`#qb-acoes-<questao_id>`), substituindo o botão por um badge verde "✓ Adicionada" — sem
+precisar recarregar a lista inteira. Não há campo novo no banco para esse estado: já dá
+pra saber que uma questão está "adicionada" checando se o id está em `prova.questoes`
+(é isso que o `htmx_provas_questoes` já usa pra filtrar o que aparece no seletor).
 
 **Impressão (`imprimir.html`):** página HTML autocontida (sem geração de PDF no servidor —
 mesma decisão do modo público, ver acima). Questões em grade CSS de 2 colunas
