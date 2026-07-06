@@ -200,7 +200,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 311 testes, todos passando.
+**Resultado esperado:** 312 testes, todos passando.
 
 ---
 
@@ -305,6 +305,11 @@ Rotas públicas, sem login — qualquer pessoa acessa via link direto:
 | GET | `/publica/<ativ_id>` | Página da atividade (materiais + botão "Responder"); 404 se a turma não for pública |
 | GET/POST | `/publica/<ativ_id>/identificar` | Nome/email/turma; confirma re-tentativa se o email já respondeu; bloqueia no limite de `max_tentativas` |
 | GET | `/publica/<ativ_id>/resultado` | Placar do respondente público |
+
+No GET de `/identificar`, o campo turma já vem preenchido com o nome da turma da própria
+atividade (`turma.nome`, a mesma turma resolvida por `_buscar_atividade_publica` — vale para
+qualquer turma pública, não é hardcoded). O campo continua opcional (sem `required`, sem
+validação no backend) — só não exibe mais o rótulo "(opcional)" ao lado do label.
 
 O fluxo de questões (`/atividade/<id>`, `/htmx/questao`, `/htmx/responder`, `/htmx/proxima`) é o
 mesmo do aluno logado — o decorator `requer_login_ou_publico` aceita sessão autenticada **ou**

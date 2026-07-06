@@ -79,6 +79,20 @@ def test_pagina_publica_404_turma_nao_publica(client):
 # ── Identificação ─────────────────────────────────────────────────────────────
 
 @rsps_lib.activate
+def test_identificar_get_preenche_turma_da_atividade(client):
+    """O campo turma já vem preenchido com o nome da turma da atividade
+    (qualquer turma, não só um caso específico) e não mostra mais o rótulo
+    "(opcional)" — a regra de não ser obrigatório continua valendo."""
+    _mock_atividade_publica()
+    resp = client.get("/publica/ativ01/identificar")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert 'name="turma" value="Curso Aberto"' in html
+    assert "(opcional)" not in html
+    assert '<label class="campo-label">Turma</label>' in html
+
+
+@rsps_lib.activate
 def test_identificar_email_novo_inicia_fluxo(client):
     _mock_atividade_publica()
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/tentativas/records", json={"items": []})
