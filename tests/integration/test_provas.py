@@ -328,17 +328,30 @@ def test_imprimir_gabarito_mc_mostra_so_a_letra_correta(client):
 
 
 @rsps_lib.activate
-def test_imprimir_marca_de_resposta_e_parenteses_em_branco(client):
-    """Alternativas (mc) e coluna A da associativa usam parênteses em branco
-    para o estudante marcar à mão — não a bolinha/checkbox de UI de tela."""
+def test_imprimir_marca_de_resposta(client):
+    """mc4/mc5 começam direto pela letra (sem bolinha/checkbox nem
+    parênteses); só a coluna A da associativa usa parênteses em branco
+    para o estudante escrever a letra correspondente à mão."""
     _sessao_professor(client)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
     _mock_questoes_mistas()
     resp = client.get("/professor/provas/prova01/imprimir")
     html = resp.data.decode()
     assert "alt-marca" not in html
-    assert "(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;) A) Certa" in html
+    assert '<div class="alternativa">A) Certa</div>' in html
     assert "(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;) 1. Hemácia" in html
+
+
+@rsps_lib.activate
+def test_imprimir_nao_mostra_peso_da_questao(client):
+    """O peso é usado só para o cálculo da nota — não deve aparecer na
+    folha impressa que o estudante recebe."""
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
+    _mock_questoes_mistas()
+    resp = client.get("/professor/provas/prova01/imprimir")
+    html = resp.data.decode()
+    assert "peso" not in html.lower()
 
 
 @rsps_lib.activate
