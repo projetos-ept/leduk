@@ -1935,7 +1935,12 @@ def create_app(config: dict | None = None) -> Flask:
         if questao_id not in atual:
             atual.append(questao_id)
             prova = get_pb().atualizar_prova(prova_id, {"questoes": atual})
-        return _questoes_selecionadas_fragment(prova_id, prova)
+        # troca o botão "+ Adicionar" do card na lista do banco (se ainda visível)
+        # por um badge "Adicionada" via out-of-band swap, sem precisar recarregar
+        # o seletor inteiro nem guardar esse estado no banco (já dá pra saber
+        # que está adicionada só olhando prova.questoes).
+        badge_oob = render_template("professor/provas/_badge_adicionada.html", questao_id=questao_id)
+        return _questoes_selecionadas_fragment(prova_id, prova) + badge_oob
 
     @app.route("/htmx/provas/<prova_id>/remover-questao/<questao_id>", methods=["POST"])
     @requer_professor
