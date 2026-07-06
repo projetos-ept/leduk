@@ -20,8 +20,15 @@
     .instrucoes-box { border: 1px solid #999; border-radius: 4px; padding: 10px 14px; margin-bottom: 18px; font-size: 10pt; white-space: pre-line; }
 
     .questoes-grid { columns: 2; column-gap: 1.2cm; }
-    .questao { break-inside: avoid; page-break-inside: avoid; margin-bottom: 1.1em; }
-    .questao-associativa { column-span: all; -webkit-column-span: all; }
+    .questao { break-inside: auto; margin-bottom: 0.6em; }
+    /* enunciado + primeiras 2 alternativas ficam sempre juntos; as demais
+       alternativas podem continuar na próxima coluna se não couberem —
+       assim a questão "antecipa" em vez de saltar inteira quando é longa */
+    .questao-bloco-inicial { break-inside: avoid; }
+    .alternativa { break-inside: avoid; }
+    /* vf e aberta continuam inteiras na mesma coluna (sem bloco-inicial) */
+    .questao-inteira { break-inside: avoid; }
+    .questao-associativa { break-inside: avoid; column-span: none; }
     .questao-num { font-weight: 700; }
     .questao-peso { color: #777; font-size: 9pt; font-weight: 400; }
     .questao-enunciado { margin: 2px 0 6px; }
@@ -34,11 +41,10 @@
     .vf-lista li { margin-bottom: 4px; }
     .vf-marcas { white-space: nowrap; margin-right: 8px; font-weight: 600; }
 
-    .assoc-colunas { display: flex; gap: 24px; margin-top: 4px; }
-    .assoc-col { flex: 1; }
-    .assoc-col-titulo { font-weight: 700; font-size: 9.5pt; margin-bottom: 4px; }
-    .assoc-col ul { list-style: none; margin: 0; padding: 0; }
-    .assoc-col li { margin-bottom: 4px; }
+    /* associativa: coluna A e coluna B empilhadas (a questão não spanna
+       mais 2 colunas, então lado-a-lado ficaria estreito demais) */
+    .assoc-label { font-weight: 700; font-size: 8pt; margin: 0.2em 0 0.1em; text-transform: uppercase; }
+    .assoc-item { font-size: 8.5pt; padding-left: 0.3cm; break-inside: avoid; }
 
     .aberta-linhas { border: 1px solid #ccc; border-radius: 4px; min-height: 3.2cm; margin-top: 4px;
       background-image: repeating-linear-gradient(transparent, transparent 1.4em, #ddd 1.4em, #ddd calc(1.4em + 1px));
@@ -53,7 +59,16 @@
     @media print {
       .no-print { display: none !important; }
       body { margin: 12mm; }
-      .questao { break-inside: avoid; margin-bottom: 1em; }
+      .questao,
+      .questao-enunciado,
+      .alternativa,
+      .instrucoes-box,
+      .vf-lista li {
+        text-align: justify;
+        -webkit-hyphens: auto;
+        -ms-hyphens: auto;
+        hyphens: auto;
+      }
     }
   </style>
 </head>
@@ -77,52 +92,53 @@
   {% if questoes %}
     <div class="questoes-grid">
       {% for q in questoes %}
-        <div class="questao{% if q.tipo == 'associativa' %} questao-associativa{% endif %}">
-          <p class="questao-enunciado">
-            <span class="questao-num">{{ loop.index }}.</span>
-            {{ q.enunciado }}
-            <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
-          </p>
-
+        <div class="questao{% if q.tipo == 'associativa' %} questao-associativa{% elif q.tipo in ('vf', 'aberta') %} questao-inteira{% endif %}">
           {% if q.tipo in ("mc4", "mc5") and q.alternativas %}
-            <ul class="alt-lista-impressao">
-              {% for alt in q.alternativas | sort(attribute="letra") %}
-                <li><span class="alt-marca"></span>{{ alt.letra }}) {{ alt.texto }}</li>
+            {% set alts_ordenadas = q.alternativas | sort(attribute="letra") %}
+            <div class="questao-bloco-inicial">
+              <p class="questao-enunciado">
+                <span class="questao-num">{{ loop.index }}.</span>
+                {{ q.enunciado }}
+                <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
+              </p>
+              {% for alt in alts_ordenadas[:2] %}
+                <div class="alternativa"><span class="alt-marca"></span>{{ alt.letra }}) {{ alt.texto }}</div>
               {% endfor %}
-            </ul>
-
-          {% elif q.tipo == "vf" and q._itens_vf_ordenados %}
-            <ul class="vf-lista">
-              {% for item in q._itens_vf_ordenados %}
-                <li>
-                  <span class="vf-marcas">( V ) ( F )</span>{{ _letra(loop.index0) }}) {{ item.afirmacao }}
-                </li>
-              {% endfor %}
-            </ul>
-
-          {% elif q.tipo == "associativa" and q._coluna_a %}
-            <div class="assoc-colunas">
-              <div class="assoc-col">
-                <p class="assoc-col-titulo">COLUNA A</p>
-                <ul>
-                  {% for item in q._coluna_a %}
-                    <li><span class="alt-marca"></span>{{ item.num }}. {{ item.texto }}</li>
-                  {% endfor %}
-                </ul>
-              </div>
-              <div class="assoc-col">
-                <p class="assoc-col-titulo">COLUNA B</p>
-                <ul>
-                  {% for item in q._coluna_b %}
-                    <li>{{ item.letra }}) {{ item.texto }}</li>
-                  {% endfor %}
-                </ul>
-              </div>
             </div>
+            {% for alt in alts_ordenadas[2:] %}
+              <div class="alternativa"><span class="alt-marca"></span>{{ alt.letra }}) {{ alt.texto }}</div>
+            {% endfor %}
 
-          {% elif q.tipo == "aberta" %}
-            <div class="aberta-linhas"></div>
+          {% else %}
+            <p class="questao-enunciado">
+              <span class="questao-num">{{ loop.index }}.</span>
+              {{ q.enunciado }}
+              <span class="questao-peso">(peso {{ q.peso | int if q.peso == q.peso | int else q.peso }})</span>
+            </p>
 
+            {% if q.tipo == "vf" and q._itens_vf_ordenados %}
+              <ul class="vf-lista">
+                {% for item in q._itens_vf_ordenados %}
+                  <li>
+                    <span class="vf-marcas">( V ) ( F )</span>{{ _letra(loop.index0) }}) {{ item.afirmacao }}
+                  </li>
+                {% endfor %}
+              </ul>
+
+            {% elif q.tipo == "associativa" and q._coluna_a %}
+              <p class="assoc-label">COLUNA A</p>
+              {% for item in q._coluna_a %}
+                <div class="assoc-item"><span class="alt-marca"></span>{{ item.num }}. {{ item.texto }}</div>
+              {% endfor %}
+              <p class="assoc-label" style="margin-top:0.3em">COLUNA B</p>
+              {% for item in q._coluna_b %}
+                <div class="assoc-item">{{ item.letra }}) {{ item.texto }}</div>
+              {% endfor %}
+
+            {% elif q.tipo == "aberta" %}
+              <div class="aberta-linhas"></div>
+
+            {% endif %}
           {% endif %}
         </div>
       {% endfor %}

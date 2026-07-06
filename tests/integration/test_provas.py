@@ -286,14 +286,14 @@ def test_imprimir_layout_duas_colunas(client):
 
 
 @rsps_lib.activate
-def test_imprimir_associativa_ocupa_largura_total(client):
+def test_imprimir_associativa_ocupa_coluna_unica(client):
     _sessao_professor(client)
     rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
     _mock_questoes_mistas()
     resp = client.get("/professor/provas/prova01/imprimir")
     html = resp.data.decode()
     assert "questao-associativa" in html
-    assert "column-span: all" in html
+    assert "column-span: none" in html
     assert "COLUNA A" in html and "COLUNA B" in html
 
 
