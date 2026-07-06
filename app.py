@@ -2847,7 +2847,8 @@ def create_app(config: dict | None = None) -> Flask:
         if not ativ:
             return render_template("publica/limite.html", nao_encontrada=True), 404
         if request.method == "GET":
-            return render_template("publica/identificar.html", atividade=ativ, turma=turma)
+            return render_template("publica/identificar.html", atividade=ativ, turma=turma,
+                                   dados={"turma": turma.get("nome", "")})
 
         nome = request.form.get("nome", "").strip()
         email = request.form.get("email", "").strip().lower().replace('"', "")
