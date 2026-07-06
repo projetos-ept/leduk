@@ -200,7 +200,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 305 testes, todos passando.
+**Resultado esperado:** 308 testes, todos passando.
 
 ---
 
@@ -359,10 +359,17 @@ questões via HTMX só aparece depois de existir um `prova_id` para anexar. Cada
 
 **Impressão (`imprimir.html`):** página HTML autocontida (sem geração de PDF no servidor —
 mesma decisão do modo público, ver acima). Questões em grade CSS de 2 colunas
-(`columns: 2`), questão associativa ocupando a largura total (`column-span: all`), gabarito
-numa página separada (`page-break-before: always`) com grade compacta mostrando a letra
-correta circulada (mc4/mc5), V/F por afirmação (vf), ou apenas `Assoc.`/`Aberta` para os
-tipos que exigem correção manual do professor.
+(`columns: 2`); mc4/mc5 e vf usam um bloco inicial (`questao-bloco-inicial`, enunciado +
+2 primeiros itens, `break-inside: avoid`) seguido dos itens restantes soltos
+(`.alternativa`/`.vf-item`, cada um com `break-inside: avoid` individual) — assim a questão
+"antecipa" na coluna atual em vez de saltar inteira para a próxima quando é longa. Marcação
+de resposta é sempre parênteses em branco (`(      )`) para o estudante preencher à mão —
+nunca a bolinha/checkbox usada na tela (exceto V/F, que já usa `( V ) ( F )`). Questão
+associativa ocupa uma única coluna (`column-span: none`), com coluna A e B empilhadas.
+Após a última questão, uma linha "Sucesso!" em itálico alinhado à direita. Gabarito numa
+página separada (`page-break-before: always`) com grade compacta mostrando só a letra
+correta (mc4/mc5), V/F por afirmação (vf), ou apenas `Assoc.`/`Aberta` para os tipos que
+exigem correção manual do professor.
 
 **Embaralhamento:** a flag `embaralhar` da prova sorteia a ORDEM das questões na página,
 com seed determinístico pelo `id` da prova — reimprimir a mesma prova sempre gera a mesma
