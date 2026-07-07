@@ -51,6 +51,9 @@
             <a class="btn-ghost btn-sm" href="/professor/provas/{{ p.id }}/preview" target="_blank">Preview</a>
             <a class="btn-ghost btn-sm" href="/professor/provas/{{ p.id }}/imprimir" target="_blank">Imprimir</a>
             <a class="btn-ghost btn-sm" href="/professor/provas/{{ p.id }}/editar">Editar</a>
+            <form method="post" action="/professor/provas/{{ p.id }}/clonar" style="display:contents;">
+              <button type="submit" class="btn-ghost btn-sm">Clonar</button>
+            </form>
             <button type="button" class="btn-danger btn-sm"
                     onclick="abrirExcluir('{{ p.id }}', '{{ p.titulo | replace("'", "\\'") }}')">Excluir</button>
           </div>

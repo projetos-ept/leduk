@@ -1824,6 +1824,15 @@ def create_app(config: dict | None = None) -> Flask:
                                disciplinas=disciplinas, instrucoes_padrao=_INSTRUCOES_PADRAO,
                                aluno_nome=session.get("aluno_nome", ""))
 
+    @app.route("/professor/provas/<prova_id>/clonar", methods=["POST"])
+    @requer_professor
+    def professor_clonar_prova(prova_id: str):
+        prova = get_pb().buscar_prova(prova_id)
+        data = {k: v for k, v in prova.items() if k not in _CAMPOS_PB}
+        data["titulo"] = f"{prova['titulo']} (cópia)"
+        get_pb().criar_prova(data)
+        return redirect(url_for("professor_provas"))
+
     @app.route("/professor/provas/<prova_id>/excluir", methods=["POST"])
     @requer_professor
     def professor_prova_excluir(prova_id: str):
@@ -2894,15 +2903,16 @@ def create_app(config: dict | None = None) -> Flask:
         score_max = sum(r.get("score_max", 0) for r in respostas)
         pct = round(score_raw / score_max * 100) if score_max > 0 else 0
         nota_final = None
+        detalhamento: list = []
         if not ativ.get("modo_prova"):
             try:
-                nota_final, _ = _build_detalhamento(respostas, ativ)
+                nota_final, detalhamento = _build_detalhamento(respostas, ativ)
             except Exception:
                 nota_final = None
         return render_template("publica/resultado.html", atividade=ativ,
                                nome=session.get("pub_nome", ""),
                                score_raw=score_raw, score_max=score_max, pct=pct,
-                               nota_final=nota_final,
+                               nota_final=nota_final, detalhamento=detalhamento,
                                nota_automatica=bool(ativ.get("nota_automatica")),
                                modo_prova=bool(ativ.get("modo_prova")))
 

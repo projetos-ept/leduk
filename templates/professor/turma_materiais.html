@@ -54,7 +54,8 @@
           </div>
           <div class="qb-card-acoes">
             {% if m %}<a class="btn-ghost btn-sm" href="/professor/material/{{ m.id }}/editar">Editar</a>{% endif %}
-            <form method="post" action="/professor/turma/{{ turma.id }}/materiais/remover/{{ v.id }}" style="display:contents;">
+            <form method="post" action="/professor/turma/{{ turma.id }}/materiais/remover/{{ v.id }}" style="display:contents;"
+                  onsubmit="return confirm('Remover este material da turma?');">
               <button type="submit" class="btn-danger btn-sm">Remover</button>
             </form>
           </div>

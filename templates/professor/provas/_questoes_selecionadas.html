@@ -23,6 +23,7 @@
                     {% if loop.last %}disabled{% endif %}>↓</button>
             <button type="button" class="btn-icone btn-icone-danger" title="Remover"
                     hx-post="/htmx/provas/{{ prova.id }}/remover-questao/{{ q.id }}"
+                    hx-confirm="Remover esta questão da prova?"
                     hx-target="#questoes-na-prova" hx-swap="outerHTML">✕</button>
           </span>
         </li>

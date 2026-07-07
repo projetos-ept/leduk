@@ -565,3 +565,47 @@ def test_responder_publico_fallback_sem_campos_publicos(client):
     assert len(captured) == 2
     assert "aluno_email" not in captured[1]
     assert captured[1]["aluno_nome"] == "Visitante Silva"  # identidade preservada
+
+
+# ── Resultado público ─────────────────────────────────────────────────────────
+
+@rsps_lib.activate
+def test_resultado_publico_mostra_detalhamento_e_link_de_saida(client):
+    """O detalhamento por questão (já calculado por _build_detalhamento) passa a
+    aparecer na página de resultado pública, junto com um link de volta pra
+    atividade — antes a página só mostrava a nota e não tinha saída nenhuma."""
+    with client.session_transaction() as sess:
+        sess["pub_modo"] = True
+        sess["pub_nome"] = "Visitante Silva"
+        sess["pub_ativ_id"] = "ativ01"
+        sess["respostas"] = [
+            {"_num": 1, "_peso": 1, "score_raw": 1, "score_max": 1, "correta": True},
+            {"_num": 2, "_peso": 1, "score_raw": 0, "score_max": 1, "correta": False},
+        ]
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={**ATIVIDADE, "valor_total": 10})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA_PUBLICA)
+    resp = client.get("/publica/ativ01/resultado")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Detalhamento por questão" in html
+    assert "Q1" in html and "Q2" in html
+    assert "✓ Correta" in html and "✗ Incorreta" in html
+    assert 'href="/publica/ativ01"' in html  # sai de volta pra atividade, não pra "/" (exige login)
+
+
+@rsps_lib.activate
+def test_resultado_publico_modo_prova_nao_mostra_detalhamento(client):
+    """Em modo prova a correção é manual — não faz sentido revelar acertos/erros."""
+    with client.session_transaction() as sess:
+        sess["pub_modo"] = True
+        sess["pub_nome"] = "Visitante Silva"
+        sess["pub_ativ_id"] = "ativ01"
+        sess["respostas"] = []
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/atividades/records/ativ01",
+                 json={**ATIVIDADE, "valor_total": 10, "modo_prova": True, "nota_automatica": False})
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records/turma01", json=TURMA_PUBLICA)
+    resp = client.get("/publica/ativ01/resultado")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert "Detalhamento por questão" not in html

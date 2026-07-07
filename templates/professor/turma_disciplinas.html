@@ -63,7 +63,8 @@
           </div>
           <div class="qb-card-acoes">
             {% if disc %}<a class="btn-ghost btn-sm" href="/professor/disciplina/{{ disc.id }}/banco-questoes">Questões</a>{% endif %}
-            <form method="post" action="/professor/turma/{{ turma.id }}/disciplinas/desvincular/{{ v.id }}" style="display:contents;">
+            <form method="post" action="/professor/turma/{{ turma.id }}/disciplinas/desvincular/{{ v.id }}" style="display:contents;"
+                  onsubmit="return confirm('Desvincular esta disciplina da turma?');">
               <button type="submit" class="btn-danger btn-sm">Desvincular</button>
             </form>
           </div>

@@ -167,6 +167,27 @@ def test_excluir_prova(client):
     assert deletada
 
 
+@rsps_lib.activate
+def test_clonar_prova_cria_copia_com_mesmas_questoes(client):
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/provas/records/prova01", json=PROVA)
+    captured = []
+
+    def cb(request):
+        body = json.loads(request.body)
+        captured.append(body)
+        return (200, {}, json.dumps({"id": "prova-clone", **body}))
+
+    rsps_lib.add_callback(rsps_lib.POST, f"{PB}/api/collections/provas/records",
+                          callback=cb, content_type="application/json")
+    resp = client.post("/professor/provas/prova01/clonar")
+    assert resp.status_code == 302
+    assert "/professor/provas" in resp.headers["Location"]
+    assert captured[0]["titulo"] == "Prova de LIS (cópia)"
+    assert captured[0]["questoes"] == PROVA["questoes"]
+    assert "id" not in captured[0]  # campos internos do PocketBase não vão na cópia
+
+
 # ── HTMX: seletor e montagem da prova ──────────────────────────────────────
 
 @rsps_lib.activate
