@@ -200,7 +200,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 312 testes, todos passando.
+**Resultado esperado:** 315 testes, todos passando.
 
 ---
 
@@ -304,12 +304,17 @@ Rotas públicas, sem login — qualquer pessoa acessa via link direto:
 |---|---|---|
 | GET | `/publica/<ativ_id>` | Página da atividade (materiais + botão "Responder"); 404 se a turma não for pública |
 | GET/POST | `/publica/<ativ_id>/identificar` | Nome/email/turma; confirma re-tentativa se o email já respondeu; bloqueia no limite de `max_tentativas` |
-| GET | `/publica/<ativ_id>/resultado` | Placar do respondente público |
+| GET | `/publica/<ativ_id>/resultado` | Placar do respondente público, com detalhamento por questão |
 
 No GET de `/identificar`, o campo turma já vem preenchido com o nome da turma da própria
 atividade (`turma.nome`, a mesma turma resolvida por `_buscar_atividade_publica` — vale para
 qualquer turma pública, não é hardcoded). O campo continua opcional (sem `required`, sem
 validação no backend) — só não exibe mais o rótulo "(opcional)" ao lado do label.
+
+O `/resultado` mostra a tabela "Detalhamento por questão" (mesmas classes CSS do placar do
+aluno logado, `.detalhamento`/`.det-row`/etc.) sempre que a atividade não é `modo_prova` —
+esse dado já era calculado por `_build_detalhamento` e antes era descartado. Também tem um
+link "Voltar à atividade" (`/publica/<ativ_id>`, não `/`, já que `/` exige login).
 
 O fluxo de questões (`/atividade/<id>`, `/htmx/questao`, `/htmx/responder`, `/htmx/proxima`) é o
 mesmo do aluno logado — o decorator `requer_login_ou_publico` aceita sessão autenticada **ou**
@@ -350,6 +355,7 @@ automaticamente.
 | GET/POST | `/professor/provas/nova` | Formulário / criação — título, cabeçalho, instruções (pré-preenchidas) |
 | GET/POST | `/professor/provas/<id>/editar` | Editar dados básicos da prova |
 | POST | `/professor/provas/<id>/excluir` | Excluir prova |
+| POST | `/professor/provas/<id>/clonar` | Clonar prova (cópia rasa — mesmo padrão de `clonar_atividade`) |
 | GET | `/professor/provas/<id>/preview` · `/imprimir` | Página HTML pronta para impressão — botão "Imprimir / Salvar PDF" via `window.print()` |
 | GET | `/professor/provas/templates` | Lista + formulário de templates de cabeçalho reutilizáveis |
 | POST | `/professor/provas/templates/novo` · `/<id>/editar` · `/<id>/excluir` | CRUD de templates |
