@@ -1824,6 +1824,15 @@ def create_app(config: dict | None = None) -> Flask:
                                disciplinas=disciplinas, instrucoes_padrao=_INSTRUCOES_PADRAO,
                                aluno_nome=session.get("aluno_nome", ""))
 
+    @app.route("/professor/provas/<prova_id>/clonar", methods=["POST"])
+    @requer_professor
+    def professor_clonar_prova(prova_id: str):
+        prova = get_pb().buscar_prova(prova_id)
+        data = {k: v for k, v in prova.items() if k not in _CAMPOS_PB}
+        data["titulo"] = f"{prova['titulo']} (cópia)"
+        get_pb().criar_prova(data)
+        return redirect(url_for("professor_provas"))
+
     @app.route("/professor/provas/<prova_id>/excluir", methods=["POST"])
     @requer_professor
     def professor_prova_excluir(prova_id: str):
