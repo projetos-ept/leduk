@@ -36,8 +36,29 @@
           </span>
         </p>
       {% endif %}
+
+      {% if detalhamento %}
+        <div class="detalhamento" style="text-align:left;">
+          <p class="detalhamento-titulo">Detalhamento por questão</p>
+          <table class="detalhamento-tabela">
+            {% for d in detalhamento %}
+              {% set p = d.peso %}
+              <tr class="det-row{% if d.correta %} det-correta{% else %} det-errada{% endif %}">
+                <td class="det-num">Q{{ d.num }}</td>
+                <td class="det-peso">peso {% if p == p | int %}{{ p | int }}{% else %}{{ p }}{% endif %}</td>
+                <td class="det-status">{% if d.correta %}✓ Correta{% else %}✗ Incorreta{% endif %}</td>
+                <td class="det-pts">{{ (d.pontos | round(2)) | string | replace(".", ",") }} pts</td>
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      {% endif %}
     {% endif %}
   </div>
+
+  <p style="text-align:center;margin-top:16px;">
+    <a class="btn-home" href="/publica/{{ atividade.id }}">Voltar à atividade</a>
+  </p>
 </div>
 </body>
 </html>

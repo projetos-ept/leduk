@@ -2903,15 +2903,16 @@ def create_app(config: dict | None = None) -> Flask:
         score_max = sum(r.get("score_max", 0) for r in respostas)
         pct = round(score_raw / score_max * 100) if score_max > 0 else 0
         nota_final = None
+        detalhamento: list = []
         if not ativ.get("modo_prova"):
             try:
-                nota_final, _ = _build_detalhamento(respostas, ativ)
+                nota_final, detalhamento = _build_detalhamento(respostas, ativ)
             except Exception:
                 nota_final = None
         return render_template("publica/resultado.html", atividade=ativ,
                                nome=session.get("pub_nome", ""),
                                score_raw=score_raw, score_max=score_max, pct=pct,
-                               nota_final=nota_final,
+                               nota_final=nota_final, detalhamento=detalhamento,
                                nota_automatica=bool(ativ.get("nota_automatica")),
                                modo_prova=bool(ativ.get("modo_prova")))
 
