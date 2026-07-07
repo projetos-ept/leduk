@@ -38,7 +38,7 @@
   {% else %}
     <div class="qb-list">
       {% for p in provas %}
-        <div class="qb-card">
+        <div class="qb-card prova-card">
           <div class="qb-card-num">📄</div>
           <div class="qb-card-body">
             <div class="qb-card-meta">
@@ -47,7 +47,7 @@
             </div>
             <p class="qb-card-enunciado">{{ p.titulo }}</p>
           </div>
-          <div class="qb-card-acoes">
+          <div class="qb-card-acoes prova-card-acoes">
             <a class="btn-ghost btn-sm" href="/professor/provas/{{ p.id }}/preview" target="_blank">Preview</a>
             <a class="btn-ghost btn-sm" href="/professor/provas/{{ p.id }}/imprimir" target="_blank">Imprimir</a>
             <a class="btn-ghost btn-sm" href="/professor/provas/{{ p.id }}/editar">Editar</a>
