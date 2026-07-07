@@ -1883,6 +1883,21 @@ a.material-header:hover {
   flex-shrink: 0; align-items: stretch; min-width: 90px;
 }
 
+/* Provas: ações na parte inferior do card, alinhadas na horizontal
+   (em vez da coluna vertical à direita usada no restante do sistema) */
+.prova-card { flex-wrap: wrap; }
+.prova-card-acoes {
+  flex-direction: row; flex-wrap: wrap;
+  width: 100%; min-width: unset;
+  margin-top: 4px; padding-top: 12px;
+  border-top: 1px solid var(--borda);
+}
+.prova-card-acoes > a,
+.prova-card-acoes > button,
+.prova-card-acoes > form > button { flex: 1; min-width: 100px; }
+.prova-card-acoes .btn-ghost,
+.prova-card-acoes .btn-danger { justify-content: center; }
+
 .badge-adicionada {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   padding: 7px 12px; border-radius: 8px;
