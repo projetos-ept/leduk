@@ -37,8 +37,12 @@
         </div>
         <div>
           <label class="campo-label">Modalidade</label>
-          <input type="text" name="modalidade" placeholder="Aberta"
-                 style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+          <select name="modalidade"
+                  style="width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:8px;font-size:.9rem;">
+            {% for m in ['Aberta', 'EMI', 'PROEJA', 'FIC', 'EJA'] %}
+              <option value="{{ m }}">{{ m }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
           <label class="campo-label">Ano</label>

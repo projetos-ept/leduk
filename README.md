@@ -29,7 +29,8 @@ leduk/
 │   ├── migrate_turmas_publicas.py         ← cria campos publica/descricao (turmas) + aluno_email/aluno_turma (tentativas) — modo público
 │   ├── migrate_tentativas_questao_optional.py ← torna questao e aluno_id opcionais em tentativas (histórico + modo público)
 │   ├── verificar_modo_publico.py          ← diagnóstico + correção (--fix) do modo público: campos, regras e teste real de POST anônimo
-│   └── migrate_provas.py                  ← cria collections templates_prova e provas (gerador de provas impressas)
+│   ├── migrate_provas.py                  ← cria collections templates_prova e provas (gerador de provas impressas)
+│   └── migrate_turma_modalidade_aberta.py ← adiciona "Aberta" às opções do select turmas.modalidade
 │
 │   (scripts de correção pontual já aplicados em produção foram removidos do
 │   repositório — ver "Migrações históricas" na seção Collections PocketBase)
@@ -200,7 +201,7 @@ tests/unit/        → lógica pura (sem rede, sem Flask)
 tests/integration/ → rotas Flask com PocketBase mockado
 ```
 
-**Resultado esperado:** 315 testes, todos passando.
+**Resultado esperado:** 316 testes, todos passando.
 
 ---
 
@@ -967,6 +968,8 @@ URL de teste direto: `https://leduk.repoept.duckdns.org/atividade/h4if2m9rcywllu
 - [ ] `users`: `viewRule` aberta a autenticados (`@request.auth.id != ""`) para o `expand=aluno`
       em `matriculas` mostrar nome/email em vez do ID bruto
 - [ ] Collections `templates_prova` e `provas` criadas (`scripts/migrate_provas.py`) — gerador de provas impressas
+- [ ] `"Aberta"` nas opções do select `turmas.modalidade` (`scripts/migrate_turma_modalidade_aberta.py`) —
+      sem isso, criar turma pública com modalidade "Aberta" retorna 400 do PocketBase
 - [ ] `RESEND_API_KEY` definido no service (`/etc/systemd/system/leduk.service`) para envio de email
 - [ ] `PB_PUBLIC_URL` definido no service (ex: `https://pb.repoept.duckdns.org`) para URLs públicas de arquivos de materiais
 - [ ] `materiais`: `createRule`/`updateRule` = `@request.auth.id != ""` (necessário para upload multipart)

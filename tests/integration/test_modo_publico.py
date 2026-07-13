@@ -281,6 +281,23 @@ def test_professor_publico_lista_turmas_publicas(client):
 
 
 @rsps_lib.activate
+def test_professor_publico_modalidade_e_select_nao_texto_livre(client):
+    """O campo modalidade é um <select> com valores fixos (mesma restrição do
+    select da turmas.modalidade no PocketBase) — não um <input> de texto
+    livre, que permitia digitar valores fora da lista e gerar 400 do PB."""
+    _sessao_professor(client)
+    rsps_lib.add(rsps_lib.GET, f"{PB}/api/collections/turmas/records",
+                 json={"items": []})
+    resp = client.get("/professor/publico")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    assert '<select name="modalidade"' in html
+    assert 'input type="text" name="modalidade"' not in html
+    for valor in ("Aberta", "EMI", "PROEJA", "FIC", "EJA"):
+        assert f'<option value="{valor}">{valor}</option>' in html
+
+
+@rsps_lib.activate
 def test_professor_publico_turma_nova_cria_publica(client):
     _sessao_professor(client)
     captured = []
